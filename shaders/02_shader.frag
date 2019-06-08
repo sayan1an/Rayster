@@ -8,7 +8,7 @@ layout (location = 0) out vec4 outColor;
 void main() 
 {
 	// Apply brightness and contrast filer to color input
-	if (true) {
+	if (false) {
 		// Read color from previous color input attachment
 		outColor.rgb = subpassLoad(inputColor).rgb;
 	}

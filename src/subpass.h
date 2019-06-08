@@ -7,15 +7,16 @@
 
 class DescriptorSet {
 public:
-	std::vector<VkDescriptorSet> descriptorSets;
-	VkDescriptorSetLayout descriptorSetLayout;
+	VkDescriptorSetLayout descriptorSetLayout; // create first
+	VkDescriptorPool descriptorPool; // create fifth
+	std::vector<VkDescriptorSet> descriptorSets; // create sixth
 };
 
 class Pipeline : public DescriptorSet {
 public:
-	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
-	
+	VkPipelineLayout pipelineLayout; // create second
+	VkPipeline pipeline; // create third
+		
 	void createShaderStageInfo(const std::string &filename, const VkDevice &device, VkShaderStageFlagBits stage) {
 		auto shaderCode = readFile(filename);
 		VkShaderModule shaderModule = createShaderModule(shaderCode, device);
@@ -196,5 +197,5 @@ private:
 
 class Subpass : public Pipeline {
 public:
-	VkSubpassDescription subpass;
+	VkSubpassDescription subpass; // create fourth
 };
