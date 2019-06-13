@@ -27,7 +27,7 @@
 #include "helper.h"
 #include "subpass.hpp"
 
-#define ROOT std::string("D:/projects/vulkanexperiments")
+#define ROOT std::string("D:/projects/VkExperiment")
 
 static const int WIDTH = 800;
 static const int HEIGHT = 600;
@@ -137,30 +137,30 @@ struct UniformBufferObject {
 	alignas(16) glm::mat4 proj;
 };
 
-class SubPass1 : public Subpass {
-
-	void createSubPassDescription() {
+class Subpass1 : public Subpass {
+public:
+	void createSubpassDescription() {
 		// ref to multi-sample color buffer
-		VkAttachmentReference colorAttachmentRef = {};
-		colorAttachmentRef.attachment = 0;
-		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		colorAttachmentRef = std::make_shared<VkAttachmentReference>();
+		colorAttachmentRef->attachment = 0;
+		colorAttachmentRef->layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 		// ref to multi-sample depth buffer
-		VkAttachmentReference depthAttachmentRef = {};
-		depthAttachmentRef.attachment = 1;
-		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		depthAttachmentRef = std::make_shared<VkAttachmentReference>();
+		depthAttachmentRef->attachment = 1;
+		depthAttachmentRef->layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 		// ref to color resolve image buffer
-		VkAttachmentReference colorAttachmentResolveRef = {};
-		colorAttachmentResolveRef.attachment = 3;
-		colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		colorAttachmentResolveRef = std::make_shared<VkAttachmentReference>();
+		colorAttachmentResolveRef->attachment = 3;
+		colorAttachmentResolveRef->layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpassDescription.colorAttachmentCount = 1;
-		subpassDescription.pColorAttachments = &colorAttachmentRef; // changed
-		subpassDescription.pDepthStencilAttachment = &depthAttachmentRef;
-		subpassDescription.pResolveAttachments = &colorAttachmentResolveRef; //changed
+		subpassDescription.pColorAttachments = colorAttachmentRef.get();
+		subpassDescription.pDepthStencilAttachment = depthAttachmentRef.get();
+		subpassDescription.pResolveAttachments = colorAttachmentResolveRef.get();
 	}
 	
 	void createSubpass(const VkDevice &device, const VkExtent2D &swapChainExtent, const VkSampleCountFlagBits &msaaSamples, const VkRenderPass &renderPass, const uint32_t descriptorSetCount,
@@ -184,6 +184,9 @@ class SubPass1 : public Subpass {
 		}
 
 		cleanPipelineInternalState(device);
+		colorAttachmentRef.reset();
+		depthAttachmentRef.reset();
+		colorAttachmentResolveRef.reset();
 
 		allocateDescriptorSets(device, descriptorSetCount);
 
@@ -194,7 +197,81 @@ class SubPass1 : public Subpass {
 			updateDescriptorSet(device, i, bufferInfo, imageInfo);
 		}
 	}
+private:
+	std::shared_ptr<VkAttachmentReference> colorAttachmentRef;
+	std::shared_ptr<VkAttachmentReference> depthAttachmentRef;
+	std::shared_ptr<VkAttachmentReference> colorAttachmentResolveRef;
+};
 
+class Subpass2 : public Subpass {
+public:
+	void createSubpassDescription() {
+		colorAttachmentRef = std::make_shared<VkAttachmentReference>();
+		colorAttachmentRef->attachment = 2;
+		colorAttachmentRef->layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		inputAttachmentRefs.push_back({3, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		inputAttachmentRefs.push_back({3, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+				
+		subpassDescription = {};
+		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpassDescription.colorAttachmentCount = 1;
+		subpassDescription.pColorAttachments = colorAttachmentRef.get();
+		subpassDescription.inputAttachmentCount = 2;
+		subpassDescription.pInputAttachments = inputAttachmentRefs.data();
+	}
+
+	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const uint32_t descriptorSetCount,
+		const VkImageView& colorResolveImageView) {
+
+		std::vector<VkDescriptorSetLayoutBinding> bindings = { { 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT },
+			{ 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT } };
+		createDescriptorSetLayout(device, bindings);
+
+		auto bindingDescription = Vertex::getBindingDescription();
+		auto attributeDescription = Vertex::getAttributeDescriptions();
+
+		VkGraphicsPipelineCreateInfo pipelineInfo = {};
+		createDefaultGraphicsPipelineInfo(device, ROOT + "/shaders/02_vert.spv", ROOT + "/shaders/02_frag.spv",
+			bindingDescription, attributeDescription, swapChainExtent, VK_SAMPLE_COUNT_1_BIT, pipelineInfo);
+
+		VkPipelineVertexInputStateCreateInfo emptyInputState = {};
+		emptyInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+		VkPipelineRasterizationStateCreateInfo rasterizer = {};
+		createRasterizationStateInfo(rasterizer);
+		rasterizer.cullMode = VK_CULL_MODE_NONE;
+
+		VkPipelineDepthStencilStateCreateInfo depthStencil = {};
+		createDepthStencilStateInfo(depthStencil);
+		depthStencil.depthWriteEnable = VK_FALSE;
+
+		pipelineInfo.pVertexInputState = &emptyInputState;
+		pipelineInfo.pRasterizationState = &rasterizer;
+		pipelineInfo.pDepthStencilState = &depthStencil;
+		pipelineInfo.renderPass = renderPass;
+		pipelineInfo.subpass = 1;
+
+		if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create graphics pipeline!");
+		}
+
+		cleanPipelineInternalState(device);
+		colorAttachmentRef.reset();
+		inputAttachmentRefs.clear();
+
+		allocateDescriptorSets(device, descriptorSetCount);
+
+		for (uint32_t i = 0; i < descriptorSetCount; i++) {
+			std::vector<VkDescriptorImageInfo> imageInfos = { {VK_NULL_HANDLE , colorResolveImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+					{ VK_NULL_HANDLE , colorResolveImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
+			std::vector<VkDescriptorBufferInfo> bufferInfo;
+			updateDescriptorSet(device, static_cast<uint32_t>(i), bufferInfo, imageInfos);
+		}
+	}
+private:
+	std::shared_ptr<VkAttachmentReference> colorAttachmentRef;
+	std::vector<VkAttachmentReference> inputAttachmentRefs;
 };
 
 class MultiSamplingApplication {
@@ -229,8 +306,8 @@ private:
 
 	VkRenderPass renderPass;
 
-	Subpass subpass;
-	Subpass subpass2;
+	Subpass1 subpass1;
+	Subpass2 subpass2;
 
 	VkCommandPool commandPool;
 
@@ -299,13 +376,15 @@ private:
 		vmaInit();
 		createSwapChain();
 		createImageViews();
+		subpass1.createSubpassDescription();
+		subpass2.createSubpassDescription();
 		// here is some deviation from regualr setup.
 		// Before this, we have always used swap chain image views as color attachment directly but here on
 		// we first write to a msaa color buffer attachment and then transfer the buffer to swap chain image view.
 		// We need to this because Vulkan specs says so.
 		createRenderPass();
-		createDescriptorSetLayout();
-		createGraphicsPipeline();
+		//createDescriptorSetLayout();
+		//createGraphicsPipeline();
 		createCommandPool();
 		// create multi sample color buffer
 		createColorResources();
@@ -320,8 +399,10 @@ private:
 		createVertexBuffer();
 		createIndexBuffer();
 		createUniformBuffers();
-		createDescriptorPool();
-		createDescriptorSets();
+		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, swapChainImages.size(), uniformBuffers, textureImageView, textureSampler);
+		subpass2.createSubpass(device, swapChainExtent, renderPass, swapChainImages.size(), colorResolveImageView);
+		//createDescriptorPool();
+		//createDescriptorSets();
 		createCommandBuffers();
 		createSyncObjects();
 	}
@@ -359,8 +440,8 @@ private:
 
 		vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
-		vkDestroyPipeline(device, subpass.pipeline , nullptr);
-		vkDestroyPipelineLayout(device, subpass.pipelineLayout, nullptr);
+		vkDestroyPipeline(device, subpass1.pipeline , nullptr);
+		vkDestroyPipelineLayout(device, subpass1.pipelineLayout, nullptr);
 
 		vkDestroyPipeline(device, subpass2.pipeline, nullptr);
 		vkDestroyPipelineLayout(device, subpass2.pipelineLayout, nullptr);
@@ -375,7 +456,7 @@ private:
 		for (size_t i = 0; i < swapChainImages.size(); i++)
 			vmaDestroyBuffer(allocator, uniformBuffers[i], uniformBuffersAllocation[i]);
 		
-		vkDestroyDescriptorPool(device, subpass.descriptorPool, nullptr);
+		vkDestroyDescriptorPool(device, subpass1.descriptorPool, nullptr);
 		vkDestroyDescriptorPool(device, subpass2.descriptorPool, nullptr);
 	}
 
@@ -387,7 +468,7 @@ private:
 
 		vmaDestroyImage(allocator, textureImage, textureImageAllocation);
 
-		vkDestroyDescriptorSetLayout(device, subpass.descriptorSetLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device, subpass1.descriptorSetLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, subpass2.descriptorSetLayout, nullptr);
 
 		vmaDestroyBuffer(allocator, indexBuffer, indexBufferAllocation);
@@ -683,46 +764,9 @@ private:
 		colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		// ref to multi-sample color buffer
-		VkAttachmentReference colorAttachmentRef = {};
-		colorAttachmentRef.attachment = 0;
-		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		// ref to multi-sample depth buffer
-		VkAttachmentReference depthAttachmentRef = {};
-		depthAttachmentRef.attachment = 1;
-		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-		// ref to color resolve image buffer
-		VkAttachmentReference colorAttachmentResolveRef = {};
-		colorAttachmentResolveRef.attachment = 3;
-		colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		std::array<VkSubpassDescription, 2> subpass = {};
-		subpass[0].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpass[0].colorAttachmentCount = 1;
-		subpass[0].pColorAttachments = &colorAttachmentRef; // changed
-		subpass[0].pDepthStencilAttachment = &depthAttachmentRef;
-		subpass[0].pResolveAttachments = &colorAttachmentResolveRef; //changed
 		
-		VkAttachmentReference colorAttachmentRef2 = {};
-		colorAttachmentRef2.attachment = 2;
-		colorAttachmentRef2.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		
-		VkAttachmentReference inputReferences[2] = {};
-		inputReferences[0].attachment = 3;
-		inputReferences[0].layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		inputReferences[1].attachment = 3;
-		inputReferences[1].layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		subpass[1].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpass[1].colorAttachmentCount = 1;
-		subpass[1].pColorAttachments = &colorAttachmentRef2;
-		subpass[1].inputAttachmentCount = 2;
-		subpass[1].pInputAttachments = inputReferences;
-		
+		std::array<VkSubpassDescription, 2> subpassDesc = { subpass1.subpassDescription, subpass2.subpassDescription };
+				
 		/*
 		VkSubpassDependency dependency = {};
 		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -765,7 +809,7 @@ private:
 		renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
 		renderPassInfo.pAttachments = attachments.data();
 		renderPassInfo.subpassCount = 2;
-		renderPassInfo.pSubpasses = subpass.data();
+		renderPassInfo.pSubpasses = subpassDesc.data();
 		renderPassInfo.dependencyCount = 3;
 		renderPassInfo.pDependencies = dependencies.data();
 
@@ -776,40 +820,40 @@ private:
 
 	void createDescriptorSetLayout() {
 		// subpass 1
-		{
+		/*{
 			std::vector<VkDescriptorSetLayoutBinding> bindings = { {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT}, 
 				{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT} };
-			subpass.createDescriptorSetLayout(device, bindings);
-		}
+			subpass1.createDescriptorSetLayout(device, bindings);
+		}*/
 
 		// subpass 2
-		{
+		/*{
 			std::vector<VkDescriptorSetLayoutBinding> bindings = { { 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT },
 				{ 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT } };
 			subpass2.createDescriptorSetLayout(device, bindings);
-		}
+		}*/
 	}
 
 	void createGraphicsPipeline() {
 		// subpass 1
-		{
+		/*{
 			auto bindingDescription = Vertex::getBindingDescription();
 			auto attributeDescription = Vertex::getAttributeDescriptions();
 
 			VkGraphicsPipelineCreateInfo pipelineInfo = {};
-			subpass.createDefaultGraphicsPipelineInfo(device, ROOT + "/shaders/01_vert.spv", ROOT + "/shaders/01_frag.spv",
+			subpass1.createDefaultGraphicsPipelineInfo(device, ROOT + "/shaders/01_vert.spv", ROOT + "/shaders/01_frag.spv",
 				bindingDescription, attributeDescription, swapChainExtent, msaaSamples, pipelineInfo);
 			pipelineInfo.renderPass = renderPass;
 			pipelineInfo.subpass = 0;
 
-			if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &subpass.pipeline) != VK_SUCCESS) {
+			if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &subpass1.pipeline) != VK_SUCCESS) {
 				throw std::runtime_error("failed to create graphics pipeline!");
 			}
 
-			subpass.cleanPipelineInternalState(device);
-		}
+			subpass1.cleanPipelineInternalState(device);
+		}*/
 
-		{
+		/*{
 			auto bindingDescription = Vertex::getBindingDescription();
 			auto attributeDescription = Vertex::getAttributeDescriptions();
 
@@ -839,7 +883,7 @@ private:
 			}
 
 			subpass2.cleanPipelineInternalState(device);
-		}
+		}*/
 	}
 
 	void createFramebuffers() {
@@ -1440,48 +1484,24 @@ private:
 	}
 
 	void createDescriptorPool() {
+		/*{
+			subpass1.allocateDescriptorSets(device, static_cast<uint32_t>(swapChainImages.size()));
+		}*/
 		{
-			subpass.allocateDescriptorSets(device, static_cast<uint32_t>(swapChainImages.size()));
-		}
-		{
-			subpass2.allocateDescriptorSets(device, static_cast<uint32_t>(swapChainImages.size()));
+			//subpass2.allocateDescriptorSets(device, static_cast<uint32_t>(swapChainImages.size()));
 		}
 	}
 
 	void createDescriptorSets() {
-		{
+		/*{
 			for (size_t i = 0; i < swapChainImages.size(); i++) {
 				std::vector<VkDescriptorBufferInfo> bufferInfo = { {uniformBuffers[i], 0, sizeof(UniformBufferObject)} };
 
 				std::vector<VkDescriptorImageInfo> imageInfo = { {textureSampler,  textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
-				/*imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				imageInfo.imageView = textureImageView;
-				imageInfo.sampler = ;
-
 				
-				std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
-
-				descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				descriptorWrites[0].dstSet = subpass.descriptorSets[i];
-				descriptorWrites[0].dstBinding = 0;
-				descriptorWrites[0].dstArrayElement = 0;
-				descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				descriptorWrites[0].descriptorCount = 1;
-				descriptorWrites[0].pBufferInfo = &bufferInfo;
-
-				descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				descriptorWrites[1].dstSet = subpass.descriptorSets[i];
-				descriptorWrites[1].dstBinding = 1;
-				descriptorWrites[1].dstArrayElement = 0;
-				descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-				descriptorWrites[1].descriptorCount = 1;
-				descriptorWrites[1].pImageInfo = &imageInfo;
-
-				vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);*/
-
-				subpass.updateDescriptorSet(device, static_cast<uint32_t>(i), bufferInfo, imageInfo);
+				subpass1.updateDescriptorSet(device, static_cast<uint32_t>(i), bufferInfo, imageInfo);
 			}
-		}
+		}*/
 
 		{
 			for (size_t i = 0; i < swapChainImages.size(); i++) {
@@ -1574,7 +1594,7 @@ private:
 
 			vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass.pipeline);
+			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipeline);
 
 			VkBuffer vertexBuffers[] = { vertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
@@ -1582,7 +1602,7 @@ private:
 
 			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass.pipelineLayout, 0, 1, &subpass.descriptorSets[i], 0, nullptr);
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipelineLayout, 0, 1, &subpass1.descriptorSets[i], 0, nullptr);
 
 			vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
