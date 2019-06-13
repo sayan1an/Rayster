@@ -7,15 +7,99 @@
 
 class DescriptorSet {
 public:
-	VkDescriptorSetLayout descriptorSetLayout; // create first
+	VkDescriptorSetLayout descriptorSetLayout; // create second
 	VkDescriptorPool descriptorPool; // create fifth
 	std::vector<VkDescriptorSet> descriptorSets; // create sixth
+		
+	void createDescriptorSetLayout(const VkDevice &device, std::vector<VkDescriptorSetLayoutBinding> &_bindings) {
+		bindings.assign(_bindings.begin(), _bindings.end());
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+		layoutInfo.pBindings = bindings.data();
+
+		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to create descriptor set layout!");
+		}
+	}
+
+	void allocateDescriptorSets(const VkDevice &device, uint32_t descriptorSetCount) {
+		std::vector<VkDescriptorPoolSize> poolSizes;
+
+		for (auto &binding : bindings) {
+			VkDescriptorPoolSize poolSize;
+			poolSize.type = binding.descriptorType;
+			poolSize.descriptorCount = descriptorSetCount;
+			poolSizes.push_back(poolSize);
+		}
+
+		VkDescriptorPoolCreateInfo poolInfo = {};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+		poolInfo.pPoolSizes = poolSizes.data();
+		poolInfo.maxSets = descriptorSetCount;
+
+		if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create descriptor pool!");
+		}
+		
+		std::vector<VkDescriptorSetLayout> layouts(descriptorSetCount, descriptorSetLayout);
+		VkDescriptorSetAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = descriptorPool;
+		allocInfo.descriptorSetCount = descriptorSetCount;
+		allocInfo.pSetLayouts = layouts.data();
+
+		descriptorSets.resize(descriptorSetCount);
+		if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate descriptor sets!");
+		}
+	}
+
+	virtual void updateDescriptorSet(const VkDevice &device, const uint32_t index, const std::vector<VkDescriptorBufferInfo> &bufferInfos, const std::vector<VkDescriptorImageInfo> &imageInfos) {
+
+		std::vector<VkWriteDescriptorSet> descriptorWrites;
+		if (bindings.size() != bufferInfos.size() + imageInfos.size())
+			throw std::runtime_error("failed to update descriptor sets!");
+
+		uint32_t counter = 0;
+		for (auto &bufferInfo : bufferInfos) {
+			VkWriteDescriptorSet write = {};
+			write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			write.dstSet = descriptorSets[index];
+			write.dstBinding = bindings[counter].binding;
+			write.dstArrayElement = 0;
+			write.descriptorType = bindings[counter].descriptorType;
+			write.descriptorCount = bindings[counter].descriptorCount;
+			write.pBufferInfo = &bufferInfo;
+			counter++;
+			descriptorWrites.push_back(write);
+		}
+		for (auto &imageInfo : imageInfos) {
+			VkWriteDescriptorSet write = {};
+			write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			write.dstSet = descriptorSets[index];
+			write.dstBinding = bindings[counter].binding;
+			write.dstArrayElement = 0;
+			write.descriptorType = bindings[counter].descriptorType;
+			write.descriptorCount = bindings[counter].descriptorCount;
+			write.pImageInfo = &imageInfo;
+			counter++;
+			descriptorWrites.push_back(write);
+		}
+
+			vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+	}
+private:
+	std::vector<VkDescriptorSetLayoutBinding> bindings;
+
 };
 
 class Pipeline : public DescriptorSet {
 public:
-	VkPipelineLayout pipelineLayout; // create second
-	VkPipeline pipeline; // create third
+	VkPipelineLayout pipelineLayout; // create third
+	VkPipeline pipeline; // create fourth
 		
 	void createShaderStageInfo(const std::string &filename, const VkDevice &device, VkShaderStageFlagBits stage) {
 		auto shaderCode = readFile(filename);
@@ -113,6 +197,18 @@ public:
 
 		shaderModules.clear();
 		shaderStageInfos.clear();
+
+		viewport.reset();
+		scissor.reset();
+		colorBlendAttachment.reset();
+		vertexInputInfo.reset();
+		inputAssembly.reset();
+		viewportState.reset();
+		rasterizer.reset();
+		multisampling.reset();
+		depthStencil.reset();
+		colorBlending.reset();
+		
 	}
 
 	void createDefaultGraphicsPipelineInfo(const VkDevice &device, const std::string &vertShaderFile, const std::string& fragShaderFile,
@@ -147,6 +243,7 @@ public:
 
 		colorBlending = std::make_shared<VkPipelineColorBlendStateCreateInfo>();
 		createColorBlendStateInfo(colorBlending.get()[0]);
+		
 
 		createPipelineLayout(device, descriptorSetLayout);
 
@@ -197,5 +294,7 @@ private:
 
 class Subpass : public Pipeline {
 public:
-	VkSubpassDescription subpass; // create fourth
+	VkSubpassDescription subpassDescription; // create first
+
+	virtual void createSubPassDescription()  {};
 };

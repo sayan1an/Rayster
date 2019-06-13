@@ -25,9 +25,9 @@
 #include "vk_mem_alloc.h"
 
 #include "helper.h"
-#include "subpass.h"
+#include "subpass.hpp"
 
-#define ROOT std::string("D:/projects/VkExperiment")
+#define ROOT std::string("D:/projects/vulkanexperiments")
 
 static const int WIDTH = 800;
 static const int HEIGHT = 600;
@@ -135,6 +135,66 @@ struct UniformBufferObject {
 	alignas(16) glm::mat4 model;
 	alignas(16) glm::mat4 view;
 	alignas(16) glm::mat4 proj;
+};
+
+class SubPass1 : public Subpass {
+
+	void createSubPassDescription() {
+		// ref to multi-sample color buffer
+		VkAttachmentReference colorAttachmentRef = {};
+		colorAttachmentRef.attachment = 0;
+		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		// ref to multi-sample depth buffer
+		VkAttachmentReference depthAttachmentRef = {};
+		depthAttachmentRef.attachment = 1;
+		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		// ref to color resolve image buffer
+		VkAttachmentReference colorAttachmentResolveRef = {};
+		colorAttachmentResolveRef.attachment = 3;
+		colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		subpassDescription = {};
+		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpassDescription.colorAttachmentCount = 1;
+		subpassDescription.pColorAttachments = &colorAttachmentRef; // changed
+		subpassDescription.pDepthStencilAttachment = &depthAttachmentRef;
+		subpassDescription.pResolveAttachments = &colorAttachmentResolveRef; //changed
+	}
+	
+	void createSubpass(const VkDevice &device, const VkExtent2D &swapChainExtent, const VkSampleCountFlagBits &msaaSamples, const VkRenderPass &renderPass, const uint32_t descriptorSetCount,
+		const std::vector<VkBuffer> &uniformBuffers, const VkImageView &textureImageView, const VkSampler &textureSampler) {
+
+		std::vector<VkDescriptorSetLayoutBinding> bindings = { { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT },
+		{ 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT } };
+		createDescriptorSetLayout(device, bindings);
+
+		auto bindingDescription = Vertex::getBindingDescription();
+		auto attributeDescription = Vertex::getAttributeDescriptions();
+
+		VkGraphicsPipelineCreateInfo pipelineInfo = {};
+		createDefaultGraphicsPipelineInfo(device, ROOT + "/shaders/01_vert.spv", ROOT + "/shaders/01_frag.spv",
+			bindingDescription, attributeDescription, swapChainExtent, msaaSamples, pipelineInfo);
+		pipelineInfo.renderPass = renderPass;
+		pipelineInfo.subpass = 0;
+
+		if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create graphics pipeline!");
+		}
+
+		cleanPipelineInternalState(device);
+
+		allocateDescriptorSets(device, descriptorSetCount);
+
+		for (uint32_t i = 0; i < descriptorSetCount; i++) {
+			std::vector<VkDescriptorBufferInfo> bufferInfo = { { uniformBuffers[i], 0, sizeof(UniformBufferObject) } };
+			std::vector<VkDescriptorImageInfo> imageInfo = { { textureSampler,  textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
+			
+			updateDescriptorSet(device, i, bufferInfo, imageInfo);
+		}
+	}
+
 };
 
 class MultiSamplingApplication {
@@ -717,52 +777,16 @@ private:
 	void createDescriptorSetLayout() {
 		// subpass 1
 		{
-			VkDescriptorSetLayoutBinding uboLayoutBinding = {};
-			uboLayoutBinding.binding = 0;
-			uboLayoutBinding.descriptorCount = 1;
-			uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			uboLayoutBinding.pImmutableSamplers = nullptr;
-			uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-			VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
-			samplerLayoutBinding.binding = 1;
-			samplerLayoutBinding.descriptorCount = 1;
-			samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			samplerLayoutBinding.pImmutableSamplers = nullptr;
-			samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-			std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
-			VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-			layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-			layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-			layoutInfo.pBindings = bindings.data();
-
-			if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &subpass.descriptorSetLayout) != VK_SUCCESS) {
-				throw std::runtime_error("failed to create descriptor set layout!");
-			}
+			std::vector<VkDescriptorSetLayoutBinding> bindings = { {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT}, 
+				{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT} };
+			subpass.createDescriptorSetLayout(device, bindings);
 		}
 
 		// subpass 2
 		{
-			std::array<VkDescriptorSetLayoutBinding, 2> layoutBindings = {};
-			layoutBindings[0].binding = 0;
-			layoutBindings[0].descriptorCount = 1;
-			layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-			layoutBindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-			layoutBindings[1].binding = 1;
-			layoutBindings[1].descriptorCount = 1;
-			layoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-			layoutBindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-			VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-			layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-			layoutInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
-			layoutInfo.pBindings = layoutBindings.data();
-
-			if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &subpass2.descriptorSetLayout) != VK_SUCCESS) {
-				throw std::runtime_error("failed to create descriptor set layout!");
-			}
+			std::vector<VkDescriptorSetLayoutBinding> bindings = { { 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT },
+				{ 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT } };
+			subpass2.createDescriptorSetLayout(device, bindings);
 		}
 	}
 
@@ -1417,64 +1441,24 @@ private:
 
 	void createDescriptorPool() {
 		{
-			std::array<VkDescriptorPoolSize, 2> poolSizes = {};
-			poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
-			poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
-
-			VkDescriptorPoolCreateInfo poolInfo = {};
-			poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-			poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-			poolInfo.pPoolSizes = poolSizes.data();
-			poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());
-
-			if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &subpass.descriptorPool) != VK_SUCCESS) {
-				throw std::runtime_error("failed to create descriptor pool!");
-			}
+			subpass.allocateDescriptorSets(device, static_cast<uint32_t>(swapChainImages.size()));
 		}
 		{
-			std::array<VkDescriptorPoolSize, 1> poolSizes = {};
-			poolSizes[0].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-			poolSizes[0].descriptorCount = static_cast<uint32_t>(2 * swapChainImages.size());
-			
-			VkDescriptorPoolCreateInfo poolInfo = {};
-			poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-			poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-			poolInfo.pPoolSizes = poolSizes.data();
-			poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());
-
-			if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &subpass2.descriptorPool) != VK_SUCCESS) {
-				throw std::runtime_error("failed to create descriptor pool!");
-			}
+			subpass2.allocateDescriptorSets(device, static_cast<uint32_t>(swapChainImages.size()));
 		}
 	}
 
 	void createDescriptorSets() {
 		{
-			std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), subpass.descriptorSetLayout);
-			VkDescriptorSetAllocateInfo allocInfo = {};
-			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-			allocInfo.descriptorPool = subpass.descriptorPool;
-			allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size());
-			allocInfo.pSetLayouts = layouts.data();
-
-			subpass.descriptorSets.resize(swapChainImages.size());
-			if (vkAllocateDescriptorSets(device, &allocInfo, subpass.descriptorSets.data()) != VK_SUCCESS) {
-				throw std::runtime_error("failed to allocate descriptor sets!");
-			}
-
 			for (size_t i = 0; i < swapChainImages.size(); i++) {
-				VkDescriptorBufferInfo bufferInfo = {};
-				bufferInfo.buffer = uniformBuffers[i];
-				bufferInfo.offset = 0;
-				bufferInfo.range = sizeof(UniformBufferObject);
+				std::vector<VkDescriptorBufferInfo> bufferInfo = { {uniformBuffers[i], 0, sizeof(UniformBufferObject)} };
 
-				VkDescriptorImageInfo imageInfo = {};
-				imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				std::vector<VkDescriptorImageInfo> imageInfo = { {textureSampler,  textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
+				/*imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				imageInfo.imageView = textureImageView;
-				imageInfo.sampler = textureSampler;
+				imageInfo.sampler = ;
 
+				
 				std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
 
 				descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1493,49 +1477,18 @@ private:
 				descriptorWrites[1].descriptorCount = 1;
 				descriptorWrites[1].pImageInfo = &imageInfo;
 
-				vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+				vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);*/
+
+				subpass.updateDescriptorSet(device, static_cast<uint32_t>(i), bufferInfo, imageInfo);
 			}
 		}
 
 		{
-			std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), subpass2.descriptorSetLayout);
-			VkDescriptorSetAllocateInfo allocInfo = {};
-			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-			allocInfo.descriptorPool = subpass2.descriptorPool;
-			allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size());
-			allocInfo.pSetLayouts = layouts.data();
-
-			subpass2.descriptorSets.resize(swapChainImages.size());
-			if (vkAllocateDescriptorSets(device, &allocInfo, subpass2.descriptorSets.data()) != VK_SUCCESS) {
-				throw std::runtime_error("failed to allocate descriptor sets!");
-			}
-
 			for (size_t i = 0; i < swapChainImages.size(); i++) {
-				std::array<VkDescriptorImageInfo, 2> imageInfos = {};
-				imageInfos[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				imageInfos[0].imageView = colorResolveImageView;
-				imageInfos[0].sampler = VK_NULL_HANDLE;
-
-				imageInfos[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				imageInfos[1].imageView = colorResolveImageView;
-				imageInfos[1].sampler = VK_NULL_HANDLE;
-
-				std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
-				descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				descriptorWrites[0].dstSet = subpass2.descriptorSets[i];
-				descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-				descriptorWrites[0].descriptorCount = 1;
-				descriptorWrites[0].dstBinding = 0;
-				descriptorWrites[0].pImageInfo = &imageInfos[0];
-
-				descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				descriptorWrites[1].dstSet = subpass2.descriptorSets[i];
-				descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-				descriptorWrites[1].descriptorCount = 1;
-				descriptorWrites[1].dstBinding = 1;
-				descriptorWrites[1].pImageInfo = &imageInfos[1];
-
-				vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+				std::vector<VkDescriptorImageInfo> imageInfos = { {VK_NULL_HANDLE , colorResolveImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}, 
+					{ VK_NULL_HANDLE , colorResolveImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
+				std::vector<VkDescriptorBufferInfo> bufferInfo;
+				subpass2.updateDescriptorSet(device, static_cast<uint32_t>(i), bufferInfo, imageInfos);
 			}
 		}
 	}
