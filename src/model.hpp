@@ -8,7 +8,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 
-static const std::string MODEL_PATH = ROOT + "/models/chalet.obj";
+static const std::string MODEL_PATH = ROOT + "/models/deer.obj";
 static const std::string TEXTURE_PATH = ROOT + "/textures/ubiLogo.jpg";
 
 struct Vertex {
@@ -103,7 +103,7 @@ public:
 			}
 		}
 
-		normailze();
+		normailze(0.3, glm::vec3(1.0, 0, 0));
 	}
 
 	void cmdDraw(const VkCommandBuffer &cmdBuffer) {
@@ -146,7 +146,7 @@ private:
 	VkImage textureImage;
 	VmaAllocation textureImageAllocation;
 
-	void normailze() {
+	void normailze(float scale, const glm::vec3 &shift) {
 		glm::vec3 centroid(0.0f);
 		for (const auto& vertex : vertices)
 			centroid += vertex.pos;
@@ -161,8 +161,11 @@ private:
 
 		std /= vertices.size();
 
-		for (auto& vertex : vertices)
+		for (auto& vertex : vertices) {
 			vertex.pos /= std;
+			vertex.pos *= scale;
+			vertex.pos += shift;
+		}
 	}
 	
 	void createVertexBuffer(const VkDevice &device, const VmaAllocator& allocator, const VkQueue &queue, const VkCommandPool &commandPool) {
