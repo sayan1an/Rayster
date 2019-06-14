@@ -296,5 +296,5 @@ class Subpass : public Pipeline {
 public:
 	VkSubpassDescription subpassDescription; // create first
 
-	virtual void createSubpassDescription() {};
+	virtual void createSubpassDescription(const VkDevice &device) = 0;
 };
