@@ -9,7 +9,7 @@
 #include <glm/gtx/hash.hpp>
 
 static const std::string MODEL_PATH = ROOT + "/models/chalet.obj";
-static const std::string TEXTURE_PATH = ROOT + "/textures/chalet.jpg";
+static const std::string TEXTURE_PATH = ROOT + "/textures/ubiLogo.jpg";
 
 struct Vertex {
 	glm::vec3 pos;
@@ -86,7 +86,7 @@ public:
 					attrib.vertices[3 * index.vertex_index + 1],
 					attrib.vertices[3 * index.vertex_index + 2]
 				};
-
+				
 				vertex.texCoord = {
 					attrib.texcoords[2 * index.texcoord_index + 0],
 					1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
@@ -102,6 +102,8 @@ public:
 				indices.push_back(uniqueVertices[vertex]);
 			}
 		}
+
+		normailze();
 	}
 
 	void cmdDraw(const VkCommandBuffer &cmdBuffer) {
@@ -143,6 +145,25 @@ private:
 	uint32_t mipLevels;
 	VkImage textureImage;
 	VmaAllocation textureImageAllocation;
+
+	void normailze() {
+		glm::vec3 centroid(0.0f);
+		for (const auto& vertex : vertices)
+			centroid += vertex.pos;
+
+		centroid /= vertices.size();
+
+		float std = 0;
+		for (size_t i = 0; i < vertices.size(); i++) {
+			vertices[i].pos -= centroid;
+			std += glm::length(vertices[i].pos);
+		}
+
+		std /= vertices.size();
+
+		for (auto& vertex : vertices)
+			vertex.pos /= std;
+	}
 	
 	void createVertexBuffer(const VkDevice &device, const VmaAllocator& allocator, const VkQueue &queue, const VkCommandPool &commandPool) {
 		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
