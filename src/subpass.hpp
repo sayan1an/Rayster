@@ -96,7 +96,7 @@ private:
 
 };
 
-class Pipeline : public DescriptorSet {
+class Shaders : public DescriptorSet {
 public:
 	VkPipelineLayout pipelineLayout; // create third
 	VkPipeline pipeline; // create fourth
@@ -292,9 +292,10 @@ private:
 	}
 };
 
-class Subpass : public Pipeline {
+class Subpass {
 public:
 	VkSubpassDescription subpassDescription; // create first
+	std::vector<Shaders> shaders;
 
 	virtual void createSubpassDescription(const VkDevice &device) = 0;
 };

@@ -88,7 +88,7 @@ public:
 	void createSubpassDescription(const VkDevice &device) {
 		// ref to multi-sample color buffer
 		colorAttachmentRef = {};
-		colorAttachmentRef.attachment = 0;
+		colorAttachmentRef.attachment = 0; // index to frame buffer
 		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 		// ref to multi-sample depth buffer
@@ -108,9 +108,10 @@ public:
 		subpassDescription.pDepthStencilAttachment = &depthAttachmentRef;
 		subpassDescription.pResolveAttachments = &colorAttachmentResolveRef;
 
+		shaders.resize(1);
 		std::vector<VkDescriptorSetLayoutBinding> bindings = { { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT },
 			{ 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT } };
-		createDescriptorSetLayout(device, bindings);
+		shaders[0].createDescriptorSetLayout(device, bindings);
 	}
 	
 	void createSubpass(const VkDevice &device, const VkExtent2D &swapChainExtent, const VkSampleCountFlagBits &msaaSamples, const VkRenderPass &renderPass, const uint32_t descriptorSetCount,
@@ -120,24 +121,24 @@ public:
 		auto attributeDescription = Vertex::getAttributeDescriptions();
 
 		VkGraphicsPipelineCreateInfo pipelineInfo = {};
-		createDefaultGraphicsPipelineInfo(device, ROOT + "/shaders/01_vert.spv", ROOT + "/shaders/01_frag.spv",
+		shaders[0].createDefaultGraphicsPipelineInfo(device, ROOT + "/shaders/01_vert.spv", ROOT + "/shaders/01_frag.spv",
 			bindingDescription, attributeDescription, swapChainExtent, msaaSamples, pipelineInfo);
 		pipelineInfo.renderPass = renderPass;
 		pipelineInfo.subpass = 0;
 
-		if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+		if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &shaders[0].pipeline) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create graphics pipeline!");
 		}
 
-		cleanPipelineInternalState(device);
+		shaders[0].cleanPipelineInternalState(device);
 		
-		allocateDescriptorSets(device, descriptorSetCount);
+		shaders[0].allocateDescriptorSets(device, descriptorSetCount);
 
 		for (uint32_t i = 0; i < descriptorSetCount; i++) {
 			std::vector<VkDescriptorBufferInfo> bufferInfo = { { uniformBuffers[i], 0, sizeof(UniformBufferObject) } };
 			std::vector<VkDescriptorImageInfo> imageInfo = { { textureSampler,  textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
 			
-			updateDescriptorSet(device, i, bufferInfo, imageInfo);
+			shaders[0].updateDescriptorSet(device, i, bufferInfo, imageInfo);
 		}
 	}
 private:
@@ -150,7 +151,7 @@ class Subpass2 : public Subpass {
 public:
 	void createSubpassDescription(const VkDevice &device) {
 		colorAttachmentRef = {};
-		colorAttachmentRef.attachment = 2;
+		colorAttachmentRef.attachment = 2; // index to framebuffer
 		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 		inputAttachmentRefs.push_back({3, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
@@ -163,9 +164,10 @@ public:
 		subpassDescription.inputAttachmentCount = 2;
 		subpassDescription.pInputAttachments = inputAttachmentRefs.data();
 
+		shaders.resize(1);
 		std::vector<VkDescriptorSetLayoutBinding> bindings = { { 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT },
 			{ 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT } };
-		createDescriptorSetLayout(device, bindings);
+		shaders[0].createDescriptorSetLayout(device, bindings);
 	}
 
 	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const uint32_t descriptorSetCount,
@@ -175,18 +177,18 @@ public:
 		auto attributeDescription = Vertex::getAttributeDescriptions();
 
 		VkGraphicsPipelineCreateInfo pipelineInfo = {};
-		createDefaultGraphicsPipelineInfo(device, ROOT + "/shaders/02_vert.spv", ROOT + "/shaders/02_frag.spv",
+		shaders[0].createDefaultGraphicsPipelineInfo(device, ROOT + "/shaders/02_vert.spv", ROOT + "/shaders/02_frag.spv",
 			bindingDescription, attributeDescription, swapChainExtent, VK_SAMPLE_COUNT_1_BIT, pipelineInfo);
 
 		VkPipelineVertexInputStateCreateInfo emptyInputState = {};
 		emptyInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
 		VkPipelineRasterizationStateCreateInfo rasterizer = {};
-		createRasterizationStateInfo(rasterizer);
+		shaders[0].createRasterizationStateInfo(rasterizer);
 		rasterizer.cullMode = VK_CULL_MODE_NONE;
 
 		VkPipelineDepthStencilStateCreateInfo depthStencil = {};
-		createDepthStencilStateInfo(depthStencil);
+		shaders[0].createDepthStencilStateInfo(depthStencil);
 		depthStencil.depthWriteEnable = VK_FALSE;
 
 		pipelineInfo.pVertexInputState = &emptyInputState;
@@ -195,19 +197,19 @@ public:
 		pipelineInfo.renderPass = renderPass;
 		pipelineInfo.subpass = 1;
 
-		if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+		if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &shaders[0].pipeline) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create graphics pipeline!");
 		}
 
-		cleanPipelineInternalState(device);
+		shaders[0].cleanPipelineInternalState(device);
 		
-		allocateDescriptorSets(device, descriptorSetCount);
+		shaders[0].allocateDescriptorSets(device, descriptorSetCount);
 
 		for (uint32_t i = 0; i < descriptorSetCount; i++) {
 			std::vector<VkDescriptorImageInfo> imageInfos = { {VK_NULL_HANDLE , colorResolveImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
 					{ VK_NULL_HANDLE , colorResolveImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
 			std::vector<VkDescriptorBufferInfo> bufferInfo;
-			updateDescriptorSet(device, static_cast<uint32_t>(i), bufferInfo, imageInfos);
+			shaders[0].updateDescriptorSet(device, static_cast<uint32_t>(i), bufferInfo, imageInfos);
 		}
 	}
 private:
@@ -354,11 +356,11 @@ private:
 
 		vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
-		vkDestroyPipeline(device, subpass1.pipeline , nullptr);
-		vkDestroyPipelineLayout(device, subpass1.pipelineLayout, nullptr);
+		vkDestroyPipeline(device, subpass1.shaders[0].pipeline , nullptr);
+		vkDestroyPipelineLayout(device, subpass1.shaders[0].pipelineLayout, nullptr);
 
-		vkDestroyPipeline(device, subpass2.pipeline, nullptr);
-		vkDestroyPipelineLayout(device, subpass2.pipelineLayout, nullptr);
+		vkDestroyPipeline(device, subpass2.shaders[0].pipeline, nullptr);
+		vkDestroyPipelineLayout(device, subpass2.shaders[0].pipelineLayout, nullptr);
 		vkDestroyRenderPass(device, renderPass, nullptr);
 
 		for (auto imageView : swapChainImageViews) {
@@ -370,15 +372,15 @@ private:
 		for (size_t i = 0; i < swapChainImages.size(); i++)
 			vmaDestroyBuffer(allocator, uniformBuffers[i], uniformBuffersAllocation[i]);
 		
-		vkDestroyDescriptorPool(device, subpass1.descriptorPool, nullptr);
-		vkDestroyDescriptorPool(device, subpass2.descriptorPool, nullptr);
+		vkDestroyDescriptorPool(device, subpass1.shaders[0].descriptorPool, nullptr);
+		vkDestroyDescriptorPool(device, subpass2.shaders[0].descriptorPool, nullptr);
 	}
 
 	void cleanup() {
 		cleanupSwapChain();
 		
-		vkDestroyDescriptorSetLayout(device, subpass1.descriptorSetLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device, subpass2.descriptorSetLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device, subpass1.shaders[0].descriptorSetLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device, subpass2.shaders[0].descriptorSetLayout, nullptr);
 
 		mesh.cleanUp(device, allocator);
 
@@ -950,17 +952,17 @@ private:
 
 			vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipeline);
+			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.shaders[0].pipeline);
 
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipelineLayout, 0, 1, &subpass1.descriptorSets[i], 0, nullptr);
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.shaders[0].pipelineLayout, 0, 1, &subpass1.shaders[0].descriptorSets[i], 0, nullptr);
 
 			// put mesh draw
 			mesh.cmdDraw(commandBuffers[i]);
 
 			vkCmdNextSubpass(commandBuffers[i], VK_SUBPASS_CONTENTS_INLINE);
 
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipeline);
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipelineLayout, 0, 1, &subpass2.descriptorSets[i], 0, nullptr);
+			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.shaders[0].pipeline);
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.shaders[0].pipelineLayout, 0, 1, &subpass2.shaders[0].descriptorSets[i], 0, nullptr);
 			vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
 
 			vkCmdEndRenderPass(commandBuffers[i]);

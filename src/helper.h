@@ -3,7 +3,7 @@
 #include <vector>
 #include <fstream>
 
-#define ROOT std::string("D:/projects/VkExperiment")
+#define ROOT std::string("D:/projects/vulkanexperiments")
 
 
 std::vector<char> readFile(const std::string& filename) {
