@@ -11,40 +11,13 @@
 static const std::vector<std::string> MODEL_PATHS = { ROOT + "/models/cat.obj", ROOT + "/models/chalet.obj", ROOT + "/models/deer.obj"};
 static const std::string TEXTURE_PATH = ROOT + "/textures/ubiLogo.jpg";
 
+#define VERTEX_BINDING_ID	0
+#define INSTANCE_BINIDING_ID	1
+
 struct Vertex {
 	glm::vec3 pos;
 	glm::vec3 color;
 	glm::vec2 texCoord;
-
-	static std::vector<VkVertexInputBindingDescription> getBindingDescription() {
-		std::array<VkVertexInputBindingDescription, 1> bindingDescription = {};
-		bindingDescription[0].binding = 0;
-		bindingDescription[0].stride = sizeof(Vertex);
-		bindingDescription[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-		return std::vector<VkVertexInputBindingDescription>(bindingDescription.begin(), bindingDescription.end());
-	}
-
-	static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-		std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = {};
-
-		attributeDescriptions[0].binding = 0;
-		attributeDescriptions[0].location = 0;
-		attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-		attributeDescriptions[1].binding = 0;
-		attributeDescriptions[1].location = 1;
-		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-		attributeDescriptions[2].binding = 0;
-		attributeDescriptions[2].location = 2;
-		attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
-
-		return std::vector<VkVertexInputAttributeDescription>(attributeDescriptions.begin(), attributeDescriptions.end());
-	}
 
 	bool operator==(const Vertex& other) const {
 		return pos == other.pos && color == other.color && texCoord == other.texCoord;
@@ -59,10 +32,18 @@ namespace std {
 	};
 }
 
+struct Instance {
+	glm::vec3 translate;
+};
+
+// defines a single mesh and its instances
 class Mesh {
 public:
+	// define a single mesh
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
+	// set of instances for this type of mesh
+	std::vector<Instance> instances;
 
 	Mesh(const char *meshPath, float trans) {
 		tinyobj::attrib_t attrib;
@@ -101,8 +82,10 @@ public:
 				indices.push_back(uniqueVertices[vertex]);
 			}
 		}
-
-		normailze(0.7, glm::vec3(trans, 0, 0));
+		normailze(0.7f, glm::vec3(0, 0, 0));
+		instances.push_back({ glm::vec3(trans, 0, 0) });
+		instances.push_back({ glm::vec3(0, trans, 0) });
+		instances.push_back({ glm::vec3(0, 0, trans) });
 	}
 private:
 	void normailze(float scale, const glm::vec3 &shift) {
@@ -128,6 +111,7 @@ private:
 	}
 };
 
+// composed of individual meshes
 class Model {
 public:
 	VkImageView textureImageView;
@@ -135,49 +119,68 @@ public:
 		
 	Model() {
 		int ctr = -1;
-		size_t meshVertexOffset = 0;
-		for (const auto& modelPath : MODEL_PATHS) {
-			meshes.push_back(Mesh(modelPath.c_str(), 2*ctr++));
-			offsets.push_back(indices.size());
-			vertices.insert(vertices.end(), meshes.back().vertices.begin(), meshes.back().vertices.end());
-			indices.insert(indices.end(), meshes.back().indices.begin(), meshes.back().indices.end());
-			std::cout << offsets.back() << " " << indices.size() << std::endl;
-			for (size_t i = offsets.back(); i < indices.size(); i++)
-				indices[i] += meshVertexOffset;
-
-			meshVertexOffset += meshes.back().vertices.size();
-		}
-
-		indirectCommands.clear();
-
-		// Create on indirect command for each mesh in the scene
-		uint32_t m = 0;
-		for (const auto &mesh : meshes)
-		{
-			VkDrawIndexedIndirectCommand indirectCmd{};
-			indirectCmd.instanceCount = 1;
-			indirectCmd.firstInstance = m;
-			indirectCmd.firstIndex = offsets[m];
-			indirectCmd.indexCount = mesh.indices.size();
-
-			indirectCommands.push_back(indirectCmd);
-
-			m++;
-		}
+		for (const auto& modelPath : MODEL_PATHS)
+			meshes.push_back(Mesh(modelPath.c_str(), (float)2*ctr++));
+		
+		updateGlobalBuffers();
 	}
+
+	static std::vector<VkVertexInputBindingDescription> getBindingDescription() {
+		std::array<VkVertexInputBindingDescription, 2> bindingDescription = {};
+		bindingDescription[0].binding = 0;
+		bindingDescription[0].stride = sizeof(Vertex);
+		bindingDescription[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		bindingDescription[1].binding = 1;
+		bindingDescription[1].stride = sizeof(Instance);
+		bindingDescription[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+
+		return std::vector<VkVertexInputBindingDescription>(bindingDescription.begin(), bindingDescription.end());
+	}
+
+	static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
+		std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions = {};
+		// per vertex
+		attributeDescriptions[0].binding = VERTEX_BINDING_ID;
+		attributeDescriptions[0].location = 0;
+		attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+		attributeDescriptions[1].binding = VERTEX_BINDING_ID;
+		attributeDescriptions[1].location = 1;
+		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+		attributeDescriptions[2].binding = VERTEX_BINDING_ID;
+		attributeDescriptions[2].location = 2;
+		attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
+
+		// per instance
+		attributeDescriptions[3].binding = INSTANCE_BINIDING_ID;
+		attributeDescriptions[3].location = 3;
+		attributeDescriptions[3].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[3].offset = offsetof(Instance, translate);
+
+		return std::vector<VkVertexInputAttributeDescription>(attributeDescriptions.begin(), attributeDescriptions.end());
+	}
+
 	void cmdDraw(const VkCommandBuffer& cmdBuffer) {
 		VkBuffer vertexBuffers[] = { vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, vertexBuffers, offsets);
+		vkCmdBindVertexBuffers(cmdBuffer, VERTEX_BINDING_ID, 1, vertexBuffers, offsets);
+		VkBuffer instanceBuffers[] = { instanceBuffer };
+		vkCmdBindVertexBuffers(cmdBuffer, INSTANCE_BINIDING_ID, 1, instanceBuffers, offsets);
 
 		vkCmdBindIndexBuffer(cmdBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-		vkCmdDrawIndexedIndirect(cmdBuffer, indirectCmdBuffer, 0, meshes.size(), sizeof(VkDrawIndexedIndirectCommand));
+		vkCmdDrawIndexedIndirect(cmdBuffer, indirectCmdBuffer, 0, static_cast<uint32_t>(meshes.size()), sizeof(VkDrawIndexedIndirectCommand));
 		//vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 	}
 
 	void createBuffers(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
 		createVertexBuffer(device, allocator, queue, commandPool);
+		createInstanceBuffer(device, allocator, queue, commandPool);
 		createIndexBuffer(device, allocator, queue, commandPool);
 		createIndirectCmdBuffer(device, allocator, queue, commandPool);
 		createTextureImage(physicalDevice, device, allocator, queue, commandPool);
@@ -193,17 +196,21 @@ public:
 
 		vmaDestroyBuffer(allocator, indexBuffer, indexBufferAllocation);
 		vmaDestroyBuffer(allocator, vertexBuffer, vertexBufferAllocation);
+		vmaDestroyBuffer(allocator, instanceBuffer, instanceBufferAllocation);
 		vmaDestroyBuffer(allocator, indirectCmdBuffer, indirectCmdBufferAllocation);
 	}
 private:
 	std::vector<Mesh> meshes;
-	std::vector<Vertex> vertices;
-	std::vector<uint32_t> indices;
-	std::vector<uint32_t> offsets;
+	// global buffer for the meshes
+	std::vector<Vertex> vertices; // concatenate vertices from all meshes
+	std::vector<uint32_t> indices;  // indeces into the above global vertices
+	std::vector<Instance> instances; // concatenate instances from all meshes. Each mesh can have multiple instances. 
 	std::vector<VkDrawIndexedIndirectCommand> indirectCommands;
 
 	VkBuffer vertexBuffer;
 	VmaAllocation vertexBufferAllocation;
+	VkBuffer instanceBuffer;
+	VmaAllocation instanceBufferAllocation;
 	VkBuffer indexBuffer;
 	VmaAllocation indexBufferAllocation;
 	VkBuffer indirectCmdBuffer;
@@ -212,6 +219,36 @@ private:
 	uint32_t mipLevels;
 	VkImage textureImage;
 	VmaAllocation textureImageAllocation;
+
+	void updateGlobalBuffers() {
+		indirectCommands.clear();
+
+		size_t meshVertexOffset = 0;
+		size_t indexOffset = 0;
+		size_t instanceOffset = 0;
+				
+		for (const auto &mesh : meshes) {
+			// Update global buffer from individual meshes
+			vertices.insert(vertices.end(), mesh.vertices.begin(), mesh.vertices.end());
+			indices.insert(indices.end(), mesh.indices.begin(), mesh.indices.end());
+			instances.insert(instances.end(), mesh.instances.begin(), mesh.instances.end());
+			for (size_t i = indexOffset; i < indices.size(); i++)
+				indices[i] += static_cast<uint32_t>(meshVertexOffset);
+
+			// Create on indirect command for each mesh in the scene
+			VkDrawIndexedIndirectCommand indirectCmd{};
+			indirectCmd.firstInstance = static_cast<uint32_t>(instanceOffset);
+			indirectCmd.instanceCount = static_cast<uint32_t>(mesh.instances.size());
+			indirectCmd.firstIndex = static_cast<uint32_t>(indexOffset);
+			indirectCmd.indexCount = static_cast<uint32_t>(mesh.indices.size());
+
+			indirectCommands.push_back(indirectCmd);
+
+			indexOffset += mesh.indices.size();
+			meshVertexOffset += mesh.vertices.size();
+			instanceOffset += mesh.instances.size();
+		}
+	}
 
 	void createVertexBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
 		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
@@ -276,6 +313,39 @@ private:
 			throw std::runtime_error("Failed to create index buffer!");
 
 		copyBuffer(device, queue, commandPool, stagingBuffer, indexBuffer, bufferSize);
+
+		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
+	}
+
+	void createInstanceBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
+		VkDeviceSize bufferSize = sizeof(instances[0]) * instances.size();
+		VkBuffer stagingBuffer;
+		VmaAllocation stagingBufferAllocation;
+
+		VkBufferCreateInfo bufferCreateInfo = {};
+		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferCreateInfo.size = bufferSize;
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		VmaAllocationCreateInfo allocCreateInfo = {};
+		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create staging buffer for vertex buffer!");
+
+		void* data;
+		vmaMapMemory(allocator, stagingBufferAllocation, &data);
+		memcpy(data, instances.data(), (size_t)bufferSize);
+		vmaUnmapMemory(allocator, stagingBufferAllocation);
+
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &instanceBuffer, &instanceBufferAllocation, nullptr) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create vertex buffer!");
+
+		copyBuffer(device, queue, commandPool, stagingBuffer, instanceBuffer, bufferSize);
 
 		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
 	}
@@ -490,3 +560,6 @@ private:
 		}
 	}
 };
+
+#undef VERTEX_BINDING_ID
+#undef INSTANCE_BINDING_ID

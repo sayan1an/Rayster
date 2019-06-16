@@ -122,8 +122,8 @@ public:
 	void createSubpass(const VkDevice &device, const VkExtent2D &swapChainExtent, const VkSampleCountFlagBits &msaaSamples, const VkRenderPass &renderPass, const uint32_t descriptorSetCount,
 		const std::vector<VkBuffer> &uniformBuffers, const VkImageView &textureImageView, const VkSampler &textureSampler) {
 		
-		auto bindingDescription = Vertex::getBindingDescription();
-		auto attributeDescription = Vertex::getAttributeDescriptions();
+		auto bindingDescription = Model::getBindingDescription();
+		auto attributeDescription = Model::getAttributeDescriptions();
 
 		VkGraphicsPipelineCreateInfo pipelineInfo = {};
 		shaders[0].createDefaultGraphicsPipelineInfo(device, ROOT + "/shaders/01_vert.spv", ROOT + "/shaders/01_frag.spv",
@@ -178,8 +178,8 @@ public:
 	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const uint32_t descriptorSetCount,
 		const VkImageView& colorResolveImageView) {
 		
-		auto bindingDescription = Vertex::getBindingDescription();
-		auto attributeDescription = Vertex::getAttributeDescriptions();
+		auto bindingDescription = Model::getBindingDescription();
+		auto attributeDescription = Model::getAttributeDescriptions();
 
 		VkGraphicsPipelineCreateInfo pipelineInfo = {};
 		shaders[0].createDefaultGraphicsPipelineInfo(device, ROOT + "/shaders/02_vert.spv", ROOT + "/shaders/02_frag.spv",
