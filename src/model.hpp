@@ -32,7 +32,8 @@ namespace std {
 	};
 }
 
-struct Instance {
+// This data does not update at per frame, hence static
+struct InstanceStatic {
 	glm::vec3 translate;
 };
 
@@ -43,7 +44,7 @@ public:
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
 	// set of instances for this type of mesh
-	std::vector<Instance> instances;
+	std::vector<InstanceStatic> staticInstances;
 
 	Mesh(const char *meshPath, float trans) {
 		tinyobj::attrib_t attrib;
@@ -82,10 +83,11 @@ public:
 				indices.push_back(uniqueVertices[vertex]);
 			}
 		}
+
 		normailze(0.7f, glm::vec3(0, 0, 0));
-		instances.push_back({ glm::vec3(trans, 0, 0) });
-		instances.push_back({ glm::vec3(0, trans, 0) });
-		instances.push_back({ glm::vec3(0, 0, trans) });
+		staticInstances.push_back({ glm::vec3(trans, 0, 0) });
+		staticInstances.push_back({ glm::vec3(0, trans, 0) });
+		staticInstances.push_back({ glm::vec3(0, 0, trans) });
 	}
 private:
 	void normailze(float scale, const glm::vec3 &shift) {
@@ -132,7 +134,7 @@ public:
 		bindingDescription[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		bindingDescription[1].binding = 1;
-		bindingDescription[1].stride = sizeof(Instance);
+		bindingDescription[1].stride = sizeof(InstanceStatic);
 		bindingDescription[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
 		return std::vector<VkVertexInputBindingDescription>(bindingDescription.begin(), bindingDescription.end());
@@ -169,8 +171,8 @@ public:
 		VkBuffer vertexBuffers[] = { vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(cmdBuffer, VERTEX_BINDING_ID, 1, vertexBuffers, offsets);
-		VkBuffer instanceBuffers[] = { instanceBuffer };
-		vkCmdBindVertexBuffers(cmdBuffer, INSTANCE_BINIDING_ID, 1, instanceBuffers, offsets);
+		VkBuffer staticInstanceBuffers[] = { staticInstanceBuffer };
+		vkCmdBindVertexBuffers(cmdBuffer, INSTANCE_BINIDING_ID, 1, staticInstanceBuffers, offsets);
 
 		vkCmdBindIndexBuffer(cmdBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
@@ -196,7 +198,7 @@ public:
 
 		vmaDestroyBuffer(allocator, indexBuffer, indexBufferAllocation);
 		vmaDestroyBuffer(allocator, vertexBuffer, vertexBufferAllocation);
-		vmaDestroyBuffer(allocator, instanceBuffer, instanceBufferAllocation);
+		vmaDestroyBuffer(allocator, staticInstanceBuffer, staticInstanceBufferAllocation);
 		vmaDestroyBuffer(allocator, indirectCmdBuffer, indirectCmdBufferAllocation);
 	}
 private:
@@ -204,13 +206,13 @@ private:
 	// global buffer for the meshes
 	std::vector<Vertex> vertices; // concatenate vertices from all meshes
 	std::vector<uint32_t> indices;  // indeces into the above global vertices
-	std::vector<Instance> instances; // concatenate instances from all meshes. Each mesh can have multiple instances. 
+	std::vector<InstanceStatic> staticInstances; // concatenate instances from all meshes. Each mesh can have multiple instances. 
 	std::vector<VkDrawIndexedIndirectCommand> indirectCommands;
 
 	VkBuffer vertexBuffer;
 	VmaAllocation vertexBufferAllocation;
-	VkBuffer instanceBuffer;
-	VmaAllocation instanceBufferAllocation;
+	VkBuffer staticInstanceBuffer;
+	VmaAllocation staticInstanceBufferAllocation;
 	VkBuffer indexBuffer;
 	VmaAllocation indexBufferAllocation;
 	VkBuffer indirectCmdBuffer;
@@ -231,14 +233,14 @@ private:
 			// Update global buffer from individual meshes
 			vertices.insert(vertices.end(), mesh.vertices.begin(), mesh.vertices.end());
 			indices.insert(indices.end(), mesh.indices.begin(), mesh.indices.end());
-			instances.insert(instances.end(), mesh.instances.begin(), mesh.instances.end());
+			staticInstances.insert(staticInstances.end(), mesh.staticInstances.begin(), mesh.staticInstances.end());
 			for (size_t i = indexOffset; i < indices.size(); i++)
 				indices[i] += static_cast<uint32_t>(meshVertexOffset);
 
 			// Create on indirect command for each mesh in the scene
-			VkDrawIndexedIndirectCommand indirectCmd{};
+			VkDrawIndexedIndirectCommand indirectCmd = {};
 			indirectCmd.firstInstance = static_cast<uint32_t>(instanceOffset);
-			indirectCmd.instanceCount = static_cast<uint32_t>(mesh.instances.size());
+			indirectCmd.instanceCount = static_cast<uint32_t>(mesh.staticInstances.size());
 			indirectCmd.firstIndex = static_cast<uint32_t>(indexOffset);
 			indirectCmd.indexCount = static_cast<uint32_t>(mesh.indices.size());
 
@@ -246,7 +248,7 @@ private:
 
 			indexOffset += mesh.indices.size();
 			meshVertexOffset += mesh.vertices.size();
-			instanceOffset += mesh.instances.size();
+			instanceOffset += mesh.staticInstances.size();
 		}
 	}
 
@@ -318,7 +320,7 @@ private:
 	}
 
 	void createInstanceBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
-		VkDeviceSize bufferSize = sizeof(instances[0]) * instances.size();
+		VkDeviceSize bufferSize = sizeof(staticInstances[0]) * staticInstances.size();
 		VkBuffer stagingBuffer;
 		VmaAllocation stagingBufferAllocation;
 
@@ -336,16 +338,16 @@ private:
 
 		void* data;
 		vmaMapMemory(allocator, stagingBufferAllocation, &data);
-		memcpy(data, instances.data(), (size_t)bufferSize);
+		memcpy(data, staticInstances.data(), (size_t)bufferSize);
 		vmaUnmapMemory(allocator, stagingBufferAllocation);
 
 		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &instanceBuffer, &instanceBufferAllocation, nullptr) != VK_SUCCESS)
+		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &staticInstanceBuffer, &staticInstanceBufferAllocation, nullptr) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create vertex buffer!");
 
-		copyBuffer(device, queue, commandPool, stagingBuffer, instanceBuffer, bufferSize);
+		copyBuffer(device, queue, commandPool, stagingBuffer, staticInstanceBuffer, bufferSize);
 
 		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
 	}
