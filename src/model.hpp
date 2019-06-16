@@ -8,7 +8,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 
-static const std::string MODEL_PATH = ROOT + "/models/deer.obj";
+static const std::vector<std::string> MODEL_PATHS = { ROOT + "/models/cat.obj", ROOT + "/models/chalet.obj", ROOT + "/models/deer.obj"};
 static const std::string TEXTURE_PATH = ROOT + "/textures/ubiLogo.jpg";
 
 struct Vertex {
@@ -61,17 +61,16 @@ namespace std {
 
 class Mesh {
 public:
-	VkImageView textureImageView;
-	VkSampler textureSampler;
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> indices;
 
-	
-	Mesh() {
+	Mesh(const char *meshPath, float trans) {
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
 		std::string warn, err;
 
-		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, MODEL_PATH.c_str())) {
+		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, meshPath)) {
 			throw std::runtime_error(warn + err);
 		}
 
@@ -103,49 +102,9 @@ public:
 			}
 		}
 
-		normailze(0.3, glm::vec3(1.0, 0, 0));
-	}
-
-	void cmdDraw(const VkCommandBuffer &cmdBuffer) {
-		VkBuffer vertexBuffers[] = { vertexBuffer };
-		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, vertexBuffers, offsets);
-
-		vkCmdBindIndexBuffer(cmdBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-		vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
-	}
-
-	void createBuffers(const VkPhysicalDevice &physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
-		createVertexBuffer(device, allocator, queue, commandPool);
-		createIndexBuffer(device, allocator, queue, commandPool);
-		createTextureImage(physicalDevice, device, allocator, queue, commandPool);
-		createTextureImageView(device);
-		createTextureSampler(device);
-	}
-
-	void cleanUp(const VkDevice &device,const VmaAllocator &allocator) {
-		vkDestroySampler(device, textureSampler, nullptr);
-		vkDestroyImageView(device, textureImageView, nullptr);
-
-		vmaDestroyImage(allocator, textureImage, textureImageAllocation);
-
-		vmaDestroyBuffer(allocator, indexBuffer, indexBufferAllocation);
-		vmaDestroyBuffer(allocator, vertexBuffer, vertexBufferAllocation);
+		normailze(0.7, glm::vec3(trans, 0, 0));
 	}
 private:
-	std::vector<Vertex> vertices;
-	std::vector<uint32_t> indices;
-
-	VkBuffer vertexBuffer;
-	VmaAllocation vertexBufferAllocation;
-	VkBuffer indexBuffer;
-	VmaAllocation indexBufferAllocation;
-
-	uint32_t mipLevels;
-	VkImage textureImage;
-	VmaAllocation textureImageAllocation;
-
 	void normailze(float scale, const glm::vec3 &shift) {
 		glm::vec3 centroid(0.0f);
 		for (const auto& vertex : vertices)
@@ -167,10 +126,95 @@ private:
 			vertex.pos += shift;
 		}
 	}
-	
-	void createVertexBuffer(const VkDevice &device, const VmaAllocator& allocator, const VkQueue &queue, const VkCommandPool &commandPool) {
-		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+};
 
+class Model {
+public:
+	VkImageView textureImageView;
+	VkSampler textureSampler;
+		
+	Model() {
+		int ctr = -1;
+		size_t meshVertexOffset = 0;
+		for (const auto& modelPath : MODEL_PATHS) {
+			meshes.push_back(Mesh(modelPath.c_str(), 2*ctr++));
+			offsets.push_back(indices.size());
+			vertices.insert(vertices.end(), meshes.back().vertices.begin(), meshes.back().vertices.end());
+			indices.insert(indices.end(), meshes.back().indices.begin(), meshes.back().indices.end());
+			std::cout << offsets.back() << " " << indices.size() << std::endl;
+			for (size_t i = offsets.back(); i < indices.size(); i++)
+				indices[i] += meshVertexOffset;
+
+			meshVertexOffset += meshes.back().vertices.size();
+		}
+
+		indirectCommands.clear();
+
+		// Create on indirect command for each mesh in the scene
+		uint32_t m = 0;
+		for (const auto &mesh : meshes)
+		{
+			VkDrawIndexedIndirectCommand indirectCmd{};
+			indirectCmd.instanceCount = 1;
+			indirectCmd.firstInstance = m;
+			indirectCmd.firstIndex = offsets[m];
+			indirectCmd.indexCount = mesh.indices.size();
+
+			indirectCommands.push_back(indirectCmd);
+
+			m++;
+		}
+	}
+	void cmdDraw(const VkCommandBuffer& cmdBuffer) {
+		VkBuffer vertexBuffers[] = { vertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, vertexBuffers, offsets);
+
+		vkCmdBindIndexBuffer(cmdBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+		vkCmdDrawIndexedIndirect(cmdBuffer, indirectCmdBuffer, 0, meshes.size(), sizeof(VkDrawIndexedIndirectCommand));
+		//vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+	}
+
+	void createBuffers(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
+		createVertexBuffer(device, allocator, queue, commandPool);
+		createIndexBuffer(device, allocator, queue, commandPool);
+		createIndirectCmdBuffer(device, allocator, queue, commandPool);
+		createTextureImage(physicalDevice, device, allocator, queue, commandPool);
+		createTextureImageView(device);
+		createTextureSampler(device);
+	}
+
+	void cleanUp(const VkDevice& device, const VmaAllocator& allocator) {
+		vkDestroySampler(device, textureSampler, nullptr);
+		vkDestroyImageView(device, textureImageView, nullptr);
+
+		vmaDestroyImage(allocator, textureImage, textureImageAllocation);
+
+		vmaDestroyBuffer(allocator, indexBuffer, indexBufferAllocation);
+		vmaDestroyBuffer(allocator, vertexBuffer, vertexBufferAllocation);
+		vmaDestroyBuffer(allocator, indirectCmdBuffer, indirectCmdBufferAllocation);
+	}
+private:
+	std::vector<Mesh> meshes;
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> indices;
+	std::vector<uint32_t> offsets;
+	std::vector<VkDrawIndexedIndirectCommand> indirectCommands;
+
+	VkBuffer vertexBuffer;
+	VmaAllocation vertexBufferAllocation;
+	VkBuffer indexBuffer;
+	VmaAllocation indexBufferAllocation;
+	VkBuffer indirectCmdBuffer;
+	VmaAllocation indirectCmdBufferAllocation;
+
+	uint32_t mipLevels;
+	VkImage textureImage;
+	VmaAllocation textureImageAllocation;
+
+	void createVertexBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
+		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 		VkBuffer stagingBuffer;
 		VmaAllocation stagingBufferAllocation;
 
@@ -202,7 +246,7 @@ private:
 		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
 	}
 
-	void createIndexBuffer(const VkDevice& device, const VmaAllocator &allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
+	void createIndexBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
 		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
 		VkBuffer stagingBuffer;
@@ -236,7 +280,41 @@ private:
 		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
 	}
 
-	void createTextureImage(const VkPhysicalDevice &physicalDevice, const VkDevice &device, const VmaAllocator &allocator, const VkQueue &queue, const VkCommandPool &commandPool) {
+	void createIndirectCmdBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
+		VkDeviceSize bufferSize = indirectCommands.size() * sizeof(VkDrawIndexedIndirectCommand);
+
+		VkBuffer stagingBuffer;
+		VmaAllocation stagingBufferAllocation;
+
+		VkBufferCreateInfo bufferCreateInfo = {};
+		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferCreateInfo.size = bufferSize;
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		VmaAllocationCreateInfo allocCreateInfo = {};
+		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create staging buffer for indirect command buffer!");
+
+		void* data;
+		vmaMapMemory(allocator, stagingBufferAllocation, &data);
+		memcpy(data, indirectCommands.data(), (size_t)bufferSize);
+		vmaUnmapMemory(allocator, stagingBufferAllocation);
+
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
+		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &indirectCmdBuffer, &indirectCmdBufferAllocation, nullptr) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create indirect command buffer!");
+
+		copyBuffer(device, queue, commandPool, stagingBuffer, indirectCmdBuffer, bufferSize);
+
+		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
+	}
+
+	void createTextureImage(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
 		int texWidth, texHeight, texChannels;
 		stbi_uc* pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 		VkDeviceSize imageSize = texWidth * texHeight * 4;
@@ -296,7 +374,7 @@ private:
 		generateMipmaps(physicalDevice, device, queue, commandPool, textureImage, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels);
 	}
 
-	void generateMipmaps(const VkPhysicalDevice &physicalDevice, const VkDevice &device, const VkQueue &queue, const VkCommandPool &commandPool, 
+	void generateMipmaps(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,
 		VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) {
 		// Check if image format supports linear blitting
 		VkFormatProperties formatProperties;
@@ -383,12 +461,12 @@ private:
 
 		endSingleTimeCommands(device, queue, commandPool, commandBuffer);
 	}
-	
-	void createTextureImageView(const VkDevice &device) {
+
+	void createTextureImageView(const VkDevice& device) {
 		textureImageView = createImageView(device, textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
 	}
 
-	void createTextureSampler(const VkDevice &device) {
+	void createTextureSampler(const VkDevice& device) {
 		VkSamplerCreateInfo samplerInfo = {};
 		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 		samplerInfo.magFilter = VK_FILTER_LINEAR;

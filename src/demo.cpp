@@ -39,6 +39,11 @@ static const std::vector<const char*> deviceExtensions = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
+static const std::vector<const char*> requiredDeviceFeatures = {
+	"samplerAnisotropy",
+	"multiDrawIndirect"
+};
+
 #ifdef NDEBUG
 static const bool enableValidationLayers = false;
 #else
@@ -268,7 +273,7 @@ private:
 	VmaAllocation depthImageAllocation;
 	VkImageView depthImageView;
 
-	Mesh mesh;
+	Model model;
 
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VmaAllocation> uniformBuffersAllocation;
@@ -315,9 +320,9 @@ private:
 		createDepthResources();
 		createFramebuffers();
 		
-		mesh.createBuffers(physicalDevice, device, allocator, graphicsQueue, commandPool);
+		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, commandPool);
 		createUniformBuffers();
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), uniformBuffers, mesh.textureImageView, mesh.textureSampler);
+		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), uniformBuffers, model.textureImageView, model.textureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, static_cast<uint32_t>(swapChainImages.size()), colorResolveImageView);
 		createCommandBuffers();
 		createSyncObjects();
@@ -382,7 +387,7 @@ private:
 		vkDestroyDescriptorSetLayout(device, subpass1.shaders[0].descriptorSetLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, subpass2.shaders[0].descriptorSetLayout, nullptr);
 
-		mesh.cleanUp(device, allocator);
+		model.cleanUp(device, allocator);
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 			vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
@@ -426,7 +431,7 @@ private:
 		createDepthResources();
 		createFramebuffers();
 		createUniformBuffers();
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), uniformBuffers, mesh.textureImageView, mesh.textureSampler);
+		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), uniformBuffers, model.textureImageView, model.textureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, static_cast<uint32_t>(swapChainImages.size()), colorResolveImageView);
 		createCommandBuffers();
 	}
@@ -537,9 +542,8 @@ private:
 			queueCreateInfos.push_back(queueCreateInfo);
 		}
 
-		VkPhysicalDeviceFeatures deviceFeatures = {};
-		deviceFeatures.samplerAnisotropy = VK_TRUE;
-
+		VkPhysicalDeviceFeatures deviceFeatures = checkSupportedDeviceFeatures(physicalDevice, requiredDeviceFeatures);
+		
 		VkDeviceCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
@@ -956,8 +960,8 @@ private:
 
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.shaders[0].pipelineLayout, 0, 1, &subpass1.shaders[0].descriptorSets[i], 0, nullptr);
 
-			// put mesh draw
-			mesh.cmdDraw(commandBuffers[i]);
+			// put model draw
+			model.cmdDraw(commandBuffers[i]);
 
 			vkCmdNextSubpass(commandBuffers[i], VK_SUBPASS_CONTENTS_INLINE);
 

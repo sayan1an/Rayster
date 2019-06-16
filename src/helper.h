@@ -24,6 +24,24 @@ std::vector<char> readFile(const std::string& filename) {
 	return buffer;
 }
 
+VkPhysicalDeviceFeatures checkSupportedDeviceFeatures(const VkPhysicalDevice& physicalDevice, const std::vector<const char*> &requiredFeatures) {
+	VkPhysicalDeviceFeatures supportedFeatures = {};
+	VkPhysicalDeviceFeatures vk_requiredFeatures = {};
+	
+	vkGetPhysicalDeviceFeatures(physicalDevice, &supportedFeatures);
+
+	for (const auto requiredFeature : requiredFeatures) {
+		if (std::strcmp(requiredFeature, "samplerAnisotropy") == 0 && supportedFeatures.samplerAnisotropy)
+			vk_requiredFeatures.samplerAnisotropy = VK_TRUE;
+		else if (std::strcmp(requiredFeature, "multiDrawIndirect") == 0 && supportedFeatures.multiDrawIndirect)
+			vk_requiredFeatures.multiDrawIndirect = VK_TRUE;
+		else
+			throw std::runtime_error(std::string("physical device feature '") + requiredFeature +  "' not found or unsupported!");
+	}
+
+	return vk_requiredFeatures;
+}
+
 VkCommandBuffer beginSingleTimeCommands(const VkDevice &device, const VkCommandPool &commandPool) {
 	VkCommandBufferAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
