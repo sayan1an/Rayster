@@ -9,7 +9,7 @@
 #include <glm/gtx/hash.hpp>
 
 static const std::vector<std::string> MODEL_PATHS = { ROOT + "/models/cat.obj", ROOT + "/models/chalet.obj", ROOT + "/models/deer.obj"};
-static const std::string TEXTURE_PATH = ROOT + "/textures/ubiLogo.jpg";
+static const std::vector<std::string> TEXTURE_PATHS = { ROOT + "/textures/ubiLogo.jpg",  ROOT + "/textures/chalet.jpg" };
 
 #define VERTEX_BINDING_ID	0
 #define INSTANCE_BINIDING_ID	1
@@ -32,9 +32,58 @@ namespace std {
 	};
 }
 
-// This data does not update at per frame, hence static
+// Per instance data, not meant for draw time updates
 struct InstanceStatic {
 	glm::vec3 translate;
+};
+
+struct Image2d {
+	void *pixels = nullptr;
+	uint32_t width = 0;
+	uint32_t height = 0;
+	VkFormat format = VK_FORMAT_UNDEFINED;
+	std::string path;
+
+	uint32_t size() const {
+		switch (format) {
+			case VK_FORMAT_R8G8B8A8_UNORM:
+				return height * width * 4 * sizeof(unsigned char);
+			default:
+				throw std::runtime_error("Unrecognised format.");
+		}
+
+		return 0;
+	}
+
+	uint32_t mipLevels() {
+		return static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+	}
+
+	Image2d(const std::string texturePath) {
+		int texChannels, iWidth, iHeight;
+		pixels = stbi_load(texturePath.c_str(), &iWidth, &iHeight, &texChannels, STBI_rgb_alpha);
+		if (!pixels) {
+			throw std::runtime_error("failed to load texture image!");
+		}
+
+		width = static_cast<uint32_t> (iWidth);
+		height = static_cast<uint32_t> (iHeight);
+		format = VK_FORMAT_R8G8B8A8_UNORM;
+		path = texturePath;
+	}
+
+	void cleanUp() {
+		stbi_image_free(pixels);
+	}
+
+	Image2d() {
+		// creates a default white texture
+		width = height = 512;
+		format = VK_FORMAT_R8G8B8A8_UNORM;
+		pixels = new unsigned char[width * height * 4];
+		memset(pixels, 1, size());
+		path = "";
+	}
 };
 
 // defines a single mesh and its instances
@@ -118,8 +167,13 @@ class Model {
 public:
 	VkImageView textureImageView;
 	VkSampler textureSampler;
-		
+	std::vector<Image2d> textureCache;
+
 	Model() {
+		for (const auto& texturePath : TEXTURE_PATHS)
+			textureCache.push_back(Image2d(texturePath));
+		fixTextureCache();
+
 		int ctr = -1;
 		for (const auto& modelPath : MODEL_PATHS)
 			meshes.push_back(Mesh(modelPath.c_str(), (float)2*ctr++));
@@ -162,7 +216,7 @@ public:
 		attributeDescriptions[3].binding = INSTANCE_BINIDING_ID;
 		attributeDescriptions[3].location = 3;
 		attributeDescriptions[3].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[3].offset = offsetof(Instance, translate);
+		attributeDescriptions[3].offset = offsetof(InstanceStatic, translate);
 
 		return std::vector<VkVertexInputAttributeDescription>(attributeDescriptions.begin(), attributeDescriptions.end());
 	}
@@ -185,8 +239,8 @@ public:
 		createInstanceBuffer(device, allocator, queue, commandPool);
 		createIndexBuffer(device, allocator, queue, commandPool);
 		createIndirectCmdBuffer(device, allocator, queue, commandPool);
-		createTextureImage(physicalDevice, device, allocator, queue, commandPool);
-		createTextureImageView(device);
+		createTextureImage2(physicalDevice, device, allocator, queue, commandPool);
+		createTextureImageView2(device);
 		createTextureSampler(device);
 	}
 
@@ -202,12 +256,11 @@ public:
 		vmaDestroyBuffer(allocator, indirectCmdBuffer, indirectCmdBufferAllocation);
 	}
 private:
-	std::vector<Mesh> meshes;
-	// global buffer for the meshes
+	std::vector<Mesh> meshes; // ideally store unique meshes
 	std::vector<Vertex> vertices; // concatenate vertices from all meshes
 	std::vector<uint32_t> indices;  // indeces into the above global vertices
-	std::vector<InstanceStatic> staticInstances; // concatenate instances from all meshes. Each mesh can have multiple instances. 
-	std::vector<VkDrawIndexedIndirectCommand> indirectCommands;
+	std::vector<InstanceStatic> staticInstances; // concatenate instances from all meshes. Note each mesh can have multiple instances. 
+	std::vector<VkDrawIndexedIndirectCommand> indirectCommands; // Its size is meshes.size().
 
 	VkBuffer vertexBuffer;
 	VmaAllocation vertexBufferAllocation;
@@ -249,6 +302,24 @@ private:
 			indexOffset += mesh.indices.size();
 			meshVertexOffset += mesh.vertices.size();
 			instanceOffset += mesh.staticInstances.size();
+		}
+	}
+
+	void fixTextureCache() {
+		if (textureCache.empty())
+			textureCache.push_back(Image2d());
+		else {
+			// All images must have same image format and size. We can relax this restriction to having same aspect ratio and rescaling the
+			// images to the largest one.
+			
+			// for now let's just throw an error when size and format are not same.
+			// TODO : Check if the images have same aspect ratio and format. Upscale all images to the size of the largest one.
+			VkFormat desiredFormat = textureCache[0].format;
+			uint32_t desiredWidth = textureCache[0].width;
+			uint32_t desiredHeight = textureCache[0].height;
+			for (const auto &image : textureCache)
+				if (image.format != desiredFormat || image.width != desiredWidth || image.height != desiredHeight)
+					throw std::runtime_error("Size and format for all texture images must be same.");
 		}
 	}
 
@@ -388,7 +459,7 @@ private:
 
 	void createTextureImage(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
 		int texWidth, texHeight, texChannels;
-		stbi_uc* pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+		stbi_uc* pixels = stbi_load(TEXTURE_PATHS[0].c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 		VkDeviceSize imageSize = texWidth * texHeight * 4;
 		mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
@@ -437,17 +508,104 @@ private:
 		if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &textureImage, &textureImageAllocation, nullptr) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create texture image!");
 
-		transitionImageLayout(device, queue, commandPool, textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
+		transitionImageLayout(device, queue, commandPool, textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels, 1);
 		copyBufferToImage(device, queue, commandPool, stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 		//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
 
 		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
 
-		generateMipmaps(physicalDevice, device, queue, commandPool, textureImage, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels);
+		generateMipmaps(physicalDevice, device, queue, commandPool, textureImage, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels, 1);
+	}
+
+	void createTextureImage2(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
+		mipLevels = textureCache[0].mipLevels();
+		
+		uint32_t bufferSize = 0;
+		for (const auto &image : textureCache)
+			bufferSize += image.size();
+
+		VkBuffer stagingBuffer;
+		VmaAllocation stagingBufferAllocation;
+
+		VkBufferCreateInfo bufferCreateInfo = {};
+		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferCreateInfo.size = bufferSize;
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		VmaAllocationCreateInfo allocCreateInfo = {};
+		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create staging buffer for index buffer!");
+
+		void* data;
+		vmaMapMemory(allocator, stagingBufferAllocation, &data);
+		uint32_t bufferOffset = 0;
+		for (auto &image : textureCache) {
+			byte *start = static_cast<byte *>(data);
+			memcpy(&start[bufferOffset], image.pixels, static_cast<size_t>(image.size()));
+			bufferOffset += static_cast<size_t>(image.size());
+			image.cleanUp();
+		}
+		vmaUnmapMemory(allocator, stagingBufferAllocation);
+
+		std::vector<VkBufferImageCopy> bufferCopyRegions;
+		bufferOffset = 0;
+		for (uint32_t layer = 0; layer < textureCache.size(); layer++) {
+			VkBufferImageCopy bufferCopyRegion = {};
+			bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			bufferCopyRegion.imageSubresource.mipLevel = 0;
+			bufferCopyRegion.imageSubresource.baseArrayLayer = layer;
+			bufferCopyRegion.imageSubresource.layerCount = 1;
+			bufferCopyRegion.imageExtent.width = textureCache[0].width;
+			bufferCopyRegion.imageExtent.height = textureCache[0].height;
+			bufferCopyRegion.imageExtent.depth = 1;
+			bufferCopyRegion.bufferOffset = bufferOffset;
+
+			bufferCopyRegions.push_back(bufferCopyRegion);
+
+			// Increase offset into staging buffer for next level / face
+			bufferOffset += textureCache[layer].size();
+		}
+
+		VkImageCreateInfo imageCreateInfo = {};
+		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageCreateInfo.extent.width = textureCache[0].width;
+		imageCreateInfo.extent.height = textureCache[0].height;
+		imageCreateInfo.extent.depth = 1;
+		imageCreateInfo.mipLevels = mipLevels;
+		imageCreateInfo.arrayLayers = static_cast<uint32_t>(textureCache.size());
+		imageCreateInfo.format = textureCache[0].format;
+		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+		if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &textureImage, &textureImageAllocation, nullptr) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create texture image!");
+
+		transitionImageLayout(device, queue, commandPool, textureImage, textureCache[0].format, 
+			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels, static_cast<uint32_t>(textureCache.size()));
+		VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
+
+		vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
+			static_cast<uint32_t>(bufferCopyRegions.size()), bufferCopyRegions.data());
+
+		endSingleTimeCommands(device, queue, commandPool, commandBuffer);
+		//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
+
+		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
+
+		generateMipmaps(physicalDevice, device, queue, commandPool, textureImage, 
+			textureCache[0].format, textureCache[0].width, textureCache[0].height, mipLevels, static_cast<uint32_t>(textureCache.size()));
 	}
 
 	void generateMipmaps(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,
-		VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) {
+		VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, uint32_t layerCount) {
 		// Check if image format supports linear blitting
 		VkFormatProperties formatProperties;
 		vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
@@ -465,7 +623,7 @@ private:
 		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		barrier.subresourceRange.baseArrayLayer = 0;
-		barrier.subresourceRange.layerCount = 1;
+		barrier.subresourceRange.layerCount = layerCount;
 		barrier.subresourceRange.levelCount = 1;
 
 		int32_t mipWidth = texWidth;
@@ -490,13 +648,13 @@ private:
 			blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			blit.srcSubresource.mipLevel = i - 1;
 			blit.srcSubresource.baseArrayLayer = 0;
-			blit.srcSubresource.layerCount = 1;
+			blit.srcSubresource.layerCount = layerCount;
 			blit.dstOffsets[0] = { 0, 0, 0 };
 			blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 };
 			blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			blit.dstSubresource.mipLevel = i;
 			blit.dstSubresource.baseArrayLayer = 0;
-			blit.dstSubresource.layerCount = 1;
+			blit.dstSubresource.layerCount = layerCount;
 
 			vkCmdBlitImage(commandBuffer,
 				image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -535,7 +693,11 @@ private:
 	}
 
 	void createTextureImageView(const VkDevice& device) {
-		textureImageView = createImageView(device, textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+		textureImageView = createImageView(device, textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, 1);
+	}
+
+	void createTextureImageView2(const VkDevice& device) {
+		textureImageView = createImageView(device, textureImage, textureCache[0].format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, static_cast<uint32_t>(textureCache.size()));
 	}
 
 	void createTextureSampler(const VkDevice& device) {

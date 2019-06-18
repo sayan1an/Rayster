@@ -85,17 +85,17 @@ void copyBuffer(const VkDevice &device, const VkQueue& queue, const VkCommandPoo
 	endSingleTimeCommands(device, queue, commandPool, commandBuffer);
 }
 
-VkImageView createImageView(const VkDevice &device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels) {
+VkImageView createImageView(const VkDevice &device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, uint32_t layerCount) {
 	VkImageViewCreateInfo viewInfo = {};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	viewInfo.image = image;
-	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.viewType = layerCount == 1 ? VK_IMAGE_VIEW_TYPE_2D : VK_IMAGE_VIEW_TYPE_2D_ARRAY;
 	viewInfo.format = format;
 	viewInfo.subresourceRange.aspectMask = aspectFlags;
 	viewInfo.subresourceRange.baseMipLevel = 0;
 	viewInfo.subresourceRange.levelCount = mipLevels;
 	viewInfo.subresourceRange.baseArrayLayer = 0;
-	viewInfo.subresourceRange.layerCount = 1;
+	viewInfo.subresourceRange.layerCount = layerCount;
 
 	VkImageView imageView;
 	if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
@@ -110,7 +110,7 @@ bool hasStencilComponent(VkFormat format) {
 }
 
 void transitionImageLayout(const VkDevice &device, const VkQueue &queue, const VkCommandPool& commandPool,
-	VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels) {
+	VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount) {
 	
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
 
@@ -136,7 +136,7 @@ void transitionImageLayout(const VkDevice &device, const VkQueue &queue, const V
 	barrier.subresourceRange.baseMipLevel = 0;
 	barrier.subresourceRange.levelCount = mipLevels;
 	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
+	barrier.subresourceRange.layerCount = layerCount;
 
 	VkPipelineStageFlags sourceStage;
 	VkPipelineStageFlags destinationStage;

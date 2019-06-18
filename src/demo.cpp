@@ -627,7 +627,7 @@ private:
 		swapChainImageViews.resize(swapChainImages.size());
 
 		for (uint32_t i = 0; i < swapChainImages.size(); i++) {
-			swapChainImageViews[i] = createImageView(device, swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+			swapChainImageViews[i] = createImageView(device, swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 		}
 	}
 
@@ -785,9 +785,9 @@ private:
 			if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &colorImage, &colorImageAllocation, nullptr) != VK_SUCCESS)
 				throw std::runtime_error("Failed to create color image!");
 
-			colorImageView = createImageView(device, colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+			colorImageView = createImageView(device, colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 
-			transitionImageLayout(device, graphicsQueue, commandPool, colorImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1);
+			transitionImageLayout(device, graphicsQueue, commandPool, colorImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1, 1);
 		}
 		{
 			VkFormat colorFormat = swapChainImageFormat;
@@ -814,9 +814,9 @@ private:
 			if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &colorResolveImage, &colorResolveImageAllocation, nullptr) != VK_SUCCESS)
 				throw std::runtime_error("Failed to create color image!");
 
-			colorResolveImageView = createImageView(device, colorResolveImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+			colorResolveImageView = createImageView(device, colorResolveImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 
-			transitionImageLayout(device, graphicsQueue, commandPool, colorResolveImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1);
+			transitionImageLayout(device, graphicsQueue, commandPool, colorResolveImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1, 1);
 		}
 	}
 
@@ -845,9 +845,9 @@ private:
 		if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &depthImage, &depthImageAllocation, nullptr) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create color image!");
 		
-		depthImageView = createImageView(device, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+		depthImageView = createImageView(device, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1, 1);
 
-		transitionImageLayout(device, graphicsQueue, commandPool, depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1);
+		transitionImageLayout(device, graphicsQueue, commandPool, depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, 1);
 	}
 
 	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
