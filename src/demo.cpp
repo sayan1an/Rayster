@@ -1,9 +1,5 @@
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -25,6 +21,8 @@
 #include "helper.h"
 #include "subpass.hpp"
 #include "model.hpp"
+#include "io.hpp"
+#include "camera.hpp"
 
 static const int WIDTH = 800;
 static const int HEIGHT = 600;
@@ -225,14 +223,15 @@ private:
 class MultiSamplingApplication {
 public:
 	void run() {
-		initWindow();
+		io.initWindow(WIDTH, HEIGHT);
 		initVulkan();
 		mainLoop();
 		cleanup();
 	}
 
 private:
-	GLFWwindow* window;
+	IO io;
+	Camera cam;
 
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT debugMessenger;
@@ -286,27 +285,10 @@ private:
 	std::vector<VkFence> inFlightFences;
 	size_t currentFrame = 0;
 
-	bool framebufferResized = false;
-
-	void initWindow() {
-		glfwInit();
-
-		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-		window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
-		glfwSetWindowUserPointer(window, this);
-		glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-	}
-
-	static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-		auto app = reinterpret_cast<MultiSamplingApplication*>(glfwGetWindowUserPointer(window));
-		app->framebufferResized = true;
-	}
-
 	void initVulkan() {
 		createInstance();
 		setupDebugMessenger();
-		createSurface();
+		io.createSurface(instance, surface);
 		pickPhysicalDevice();
 		createLogicalDevice();
 		vmaInit();
@@ -329,8 +311,8 @@ private:
 	}
 
 	void mainLoop() {
-		while (!glfwWindowShouldClose(window)) {
-			glfwPollEvents();
+		while (!io.windowShouldClose()) {
+			io.pollEvents();
 			drawFrame();
 		}
 
@@ -408,17 +390,12 @@ private:
 		vkDestroySurfaceKHR(instance, surface, nullptr);
 		vkDestroyInstance(instance, nullptr);
 
-		glfwDestroyWindow(window);
-
-		glfwTerminate();
+		io.terminate();
 	}
 
 	void recreateSwapChain() {
-		int width = 0, height = 0;
-		while (width == 0 || height == 0) {
-			glfwGetFramebufferSize(window, &width, &height);
-			glfwWaitEvents();
-		}
+		int dummyWidth, dummyHeight;
+		io.getFramebufferSize(dummyWidth, dummyHeight);
 
 		vkDeviceWaitIdle(device);
 
@@ -492,12 +469,6 @@ private:
 
 		if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
 			throw std::runtime_error("failed to set up debug messenger!");
-		}
-	}
-
-	void createSurface() {
-		if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create window surface!");
 		}
 	}
 
@@ -1005,8 +976,8 @@ private:
 		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
 		UniformBufferObject ubo = {};
-		ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.view = cam.getViewMatrix(io);
 		ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
 		ubo.proj[1][1] *= -1;
 
@@ -1065,8 +1036,7 @@ private:
 
 		result = vkQueuePresentKHR(presentQueue, &presentInfo);
 
-		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
-			framebufferResized = false;
+		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || io.isFramebufferResized(true)) {
 			recreateSwapChain();
 		}
 		else if (result != VK_SUCCESS) {
@@ -1125,7 +1095,7 @@ private:
 		}
 		else {
 			int width, height;
-			glfwGetFramebufferSize(window, &width, &height);
+			io.getFramebufferSize(width, height);
 
 			VkExtent2D actualExtent = {
 				static_cast<uint32_t>(width),
