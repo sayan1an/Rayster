@@ -15,6 +15,7 @@ public:
 		glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 		glfwSetKeyCallback(window, keyboardCallback);
 		glfwSetMouseButtonCallback(window, mouseButtonCallback);
+		glfwSetScrollCallback(window, mouseScrollCallback);
 	}
 
 	void createSurface(const VkInstance &instance, VkSurfaceKHR &surface) {
@@ -51,6 +52,15 @@ public:
 		glfwGetCursorPos(window, &xpos, &ypos);
 	}
 
+	inline void getMouseScrollOffset(double &scrollOffset) {
+		scrollOffset = muScrollOffset;
+		muScrollOffset = 0.0;
+	}
+
+	inline int getLastKeyState(int key) const {
+		return glfwGetKey(window, key);
+	}
+
 	inline int windowShouldClose() {
 		return glfwWindowShouldClose(window);
 	}
@@ -73,6 +83,8 @@ private:
 
 	int muKey;
 	int muAction;
+
+	double muScrollOffset = 0;
 	
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
 		auto app = reinterpret_cast<IO *>(glfwGetWindowUserPointer(window));
@@ -89,5 +101,10 @@ private:
 		auto app = reinterpret_cast<IO *>(glfwGetWindowUserPointer(window));
 		app->muKey = button;
 		app->muAction = action;
+	}
+
+	static void mouseScrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+		auto app = reinterpret_cast<IO *>(glfwGetWindowUserPointer(window));
+		app->muScrollOffset = yoffset;
 	}
 };

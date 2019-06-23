@@ -9,10 +9,18 @@
 
 class Camera {
 public:
-	glm::mat4 getViewMatrix(const IO &io) {
+	glm::mat4 getViewMatrix(IO &io) {
 		glm::mat4 view;
-
-		trackBallCamera();
+		
+		switch (switchCamera(io)) {
+			case 0 : 
+				trackBallCamera(io);
+				break;
+			case 1:	
+				firstPersonCamera(io);
+				break;
+		}
+		
 		setView(view);
 
 		return view;
@@ -26,13 +34,21 @@ public:
 		setCoordinateSystem();
 	}
 private:
-	uint32_t selectCamera = 0;
 	glm::vec3 cameraPosition;
 	glm::vec3 cameraFocus;
 
 	glm::vec3 cameraFront;
 	glm::vec3 cameraUp;
 	glm::vec3 cameraRight;
+
+	uint32_t selectCamera = 0;
+
+	float angleIncrement = 0.001f;
+	float distanceIncrement = 0.001f;
+
+	enum MOUSE_DRAG {NO_DRAG = 0, DRAG_LEFT = 1, DRAG_DOWN = 2, DRAG_UP = 4, DRAG_RIGHT = 8};
+	enum SCROLL_ZOOM {NO_ZOOM = 0, ZOOM_IN = 1, ZOOM_OUT = 2};
+	enum MOVEMENT {NO_MOVEMENT = 0, MOVE_FORWARD = 1, MOVE_BACK = 2, MOVE_RIGHT = 4, MOVE_LEFT = 8};
 
 	void setView(glm::mat4 &view) {
 		view[0][0] = cameraRight.x;
@@ -49,36 +65,61 @@ private:
 		view[3][2] = dot(cameraFront, cameraPosition);
 	}
 
-	void trackBallCamera() {
+	void trackBallCamera(IO &io) {
 		// rotate camera position around the point camera focus.
-		float thetaVertical = 0.000f;
-		float thetaHorizontal = 0.001f;
+		
+		uint32_t drag = mouseDrag(io);
+		uint32_t zoom = mouseZoom(io);
 
-		float length = glm::length(cameraPosition - cameraFocus);
+		if (drag != NO_DRAG) {
+			float thetaVertical = drag & DRAG_UP ? angleIncrement : drag & DRAG_DOWN ? -angleIncrement : 0.0f;
+			float thetaHorizontal = drag & DRAG_RIGHT ? angleIncrement : drag & DRAG_LEFT ? -angleIncrement : 0.0f;
 
-		{
-			// move camera position in a circle embedded on the vertical plane defined by axis cameraUp and cameraFront
+			float length = glm::length(cameraPosition - cameraFocus);
+
+			// move camera position in a circle (centered at camera focus ) embedded on the vertical plane defined by axis cameraUp and cameraFront
 			cameraPosition = cameraPosition + cameraUp * length * std::sin(thetaVertical)
 				+ cameraFront * length * (1.0f - std::cos(thetaVertical));
-		}
-		{	
-			// move camera position in a circle embedded on the horizontal plane defined by axis cameraRight and cameraFront
+
+			// move camera position in a circle (centered at camera focus ) embedded on the horizontal plane defined by axis cameraRight and cameraFront
 			cameraPosition = cameraPosition + cameraRight * length * std::sin(thetaHorizontal)
 				+ cameraFront * length * (1.0f - std::cos(thetaHorizontal));
+
+			setCoordinateSystem();
 		}
 
-		setCoordinateSystem();
+		if (zoom != NO_ZOOM) {
+			float zoomVal = zoom & ZOOM_IN ? distanceIncrement : zoom & ZOOM_OUT ? -distanceIncrement : 0.0f;
+			cameraPosition = cameraPosition + cameraFront * zoomVal;
+		}
 	}
 
-	void firstPersonCamera() {
+	void firstPersonCamera(const IO &io) {
 		// roate camera foucs point and translate (camera position and camera Focus)
-		float forward = 0;
-		float strafe = 0;
+		uint32_t drag = mouseDrag(io);
+		uint32_t movement = keyboardMovement(io);
 
-		float thetaVertical = 0;
-		float thetaHorizontal = 0;
+		if (drag != NO_DRAG) {
+			float thetaVertical = drag & DRAG_UP ? angleIncrement : drag & DRAG_DOWN ? -angleIncrement : 0.0f;
+			float thetaHorizontal = drag & DRAG_RIGHT ? angleIncrement : drag & DRAG_LEFT ? -angleIncrement : 0.0f;
 
-		{	// translate camera position and camera focus
+			float length = glm::length(cameraFocus - cameraPosition);
+			
+			// move camera focus in a circle (centered at camera position ) embedded on the vertical plane defined by axis cameraUp and cameraFront
+			cameraFocus = cameraFocus + cameraUp * length * std::sin(thetaVertical)
+				+ cameraFront * length * (std::cos(thetaVertical) - 1.0f);
+
+			// move camera focus in a circle (centered at camera position ) embedded on the horzontal plane defined by axis cameraRight and cameraFront
+			cameraFocus = cameraFocus + cameraRight * length * std::sin(thetaHorizontal)
+				+ cameraFront * length * (std::cos(thetaHorizontal) - 1.0f);
+
+			setCoordinateSystem();
+		}
+
+		if (movement != NO_MOVEMENT) {	// translate camera position and camera focus
+			float forward = movement & MOVE_FORWARD ? distanceIncrement : movement & MOVE_BACK ? -distanceIncrement : 0.0f;
+			float strafe = movement & MOVE_RIGHT ? distanceIncrement : movement & MOVE_LEFT ? -distanceIncrement : 0.0f;
+
 			glm::vec3 delta = forward * cameraFront + strafe * cameraRight;
 			cameraFocus = cameraFocus + delta;
 			cameraPosition = cameraPosition + delta;
@@ -98,11 +139,62 @@ private:
 		cameraUp = glm::normalize(glm::cross(cameraRight, cameraFront));
 	}
 
-	void switchCamera(const IO &io) {
+	uint32_t switchCamera(const IO &io) {
 		int key, action;
-		static int lastAction;
 		io.getKeyboardInput(key, action);
-		if (key == GLFW_KEY_C && action == GLFW_RELEASE && lastAction == GLFW_PRESS)
+		static int lastAction = 0;
+		if (action == GLFW_RELEASE && key == GLFW_KEY_C && lastAction == GLFW_PRESS)
 			selectCamera++;
+
+		lastAction = action;
+		return selectCamera % 2;
+	}
+
+	uint32_t mouseDrag(const IO &io) {
+		int key, action;
+		io.getMouseInput(key, action);
+		static double lastPosY, lastPosX;
+		
+		if (key == GLFW_MOUSE_BUTTON_1 && action == GLFW_PRESS) {
+			uint32_t drag = NO_DRAG;
+			
+			double posX, posY;
+			io.getMouseCursorPos(posX, posY);
+			double diffX = posX - lastPosX;
+			double diffY = lastPosY - posY;
+			drag |= diffX > 1e-4 ? DRAG_RIGHT : diffX < -1e-4 ? DRAG_LEFT : NO_DRAG;
+			drag |= diffY > 1e-4 ? DRAG_UP : diffY < -1e-4 ? DRAG_DOWN : NO_DRAG;
+			
+			lastPosX = posX;
+			lastPosY = posY;
+
+			return drag;
+		}
+		else {
+			lastPosX = 0.0;
+			lastPosY = 0.0;
+		}
+
+		return NO_DRAG;
+	}
+
+	uint32_t mouseZoom(IO &io) {
+		double scrollOffset;
+		io.getMouseScrollOffset(scrollOffset);
+
+		return scrollOffset > 0 ? ZOOM_OUT : scrollOffset < 0 ? ZOOM_IN : NO_ZOOM;
+	}
+
+	uint32_t keyboardMovement(const IO &io) {
+		uint32_t movement = NO_MOVEMENT;
+		int key, action;
+		io.getKeyboardInput(key, action);
+		bool pressed = action == GLFW_PRESS || action == GLFW_REPEAT;
+		if (pressed) {
+			movement |= key == GLFW_KEY_W ? MOVE_FORWARD : key == GLFW_KEY_S ? MOVE_BACK : NO_MOVEMENT;
+			movement |= key == GLFW_KEY_D ? MOVE_RIGHT : key == GLFW_KEY_A ? MOVE_LEFT : NO_MOVEMENT;
+		}
+
+		return movement;
 	}
 };
