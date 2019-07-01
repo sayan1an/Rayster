@@ -159,7 +159,7 @@ public:
 		shaders[0].allocateDescriptorSets(device, descriptorSetCount);
 
 		for (uint32_t i = 0; i < descriptorSetCount; i++) {
-			std::vector<VkDescriptorImageInfo> imageInfos = { {VK_NULL_HANDLE , colorResolveImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+			std::vector<VkDescriptorImageInfo> imageInfos = { {VK_NULL_HANDLE , colorResolveImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
 					{ VK_NULL_HANDLE , colorResolveImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
 			std::vector<VkDescriptorBufferInfo> bufferInfo;
 			shaders[0].updateDescriptorSet(device, static_cast<uint32_t>(i), bufferInfo, imageInfos);
@@ -168,6 +168,33 @@ public:
 private:
 	VkAttachmentReference colorAttachmentRef;
 	std::vector<VkAttachmentReference> inputAttachmentRefs;
+};
+
+class ComputeShader : public Shaders {
+public:
+	void createDescriptorSetLayout(const VkDevice &device) {
+		std::vector<VkDescriptorSetLayoutBinding> bindings = { { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT },
+		{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT } };
+		DescriptorSet::createDescriptorSetLayout(device, bindings);
+	}
+
+	void createPipeline(const VkDevice &device, const VkImageView &inView, const VkImageView &outView) {
+		VkComputePipelineCreateInfo pipelineInfo = {};
+		createDefaultComputePipelineInfo(device, ROOT + "/shaders/03_comp.spv", pipelineInfo);
+		
+		if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create compute pipeline!");
+		}
+
+		cleanPipelineInternalState(device);
+
+		allocateDescriptorSets(device, 1);
+
+		std::vector<VkDescriptorImageInfo> imageInfos = { { VK_NULL_HANDLE , inView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+		{ VK_NULL_HANDLE , outView,  VK_IMAGE_LAYOUT_GENERAL } };
+		std::vector<VkDescriptorBufferInfo> bufferInfo;
+		updateDescriptorSet(device, 0, bufferInfo, imageInfos);
+	}
 };
 
 class MultiSamplingApplication : public Application {
@@ -196,10 +223,7 @@ private:
 
 	Subpass1 subpass1;
 	Subpass2 subpass2;
-
-	VkCommandPool commandPool;
-
-	VmaAllocator allocator;
+	ComputeShader computeShader;
 
 	VkImage colorImage;
 	VmaAllocation colorImageAllocation;
@@ -208,6 +232,10 @@ private:
 	VkImage colorResolveImage;
 	VmaAllocation colorResolveImageAllocation;
 	VkImageView colorResolveImageView;
+
+	VkImage computeShaderOutImage;
+	VmaAllocation computeShaderOutImageAllocation;
+	VkImageView computeShaderOutImageView;
 
 	VkImage depthImage;
 	VmaAllocation depthImageAllocation;
@@ -220,6 +248,8 @@ private:
 	std::vector<VmaAllocationInfo> uniformBuffersAllocationInfo;
 	
 	std::vector<VkCommandBuffer> commandBuffers;
+	VkCommandBuffer computeCommandBuffer;
+	VkFence computeShaderFence;
 
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -237,18 +267,22 @@ private:
 		createImageViews();
 		subpass1.createSubpassDescription(device);
 		subpass2.createSubpassDescription(device);
+		computeShader.createDescriptorSetLayout(device);
 		createRenderPass();
-		createCommandPool();
+		createCommandPool(surface);
 		createColorResources();
 		createDepthResources();
 		createFramebuffers();
 		
-		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, commandPool);
+		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		createUniformBuffers();
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), uniformBuffers, model.textureImageView, model.textureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, static_cast<uint32_t>(swapChainImages.size()), colorResolveImageView);
+		computeShader.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
+		createComputeCommandBuffer();
 		createSyncObjects();
+		createComputeSyncObject();
 	}
 
 	void mainLoop() {
@@ -258,14 +292,6 @@ private:
 		}
 
 		vkDeviceWaitIdle(device);
-	}
-
-	void vmaInit() {
-		VmaAllocatorCreateInfo allocatorInfo = {};
-		allocatorInfo.physicalDevice = physicalDevice;
-		allocatorInfo.device = device;
-		
-		vmaCreateAllocator(&allocatorInfo, &allocator);
 	}
 
 	void cleanupSwapChain() {
@@ -278,18 +304,25 @@ private:
 		vkDestroyImageView(device, colorResolveImageView, nullptr);
 		vmaDestroyImage(allocator, colorResolveImage, colorResolveImageAllocation);
 
+		vkDestroyImageView(device, computeShaderOutImageView, nullptr);
+		vmaDestroyImage(allocator, computeShaderOutImage, computeShaderOutImageAllocation);
+
 		for (auto framebuffer : swapChainFramebuffers) {
 			vkDestroyFramebuffer(device, framebuffer, nullptr);
 		}
 
-		vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+		vkFreeCommandBuffers(device, graphicsCommandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
 		vkDestroyPipeline(device, subpass1.shaders[0].pipeline , nullptr);
 		vkDestroyPipelineLayout(device, subpass1.shaders[0].pipelineLayout, nullptr);
 
 		vkDestroyPipeline(device, subpass2.shaders[0].pipeline, nullptr);
 		vkDestroyPipelineLayout(device, subpass2.shaders[0].pipelineLayout, nullptr);
+
 		vkDestroyRenderPass(device, renderPass, nullptr);
+
+		vkDestroyPipeline(device, computeShader.pipeline, nullptr);
+		vkDestroyPipelineLayout(device, computeShader.pipelineLayout, nullptr);
 
 		for (auto imageView : swapChainImageViews) {
 			vkDestroyImageView(device, imageView, nullptr);
@@ -302,6 +335,7 @@ private:
 		
 		vkDestroyDescriptorPool(device, subpass1.shaders[0].descriptorPool, nullptr);
 		vkDestroyDescriptorPool(device, subpass2.shaders[0].descriptorPool, nullptr);
+		vkDestroyDescriptorPool(device, computeShader.descriptorPool, nullptr);
 	}
 
 	void cleanup() {
@@ -309,6 +343,7 @@ private:
 		
 		vkDestroyDescriptorSetLayout(device, subpass1.shaders[0].descriptorSetLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, subpass2.shaders[0].descriptorSetLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device, computeShader.descriptorSetLayout, nullptr);
 
 		model.cleanUp(device, allocator);
 
@@ -318,10 +353,7 @@ private:
 			vkDestroyFence(device, inFlightFences[i], nullptr);
 		}
 
-		vkDestroyCommandPool(device, commandPool, nullptr);
-
-		vmaDestroyAllocator(allocator);
-
+		vkDestroyFence(device, computeShaderFence, nullptr);
 		vkDestroySurfaceKHR(instance, surface, nullptr);
 		
 		io.terminate();
@@ -344,6 +376,7 @@ private:
 		createUniformBuffers();
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), uniformBuffers, model.textureImageView, model.textureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, static_cast<uint32_t>(swapChainImages.size()), colorResolveImageView);
+		computeShader.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
 	}
 		
@@ -523,18 +556,6 @@ private:
 		}
 	}
 
-	void createCommandPool() {
-		QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice, surface);
-
-		VkCommandPoolCreateInfo poolInfo = {};
-		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
-
-		if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create graphics command pool!");
-		}
-	}
-
 	void createColorResources() {
 		{
 			VkFormat colorFormat = swapChainImageFormat;
@@ -563,7 +584,7 @@ private:
 
 			colorImageView = createImageView(device, colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 
-			transitionImageLayout(device, graphicsQueue, commandPool, colorImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1, 1);
+			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, colorImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1, 1);
 		}
 		{
 			VkFormat colorFormat = swapChainImageFormat;
@@ -592,7 +613,36 @@ private:
 
 			colorResolveImageView = createImageView(device, colorResolveImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 
-			transitionImageLayout(device, graphicsQueue, commandPool, colorResolveImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1, 1);
+			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, colorResolveImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1, 1);
+		}
+		{
+			VkFormat colorFormat = swapChainImageFormat;
+
+			// change number of samples to msaaSamples
+			VkImageCreateInfo imageCreateInfo = {};
+			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+			imageCreateInfo.extent.width = swapChainExtent.width;
+			imageCreateInfo.extent.height = swapChainExtent.width;
+			imageCreateInfo.extent.depth = 1;
+			imageCreateInfo.mipLevels = 1;
+			imageCreateInfo.arrayLayers = 1;
+			imageCreateInfo.format = colorFormat;
+			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			imageCreateInfo.usage = VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+			VmaAllocationCreateInfo allocCreateInfo = {};
+			allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+			if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &computeShaderOutImage, &computeShaderOutImageAllocation, nullptr) != VK_SUCCESS)
+				throw std::runtime_error("Failed to create color image!");
+
+			computeShaderOutImageView = createImageView(device, computeShaderOutImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
+
+			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, computeShaderOutImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
 		}
 	}
 
@@ -623,7 +673,7 @@ private:
 		
 		depthImageView = createImageView(device, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1, 1);
 
-		transitionImageLayout(device, graphicsQueue, commandPool, depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, 1);
+		transitionImageLayout(device, graphicsQueue, graphicsCommandPool, depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, 1);
 	}
 
 	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
@@ -681,7 +731,7 @@ private:
 
 		VkCommandBufferAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		allocInfo.commandPool = commandPool;
+		allocInfo.commandPool = graphicsCommandPool;
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
 
@@ -735,6 +785,35 @@ private:
 		}
 	}
 
+	void createComputeCommandBuffer()
+	{	
+		VkCommandBufferAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.commandPool = computeCommandPool;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandBufferCount = 1;
+
+		if (vkAllocateCommandBuffers(device, &allocInfo, &computeCommandBuffer) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate compute command buffers!");
+		}
+
+		// Flush the queue if we're rebuilding the command buffer after a pipeline change to ensure it's not currently in use
+		vkQueueWaitIdle(computeQueue);
+
+		VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+
+		if (vkBeginCommandBuffer(computeCommandBuffer, &beginInfo) != VK_SUCCESS) {
+			throw std::runtime_error("failed to begin recording compute command buffer!");
+		}
+		
+		vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computeShader.pipeline);
+		vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computeShader.pipelineLayout, 0, 1, &computeShader.descriptorSets[0], 0, 0);
+
+		vkCmdDispatch(computeCommandBuffer, swapChainExtent.width / 16, swapChainExtent.height / 16, 1);
+
+		vkEndCommandBuffer(computeCommandBuffer);
+	}
+
 	void createSyncObjects() {
 		imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
 		renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
@@ -756,6 +835,15 @@ private:
 		}
 	}
 
+	void createComputeSyncObject() {
+		VkFenceCreateInfo fenceInfo = {};
+		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+		if (vkCreateFence(device, &fenceInfo, nullptr, &computeShaderFence) != VK_SUCCESS)
+			throw std::runtime_error("failed to create synchronization objects for compute shader!");
+	}
+	
 	void updateUniformBuffer(uint32_t currentImage) {
 		static auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -884,17 +972,17 @@ private:
 };
 
 int main() {
-	MultiSamplingApplication app;
+	{
+		MultiSamplingApplication app;
 
-	try {
-		app.run();
+		try {
+			app.run();
+		}
+		catch (const std::exception & e) {
+			return EXIT_FAILURE;
+		}
 	}
-	catch (const std::exception & e) {
-		std::cerr << e.what() << std::endl;
-		int i;
-		std::cin >> i;
-		return EXIT_FAILURE;
-	}
+
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;

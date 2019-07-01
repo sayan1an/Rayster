@@ -30,9 +30,10 @@ static const bool enableValidationLayers = true;
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphicsFamily;
 	std::optional<uint32_t> presentFamily;
+	std::optional<uint32_t> computeFamily;
 
 	bool isComplete() {
-		return graphicsFamily.has_value() && presentFamily.has_value();
+		return graphicsFamily.has_value() && presentFamily.has_value() && computeFamily.has_value();
 	}
 };
 
@@ -47,13 +48,18 @@ class Application {
 protected:
 	VkInstance instance;
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-
-	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
-
 	VkDevice device;
 
+	VmaAllocator allocator;
+
+	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+	
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
+	VkQueue computeQueue;
+
+	VkCommandPool graphicsCommandPool;
+	VkCommandPool computeCommandPool;
 
 	void createInstance() {
 		if (enableValidationLayers && !checkValidationLayerSupport()) {
@@ -124,7 +130,7 @@ protected:
 		QueueFamilyIndices indices = findQueueFamilies(physicalDevice, surface);
 
 		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-		std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+		std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value(), indices.computeFamily.value() };
 
 		float queuePriority = 1.0f;
 		for (uint32_t queueFamily : uniqueQueueFamilies) {
@@ -163,8 +169,8 @@ protected:
 
 		vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
 		vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+		vkGetDeviceQueue(device, indices.computeFamily.value(), 0, &computeQueue);
 	}
-
 
 	void setupDebugMessenger() {
 		if (!enableValidationLayers) return;
@@ -174,6 +180,33 @@ protected:
 
 		if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
 			throw std::runtime_error("failed to set up debug messenger!");
+		}
+	}
+
+	void vmaInit() {
+		VmaAllocatorCreateInfo allocatorInfo = {};
+		allocatorInfo.physicalDevice = physicalDevice;
+		allocatorInfo.device = device;
+
+		vmaCreateAllocator(&allocatorInfo, &allocator);
+	}
+
+	void createCommandPool(const VkSurfaceKHR &surface) {
+		QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice, surface);
+
+		VkCommandPoolCreateInfo poolInfo = {};
+		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+
+		if (vkCreateCommandPool(device, &poolInfo, nullptr, &graphicsCommandPool) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create graphics command pool!");
+		}
+
+		poolInfo.queueFamilyIndex = queueFamilyIndices.computeFamily.value();
+		poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
+		if (vkCreateCommandPool(device, &poolInfo, nullptr, &computeCommandPool) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create graphics command pool!");
 		}
 	}
 
@@ -200,7 +233,7 @@ protected:
 
 		return details;
 	}
-
+	
 	static QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice &device, const VkSurfaceKHR &surface) {
 		QueueFamilyIndices indices;
 
@@ -223,12 +256,19 @@ protected:
 				indices.presentFamily = i;
 			}
 
+			if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+				indices.computeFamily = i;
+			}
+
 			if (indices.isComplete()) {
 				break;
 			}
 
 			i++;
 		}
+
+		if (!indices.isComplete())
+			throw std::runtime_error("Couldn't find all necessary queues!");
 
 		return indices;
 	}
@@ -238,8 +278,12 @@ protected:
 			DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 		}
 
-		vkDestroyDevice(device, nullptr);
+		vkDestroyCommandPool(device, computeCommandPool, nullptr);
+		vkDestroyCommandPool(device, graphicsCommandPool, nullptr);
 
+		vmaDestroyAllocator(allocator);
+
+		vkDestroyDevice(device, nullptr);
 		vkDestroyInstance(instance, nullptr);
 	}
 private:

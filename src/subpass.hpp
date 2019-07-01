@@ -89,7 +89,7 @@ public:
 			descriptorWrites.push_back(write);
 		}
 
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 private:
 	std::vector<VkDescriptorSetLayoutBinding> bindings;
@@ -259,6 +259,17 @@ public:
 		pipelineInfo.pColorBlendState = colorBlending.get();
 		pipelineInfo.layout = pipelineLayout;
 		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+	}
+
+	void createDefaultComputePipelineInfo(const VkDevice &device, const std::string &compShaderFile, VkComputePipelineCreateInfo &pipelineInfo) {
+		createPipelineLayout(device, descriptorSetLayout);
+		
+		createShaderStageInfo(compShaderFile, device, VK_SHADER_STAGE_COMPUTE_BIT);
+
+		pipelineInfo = {};
+		pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+		pipelineInfo.stage = shaderStageInfos[0];
+		pipelineInfo.layout = pipelineLayout;
 	}
 
 private:
