@@ -107,8 +107,8 @@ public:
 		colorAttachmentRef.attachment = 2; // index to framebuffer
 		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-		inputAttachmentRefs.push_back({3, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		inputAttachmentRefs.push_back({3, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		inputAttachmentRefs.push_back({4, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		inputAttachmentRefs.push_back({4, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 				
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -124,7 +124,7 @@ public:
 	}
 
 	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const uint32_t descriptorSetCount,
-		const VkImageView& colorResolveImageView) {
+		const VkImageView& inputImageView) {
 		
 		auto bindingDescription = Model::getBindingDescription();
 		auto attributeDescription = Model::getAttributeDescriptions();
@@ -159,8 +159,8 @@ public:
 		shaders[0].allocateDescriptorSets(device, descriptorSetCount);
 
 		for (uint32_t i = 0; i < descriptorSetCount; i++) {
-			std::vector<VkDescriptorImageInfo> imageInfos = { {VK_NULL_HANDLE , colorResolveImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
-					{ VK_NULL_HANDLE , colorResolveImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
+			std::vector<VkDescriptorImageInfo> imageInfos = { {VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+					{ VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
 			std::vector<VkDescriptorBufferInfo> bufferInfo;
 			shaders[0].updateDescriptorSet(device, static_cast<uint32_t>(i), bufferInfo, imageInfos);
 		}
@@ -190,7 +190,7 @@ public:
 
 		allocateDescriptorSets(device, 1);
 
-		std::vector<VkDescriptorImageInfo> imageInfos = { { VK_NULL_HANDLE , inView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+		std::vector<VkDescriptorImageInfo> imageInfos = { { VK_NULL_HANDLE , inView,  VK_IMAGE_LAYOUT_GENERAL },
 		{ VK_NULL_HANDLE , outView,  VK_IMAGE_LAYOUT_GENERAL } };
 		std::vector<VkDescriptorBufferInfo> bufferInfo;
 		updateDescriptorSet(device, 0, bufferInfo, imageInfos);
@@ -277,7 +277,7 @@ private:
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		createUniformBuffers();
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), uniformBuffers, model.textureImageView, model.textureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, static_cast<uint32_t>(swapChainImages.size()), colorResolveImageView);
+		subpass2.createSubpass(device, swapChainExtent, renderPass, static_cast<uint32_t>(swapChainImages.size()), computeShaderOutImageView);
 		computeShader.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
 		createComputeCommandBuffer();
@@ -375,7 +375,7 @@ private:
 		createFramebuffers();
 		createUniformBuffers();
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), uniformBuffers, model.textureImageView, model.textureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, static_cast<uint32_t>(swapChainImages.size()), colorResolveImageView);
+		subpass2.createSubpass(device, swapChainExtent, renderPass, static_cast<uint32_t>(swapChainImages.size()), computeShaderOutImageView);
 		computeShader.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
 	}
@@ -484,7 +484,17 @@ private:
 		colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+		VkAttachmentDescription computeShaderOutputAttachment = {};
+		computeShaderOutputAttachment.format = swapChainImageFormat;
+		computeShaderOutputAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		computeShaderOutputAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		computeShaderOutputAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		computeShaderOutputAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		computeShaderOutputAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		computeShaderOutputAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		computeShaderOutputAttachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
 		
 		std::array<VkSubpassDescription, 2> subpassDesc = { subpass1.subpassDescription, subpass2.subpassDescription };
 				
@@ -515,7 +525,7 @@ private:
 		dependencies[2].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 		dependencies[2].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-		std::array<VkAttachmentDescription, 4> attachments = { colorAttachment, depthAttachment, swapChainAttachment, colorAttachmentResolve }; // changed
+		std::array<VkAttachmentDescription, 5> attachments = { colorAttachment, depthAttachment, swapChainAttachment, colorAttachmentResolve, computeShaderOutputAttachment }; 
 		VkRenderPassCreateInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 		renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
@@ -534,11 +544,12 @@ private:
 		swapChainFramebuffers.resize(swapChainImageViews.size());
 
 		for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-			std::array<VkImageView, 4> attachments = {
+			std::array<VkImageView, 5> attachments = {
 				colorImageView, // Multi sample color image
 				depthImageView, // Multi sample depth image
 				swapChainImageViews[i], // Singe sample swap chain image
-				colorResolveImageView // single sample color resolve image  
+				colorResolveImageView, // single sample color resolve image
+				computeShaderOutImageView // compute shader output
 			};
 
 			VkFramebufferCreateInfo framebufferInfo = {};
@@ -589,7 +600,6 @@ private:
 		{
 			VkFormat colorFormat = swapChainImageFormat;
 
-			// change number of samples to msaaSamples
 			VkImageCreateInfo imageCreateInfo = {};
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -601,7 +611,7 @@ private:
 			imageCreateInfo.format = colorFormat;
 			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+			imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
 			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT; 
 			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -613,12 +623,11 @@ private:
 
 			colorResolveImageView = createImageView(device, colorResolveImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 
-			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, colorResolveImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1, 1);
+			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, colorResolveImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
 		}
 		{
 			VkFormat colorFormat = swapChainImageFormat;
 
-			// change number of samples to msaaSamples
 			VkImageCreateInfo imageCreateInfo = {};
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -747,6 +756,25 @@ private:
 			if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
 				throw std::runtime_error("failed to begin recording command buffer!");
 			}
+
+			// Image memory barrier to make sure that compute shader writes are finished before sampling from the texture
+			VkImageMemoryBarrier imageMemoryBarrier = {};
+			imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			// We won't be changing the layout of the image
+			imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemoryBarrier.image = computeShaderOutImage;
+			imageMemoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+			imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+			imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			vkCmdPipelineBarrier(
+				commandBuffers[i],
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				0,
+				0, nullptr,
+				0, nullptr,
+				1, &imageMemoryBarrier);
 
 			VkRenderPassBeginInfo renderPassInfo = {};
 			renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -910,6 +938,16 @@ private:
 		presentInfo.pImageIndices = &imageIndex;
 
 		result = vkQueuePresentKHR(presentQueue, &presentInfo);
+
+		vkWaitForFences(device, 1, &computeShaderFence, VK_TRUE, UINT64_MAX);
+		vkResetFences(device, 1, &computeShaderFence);
+
+		VkSubmitInfo computeSubmitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+		computeSubmitInfo.commandBufferCount = 1;
+		computeSubmitInfo.pCommandBuffers = &computeCommandBuffer;
+
+		if (vkQueueSubmit(computeQueue, 1, &computeSubmitInfo, computeShaderFence) != VK_SUCCESS)
+			throw std::runtime_error("failed to submit compute command buffer!");
 
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || io.isFramebufferResized(true)) {
 			recreateSwapChain();
