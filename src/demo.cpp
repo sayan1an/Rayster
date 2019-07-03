@@ -25,8 +25,8 @@
 #include "camera.hpp"
 #include "appBase.hpp"
 
-static const int WIDTH = 800;
-static const int HEIGHT = 600;
+static const int WIDTH = 1280;
+static const int HEIGHT = 720;
 
 static const int MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -378,6 +378,7 @@ private:
 		subpass2.createSubpass(device, swapChainExtent, renderPass, static_cast<uint32_t>(swapChainImages.size()), computeShaderOutImageView);
 		computeShader.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
+		createComputeCommandBuffer();
 	}
 		
 	void createSwapChain() {
@@ -737,7 +738,7 @@ private:
 			
 	void createCommandBuffers() {
 		commandBuffers.resize(swapChainFramebuffers.size());
-
+		
 		VkCommandBufferAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.commandPool = graphicsCommandPool;
@@ -758,24 +759,33 @@ private:
 			}
 
 			// Image memory barrier to make sure that compute shader writes are finished before sampling from the texture
-			VkImageMemoryBarrier imageMemoryBarrier = {};
-			imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			// We won't be changing the layout of the image
-			imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarrier.image = computeShaderOutImage;
-			imageMemoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-			imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-			imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			std::array<VkImageMemoryBarrier, 2> imageMemoryBarriers = {};
+			imageMemoryBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			imageMemoryBarriers[0].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemoryBarriers[0].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemoryBarriers[0].image = computeShaderOutImage;
+			imageMemoryBarriers[0].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+			imageMemoryBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+			imageMemoryBarriers[0].dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+
+			imageMemoryBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			imageMemoryBarriers[1].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemoryBarriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemoryBarriers[1].image = colorResolveImage;
+			imageMemoryBarriers[1].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+			imageMemoryBarriers[1].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			imageMemoryBarriers[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			
 			vkCmdPipelineBarrier(
 				commandBuffers[i],
 				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 				0,
+				0, nullptr,           
 				0, nullptr,
-				0, nullptr,
-				1, &imageMemoryBarrier);
-
+				static_cast<uint32_t>(imageMemoryBarriers.size()),
+				imageMemoryBarriers.data());
+		
 			VkRenderPassBeginInfo renderPassInfo = {};
 			renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			renderPassInfo.renderPass = renderPass;
@@ -828,7 +838,7 @@ private:
 		// Flush the queue if we're rebuilding the command buffer after a pipeline change to ensure it's not currently in use
 		vkQueueWaitIdle(computeQueue);
 
-		VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+		VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, 0, VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT };
 
 		if (vkBeginCommandBuffer(computeCommandBuffer, &beginInfo) != VK_SUCCESS) {
 			throw std::runtime_error("failed to begin recording compute command buffer!");
@@ -939,14 +949,14 @@ private:
 
 		result = vkQueuePresentKHR(presentQueue, &presentInfo);
 
-		vkWaitForFences(device, 1, &computeShaderFence, VK_TRUE, UINT64_MAX);
-		vkResetFences(device, 1, &computeShaderFence);
+		//vkWaitForFences(device, 1, &computeShaderFence, VK_TRUE, UINT64_MAX);
+		//vkResetFences(device, 1, &computeShaderFence);
 
 		VkSubmitInfo computeSubmitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
 		computeSubmitInfo.commandBufferCount = 1;
 		computeSubmitInfo.pCommandBuffers = &computeCommandBuffer;
 
-		if (vkQueueSubmit(computeQueue, 1, &computeSubmitInfo, computeShaderFence) != VK_SUCCESS)
+		if (vkQueueSubmit(computeQueue, 1, &computeSubmitInfo, nullptr) != VK_SUCCESS)
 			throw std::runtime_error("failed to submit compute command buffer!");
 
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || io.isFramebufferResized(true)) {
