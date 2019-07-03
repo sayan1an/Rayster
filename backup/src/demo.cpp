@@ -31,7 +31,7 @@ static const int HEIGHT = 720;
 static const int MAX_FRAMES_IN_FLIGHT = 2;
 
 struct UniformBufferObject {
-	//alignas(16) glm::mat4 model;
+	alignas(16) glm::mat4 model;
 	alignas(16) glm::mat4 view;
 	alignas(16) glm::mat4 proj;
 };
@@ -758,7 +758,7 @@ private:
 				throw std::runtime_error("failed to begin recording command buffer!");
 			}
 
-			model.cmdTransferData(commandBuffers[i]);
+			//model.cmdTransferData(commandBuffers[i]);
 
 			// Image memory barrier to make sure that compute shader writes are finished before sampling from the texture
 			std::array<VkImageMemoryBarrier, 2> imageMemoryBarriers = {};
@@ -891,6 +891,7 @@ private:
 		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
 		UniformBufferObject ubo = {};
+		ubo.model = glm::identity<glm::mat4>();
 		ubo.view = cam.getViewMatrix(io);
 		ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
 		ubo.proj[1][1] *= -1;
@@ -912,8 +913,8 @@ private:
 			throw std::runtime_error("failed to acquire swap chain image!");
 		}
 
-		model.updateMeshData();
 		updateUniformBuffer(imageIndex);
+		model.updateMeshData();
 
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

@@ -193,7 +193,7 @@ public:
 	}
 
 	static std::vector<VkVertexInputBindingDescription> getBindingDescription() {
-		std::array<VkVertexInputBindingDescription, 3> bindingDescription = {};
+		std::array<VkVertexInputBindingDescription, 2> bindingDescription = {};
 		bindingDescription[0].binding = VERTEX_BINDING_ID;
 		bindingDescription[0].stride = sizeof(Vertex);
 		bindingDescription[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
@@ -201,16 +201,17 @@ public:
 		bindingDescription[1].binding = STATIC_INSTANCE_BINDING_ID;
 		bindingDescription[1].stride = sizeof(InstanceStatic);
 		bindingDescription[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
-		
+
+		/*
 		bindingDescription[2].binding = DYNAMIC_INSTANCE_BINDING_ID;
 		bindingDescription[2].stride = sizeof(InstanceDynamic);
 		bindingDescription[2].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
-		
+		*/
 		return std::vector<VkVertexInputBindingDescription>(bindingDescription.begin(), bindingDescription.end());
 	}
 
 	static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-		std::array<VkVertexInputAttributeDescription, 8> attributeDescriptions = {};
+		std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions = {};
 		// per vertex
 		attributeDescriptions[0].binding = VERTEX_BINDING_ID;
 		attributeDescriptions[0].location = 0;
@@ -235,7 +236,7 @@ public:
 
 		// per instance dynamic
 		// We use next four locations for mat4 or 4 x vec4
-		attributeDescriptions[4].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		/*attributeDescriptions[4].binding = DYNAMIC_INSTANCE_BINDING_ID;
 		attributeDescriptions[4].location = 4;
 		attributeDescriptions[4].format = VK_FORMAT_R32G32B32A32_SFLOAT;
 		attributeDescriptions[4].offset = offsetof(InstanceDynamic, model);
@@ -253,7 +254,7 @@ public:
 		attributeDescriptions[7].binding = DYNAMIC_INSTANCE_BINDING_ID;
 		attributeDescriptions[7].location = 7;
 		attributeDescriptions[7].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[7].offset = offsetof(InstanceDynamic, model) + 48;
+		attributeDescriptions[7].offset = offsetof(InstanceDynamic, model) + 48;*/
 
 		return std::vector<VkVertexInputAttributeDescription>(attributeDescriptions.begin(), attributeDescriptions.end());
 	}
@@ -291,7 +292,7 @@ public:
 		VkBuffer staticInstanceBuffers[] = { staticInstanceBuffer };
 		vkCmdBindVertexBuffers(cmdBuffer, STATIC_INSTANCE_BINDING_ID, 1, staticInstanceBuffers, offsets);
 		VkBuffer dynamicInstanceBuffers[] = { dynamicInstanceBuffer };
-		vkCmdBindVertexBuffers(cmdBuffer, DYNAMIC_INSTANCE_BINDING_ID, 1, dynamicInstanceBuffers, offsets);
+		//vkCmdBindVertexBuffers(cmdBuffer, DYNAMIC_INSTANCE_BINDING_ID, 1, dynamicInstanceBuffers, offsets);
 		vkCmdBindIndexBuffer(cmdBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 		
 		vkCmdDrawIndexedIndirect(cmdBuffer, indirectCmdBuffer, 0, static_cast<uint32_t>(meshes.size()), sizeof(VkDrawIndexedIndirectCommand));

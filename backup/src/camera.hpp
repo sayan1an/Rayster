@@ -10,7 +10,7 @@
 class Camera {
 public:
 	glm::mat4 getViewMatrix(IO &io) {
-		glm::mat4 view(1.0f);
+		glm::mat4 view;
 		
 		switch (switchCamera(io)) {
 			case 0 : 
