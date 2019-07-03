@@ -7,6 +7,11 @@
 
 #include "io.hpp"
 
+struct ProjectionViewMat {
+	alignas(16) glm::mat4 view;
+	alignas(16) glm::mat4 proj;
+};
+
 class Camera {
 public:
 	glm::mat4 getViewMatrix(IO &io) {
@@ -26,6 +31,52 @@ public:
 		return view;
 	}
 
+	void createBuffers(const VmaAllocator &allocator, size_t nBuffers) {
+		VkDeviceSize bufferSize = sizeof(ProjectionViewMat);
+
+		uniformBuffers.resize(nBuffers);
+		uniformBuffersAllocation.resize(nBuffers);
+		uniformBuffersAllocationInfo.resize(nBuffers);
+
+		VkBufferCreateInfo bufferCreateInfo = {};
+		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferCreateInfo.size = bufferSize;
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		VmaAllocationCreateInfo allocCreateInfo = {};
+		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+		allocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+		for (size_t i = 0; i < nBuffers; i++) {
+			if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &uniformBuffers[i], &uniformBuffersAllocation[i], &uniformBuffersAllocationInfo[i]) != VK_SUCCESS)
+				throw std::runtime_error("Failed to create uniform buffers!");
+
+			if (uniformBuffersAllocationInfo[i].pMappedData == nullptr)
+				throw std::runtime_error("Failed to map meory for uniform buffer!");
+		}
+	}
+
+	VkDescriptorBufferInfo getDescriptorBufferInfo(int index) const {
+		VkDescriptorBufferInfo info = { uniformBuffers[index], 0, sizeof(ProjectionViewMat) };
+		return info;
+	}
+
+	void cleanUp(const VmaAllocator &allocator) {
+		size_t nBuffers = uniformBuffers.size();
+		for (size_t i = 0; i < nBuffers; i++)
+			vmaDestroyBuffer(allocator, uniformBuffers[i], uniformBuffersAllocation[i]);
+	}
+
+	void updateProjViewMat(IO &io, uint32_t currentImage, uint32_t screenWidth, uint32_t screenHeight) {
+
+		projViewMat.view = getViewMatrix(io);
+		projViewMat.proj = glm::perspective(glm::radians(45.0f), screenWidth / (float)screenHeight, 0.1f, 10.0f);
+		projViewMat.proj[1][1] *= -1;
+
+		memcpy(uniformBuffersAllocationInfo[currentImage].pMappedData, &projViewMat, sizeof(projViewMat));
+	}
+
 	Camera() {
 		cameraPosition = glm::vec3(2.0f, 2.0f, 2.0f);
 		cameraFocus = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -34,6 +85,12 @@ public:
 		setCoordinateSystem();
 	}
 private:
+	ProjectionViewMat projViewMat;
+
+	std::vector<VkBuffer> uniformBuffers;
+	std::vector<VmaAllocation> uniformBuffersAllocation;
+	std::vector<VmaAllocationInfo> uniformBuffersAllocationInfo;
+
 	glm::vec3 cameraPosition;
 	glm::vec3 cameraFocus;
 

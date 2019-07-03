@@ -30,12 +30,6 @@ static const int HEIGHT = 720;
 
 static const int MAX_FRAMES_IN_FLIGHT = 2;
 
-struct UniformBufferObject {
-	//alignas(16) glm::mat4 model;
-	alignas(16) glm::mat4 view;
-	alignas(16) glm::mat4 proj;
-};
-
 class Subpass1 : public Subpass {
 public:
 	void createSubpassDescription(const VkDevice &device) {
@@ -68,7 +62,7 @@ public:
 	}
 	
 	void createSubpass(const VkDevice &device, const VkExtent2D &swapChainExtent, const VkSampleCountFlagBits &msaaSamples, const VkRenderPass &renderPass, const uint32_t descriptorSetCount,
-		const std::vector<VkBuffer> &uniformBuffers, const VkImageView &textureImageView, const VkSampler &textureSampler) {
+		const Camera &cam, const VkImageView &textureImageView, const VkSampler &textureSampler) {
 		
 		auto bindingDescription = Model::getBindingDescription();
 		auto attributeDescription = Model::getAttributeDescriptions();
@@ -88,7 +82,7 @@ public:
 		shaders[0].allocateDescriptorSets(device, descriptorSetCount);
 
 		for (uint32_t i = 0; i < descriptorSetCount; i++) {
-			std::vector<VkDescriptorBufferInfo> bufferInfo = { { uniformBuffers[i], 0, sizeof(UniformBufferObject) } };
+			std::vector<VkDescriptorBufferInfo> bufferInfo = { cam.getDescriptorBufferInfo(i) };
 			std::vector<VkDescriptorImageInfo> imageInfo = { { textureSampler,  textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
 			
 			shaders[0].updateDescriptorSet(device, i, bufferInfo, imageInfo);
@@ -242,10 +236,6 @@ private:
 	VkImageView depthImageView;
 
 	Model model;
-
-	std::vector<VkBuffer> uniformBuffers;
-	std::vector<VmaAllocation> uniformBuffersAllocation;
-	std::vector<VmaAllocationInfo> uniformBuffersAllocationInfo;
 	
 	std::vector<VkCommandBuffer> commandBuffers;
 	VkCommandBuffer computeCommandBuffer;
@@ -275,8 +265,8 @@ private:
 		createFramebuffers();
 		
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
-		createUniformBuffers();
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), uniformBuffers, model.textureImageView, model.textureSampler);
+		cam.createBuffers(allocator, swapChainImages.size());
+		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), cam, model.textureImageView, model.textureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, static_cast<uint32_t>(swapChainImages.size()), computeShaderOutImageView);
 		computeShader.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
@@ -330,8 +320,7 @@ private:
 
 		vkDestroySwapchainKHR(device, swapChain, nullptr);
 
-		for (size_t i = 0; i < swapChainImages.size(); i++)
-			vmaDestroyBuffer(allocator, uniformBuffers[i], uniformBuffersAllocation[i]);
+		cam.cleanUp(allocator);
 		
 		vkDestroyDescriptorPool(device, subpass1.shaders[0].descriptorPool, nullptr);
 		vkDestroyDescriptorPool(device, subpass2.shaders[0].descriptorPool, nullptr);
@@ -373,8 +362,8 @@ private:
 		createColorResources();
 		createDepthResources();
 		createFramebuffers();
-		createUniformBuffers();
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), uniformBuffers, model.textureImageView, model.textureSampler);
+		cam.createBuffers(allocator, swapChainImages.size());
+		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), cam, model.textureImageView, model.textureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, static_cast<uint32_t>(swapChainImages.size()), computeShaderOutImageView);
 		computeShader.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
@@ -709,32 +698,6 @@ private:
 			VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
 		);
 	}
-
-	void createUniformBuffers() {
-		VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-
-		uniformBuffers.resize(swapChainImages.size());
-		uniformBuffersAllocation.resize(swapChainImages.size());
-		uniformBuffersAllocationInfo.resize(swapChainImages.size());
-
-		VkBufferCreateInfo bufferCreateInfo = {};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = bufferSize;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-		allocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-		
-		for (size_t i = 0; i < swapChainImages.size(); i++) {
-			if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &uniformBuffers[i], &uniformBuffersAllocation[i], &uniformBuffersAllocationInfo[i]) != VK_SUCCESS)
-				throw std::runtime_error("Failed to create uniform buffers!");
-
-			if (uniformBuffersAllocationInfo[i].pMappedData == nullptr)
-				throw std::runtime_error("Failed to map meory for uniform buffer!");
-		}
-	}
 			
 	void createCommandBuffers() {
 		commandBuffers.resize(swapChainFramebuffers.size());
@@ -884,20 +847,6 @@ private:
 			throw std::runtime_error("failed to create synchronization objects for compute shader!");
 	}
 	
-	void updateUniformBuffer(uint32_t currentImage) {
-		static auto startTime = std::chrono::high_resolution_clock::now();
-
-		auto currentTime = std::chrono::high_resolution_clock::now();
-		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-		UniformBufferObject ubo = {};
-		ubo.view = cam.getViewMatrix(io);
-		ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
-		ubo.proj[1][1] *= -1;
-
-		memcpy(uniformBuffersAllocationInfo[currentImage].pMappedData, &ubo, sizeof(ubo));
-	}
-
 	void drawFrame() {
 		vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, std::numeric_limits<uint64_t>::max());
 
@@ -913,7 +862,7 @@ private:
 		}
 
 		model.updateMeshData();
-		updateUniformBuffer(imageIndex);
+		cam.updateProjViewMat(io, imageIndex, swapChainExtent.width, swapChainExtent.height);
 
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
