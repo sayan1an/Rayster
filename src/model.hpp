@@ -18,10 +18,11 @@ static const std::vector<std::string> TEXTURE_PATHS = { ROOT + "/textures/ubiLog
 struct Vertex {
 	glm::vec3 pos;
 	glm::vec3 color;
+	glm::vec3 normal;
 	glm::vec2 texCoord;
 
 	bool operator==(const Vertex& other) const {
-		return pos == other.pos && color == other.color && texCoord == other.texCoord;
+		return pos == other.pos && color == other.color && normal == other.normal && texCoord == other.texCoord;
 	}
 };
 
@@ -119,14 +120,24 @@ public:
 				Vertex vertex = {};
 
 				vertex.pos = {
-					attrib.vertices[3 * index.vertex_index + 0],
-					attrib.vertices[3 * index.vertex_index + 1],
-					attrib.vertices[3 * index.vertex_index + 2]
+					attrib.vertices[3 * (int)index.vertex_index + 0],
+					attrib.vertices[3 * (int)index.vertex_index + 1],
+					attrib.vertices[3 * (int)index.vertex_index + 2]
 				};
 				
+				/*
+				vertex.normal = {
+					attrib.normals[3 * (int)index.normal_index + 0],
+					attrib.normals[3 * (int)index.normal_index + 1],
+					attrib.normals[3 * (int)index.normal_index + 2]
+				};
+				*/
+
+				vertex.normal = { 0, 1, 0 };
+
 				vertex.texCoord = {
-					attrib.texcoords[2 * index.texcoord_index + 0],
-					1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+					attrib.texcoords[2 * (int)index.texcoord_index + 0],
+					1.0f - attrib.texcoords[2 * (int)index.texcoord_index + 1]
 				};
 
 				vertex.color = { 1.0f, 1.0f, 1.0f };
@@ -210,7 +221,7 @@ public:
 	}
 
 	static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-		std::array<VkVertexInputAttributeDescription, 8> attributeDescriptions = {};
+		std::array<VkVertexInputAttributeDescription, 9> attributeDescriptions = {};
 		// per vertex
 		attributeDescriptions[0].binding = VERTEX_BINDING_ID;
 		attributeDescriptions[0].location = 0;
@@ -224,36 +235,41 @@ public:
 
 		attributeDescriptions[2].binding = VERTEX_BINDING_ID;
 		attributeDescriptions[2].location = 2;
-		attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
+		attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[2].offset = offsetof(Vertex, normal);
+
+		attributeDescriptions[3].binding = VERTEX_BINDING_ID;
+		attributeDescriptions[3].location = 3;
+		attributeDescriptions[3].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[3].offset = offsetof(Vertex, texCoord);
 
 		// per instance static
-		attributeDescriptions[3].binding = STATIC_INSTANCE_BINDING_ID;
-		attributeDescriptions[3].location = 3;
-		attributeDescriptions[3].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[3].offset = offsetof(InstanceStatic, translate);
+		attributeDescriptions[4].binding = STATIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[4].location = 4;
+		attributeDescriptions[4].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[4].offset = offsetof(InstanceStatic, translate);
 
 		// per instance dynamic
 		// We use next four locations for mat4 or 4 x vec4
-		attributeDescriptions[4].binding = DYNAMIC_INSTANCE_BINDING_ID;
-		attributeDescriptions[4].location = 4;
-		attributeDescriptions[4].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[4].offset = offsetof(InstanceDynamic, model);
-
 		attributeDescriptions[5].binding = DYNAMIC_INSTANCE_BINDING_ID;
 		attributeDescriptions[5].location = 5;
 		attributeDescriptions[5].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[5].offset = offsetof(InstanceDynamic, model) + 16;
+		attributeDescriptions[5].offset = offsetof(InstanceDynamic, model);
 
 		attributeDescriptions[6].binding = DYNAMIC_INSTANCE_BINDING_ID;
 		attributeDescriptions[6].location = 6;
 		attributeDescriptions[6].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[6].offset = offsetof(InstanceDynamic, model) + 32;
+		attributeDescriptions[6].offset = offsetof(InstanceDynamic, model) + 16;
 
 		attributeDescriptions[7].binding = DYNAMIC_INSTANCE_BINDING_ID;
 		attributeDescriptions[7].location = 7;
 		attributeDescriptions[7].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[7].offset = offsetof(InstanceDynamic, model) + 48;
+		attributeDescriptions[7].offset = offsetof(InstanceDynamic, model) + 32;
+
+		attributeDescriptions[8].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[8].location = 8;
+		attributeDescriptions[8].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[8].offset = offsetof(InstanceDynamic, model) + 48;
 
 		return std::vector<VkVertexInputAttributeDescription>(attributeDescriptions.begin(), attributeDescriptions.end());
 	}
