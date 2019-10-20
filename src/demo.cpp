@@ -18,17 +18,11 @@
 #include "tiny_obj_loader.h"
 #include "vk_mem_alloc.h"
 
-#include "helper.h"
 #include "subpass.hpp"
 #include "model.hpp"
 #include "io.hpp"
 #include "camera.hpp"
 #include "appBase.hpp"
-
-static const int WIDTH = 1280;
-static const int HEIGHT = 720;
-
-static const int MAX_FRAMES_IN_FLIGHT = 2;
 
 class Subpass1 : public Subpass {
 public:
@@ -191,26 +185,11 @@ public:
 	}
 };
 
-class MultiSamplingApplication : public Application {
+class MultiSamplingApplication : public WindowApplication {
 public:
-	void run() {
-		io.init(WIDTH, HEIGHT);
-		initVulkan();
-		mainLoop();
-		cleanup();
-	}
-
+	MultiSamplingApplication() : WindowApplication(std::vector<const char*>(), std::vector<const char*>(), std::vector<const char*>()) {}
 private:
-	IO io;
-	Camera cam;
-
-	VkSurfaceKHR surface;
-
-	VkSwapchainKHR swapChain;
-	std::vector<VkImage> swapChainImages;
-	VkFormat swapChainImageFormat;
-	VkExtent2D swapChainExtent;
-	std::vector<VkImageView> swapChainImageViews;
+	const int MAX_FRAMES_IN_FLIGHT = 2;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
 
 	VkRenderPass renderPass;
@@ -246,45 +225,28 @@ private:
 	std::vector<VkFence> inFlightFences;
 	size_t currentFrame = 0;
 
-	void initVulkan() {
-		createInstance();
-		setupDebugMessenger();
-		io.createSurface(instance, surface);
-		pickPhysicalDevice(surface);
-		createLogicalDevice(surface);
-		vmaInit();
-		createSwapChain();
-		createImageViews();
+	void init(uint32_t nSwapChainImages) {
 		subpass1.createSubpassDescription(device);
 		subpass2.createSubpassDescription(device);
 		computeShader.createDescriptorSetLayout(device);
 		createRenderPass();
-		createCommandPool(surface);
+		
 		createColorResources();
 		createDepthResources();
 		createFramebuffers();
 		
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
-		cam.createBuffers(allocator, swapChainImages.size());
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), cam, model.textureImageView, model.textureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, static_cast<uint32_t>(swapChainImages.size()), computeShaderOutImageView);
+		cam.createBuffers(allocator, nSwapChainImages);
+		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, nSwapChainImages, cam, model.textureImageView, model.textureSampler);
+		subpass2.createSubpass(device, swapChainExtent, renderPass, nSwapChainImages, computeShaderOutImageView);
 		computeShader.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
 		createComputeCommandBuffer();
 		createSyncObjects();
 		createComputeSyncObject();
 	}
-
-	void mainLoop() {
-		while (!io.windowShouldClose()) {
-			io.pollEvents();
-			drawFrame();
-		}
-
-		vkDeviceWaitIdle(device);
-	}
-
-	void cleanupSwapChain() {
+	   
+	void cleanUpAfterSwapChainResize() {
 		vkDestroyImageView(device, depthImageView, nullptr);
 		vmaDestroyImage(allocator, depthImage, depthImageAllocation);
 
@@ -303,7 +265,7 @@ private:
 
 		vkFreeCommandBuffers(device, graphicsCommandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
-		vkDestroyPipeline(device, subpass1.shaders[0].pipeline , nullptr);
+		vkDestroyPipeline(device, subpass1.shaders[0].pipeline, nullptr);
 		vkDestroyPipelineLayout(device, subpass1.shaders[0].pipelineLayout, nullptr);
 
 		vkDestroyPipeline(device, subpass2.shaders[0].pipeline, nullptr);
@@ -313,23 +275,26 @@ private:
 
 		vkDestroyPipeline(device, computeShader.pipeline, nullptr);
 		vkDestroyPipelineLayout(device, computeShader.pipelineLayout, nullptr);
-
-		for (auto imageView : swapChainImageViews) {
-			vkDestroyImageView(device, imageView, nullptr);
-		}
-
-		vkDestroySwapchainKHR(device, swapChain, nullptr);
-
-		cam.cleanUp(allocator);
-		
+			   
 		vkDestroyDescriptorPool(device, subpass1.shaders[0].descriptorPool, nullptr);
 		vkDestroyDescriptorPool(device, subpass2.shaders[0].descriptorPool, nullptr);
 		vkDestroyDescriptorPool(device, computeShader.descriptorPool, nullptr);
 	}
 
-	void cleanup() {
-		cleanupSwapChain();
-		
+	void recreateAfterSwapChainResize(uint32_t nSwapChainImages) {
+		createRenderPass();
+		createColorResources();
+		createDepthResources();
+		createFramebuffers();
+
+		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, nSwapChainImages, cam, model.textureImageView, model.textureSampler);
+		subpass2.createSubpass(device, swapChainExtent, renderPass, nSwapChainImages, computeShaderOutImageView);
+		computeShader.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
+		createCommandBuffers();
+		createComputeCommandBuffer();
+	}
+
+	void cleanupFinal() {
 		vkDestroyDescriptorSetLayout(device, subpass1.shaders[0].descriptorSetLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, subpass2.shaders[0].descriptorSetLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, computeShader.descriptorSetLayout, nullptr);
@@ -343,91 +308,6 @@ private:
 		}
 
 		vkDestroyFence(device, computeShaderFence, nullptr);
-		vkDestroySurfaceKHR(instance, surface, nullptr);
-		
-		io.terminate();
-	}
-
-	void recreateSwapChain() {
-		int dummyWidth, dummyHeight;
-		io.getFramebufferSize(dummyWidth, dummyHeight);
-
-		vkDeviceWaitIdle(device);
-
-		cleanupSwapChain();
-
-		createSwapChain();
-		createImageViews();
-		createRenderPass();
-		createColorResources();
-		createDepthResources();
-		createFramebuffers();
-		cam.createBuffers(allocator, swapChainImages.size());
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, static_cast<uint32_t>(swapChainImages.size()), cam, model.textureImageView, model.textureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, static_cast<uint32_t>(swapChainImages.size()), computeShaderOutImageView);
-		computeShader.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
-		createCommandBuffers();
-		createComputeCommandBuffer();
-	}
-		
-	void createSwapChain() {
-		SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice, surface);
-
-		VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
-		VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-		VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
-
-		uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
-		if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
-			imageCount = swapChainSupport.capabilities.maxImageCount;
-		}
-
-		VkSwapchainCreateInfoKHR createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		createInfo.surface = surface;
-
-		createInfo.minImageCount = imageCount;
-		createInfo.imageFormat = surfaceFormat.format;
-		createInfo.imageColorSpace = surfaceFormat.colorSpace;
-		createInfo.imageExtent = extent;
-		createInfo.imageArrayLayers = 1;
-		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-		QueueFamilyIndices indices = findQueueFamilies(physicalDevice, surface);
-		uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
-
-		if (indices.graphicsFamily != indices.presentFamily) {
-			createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-			createInfo.queueFamilyIndexCount = 2;
-			createInfo.pQueueFamilyIndices = queueFamilyIndices;
-		}
-		else {
-			createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		}
-
-		createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
-		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		createInfo.presentMode = presentMode;
-		createInfo.clipped = VK_TRUE;
-
-		if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create swap chain!");
-		}
-
-		vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
-		swapChainImages.resize(imageCount);
-		vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
-
-		swapChainImageFormat = surfaceFormat.format;
-		swapChainExtent = extent;
-	}
-
-	void createImageViews() {
-		swapChainImageViews.resize(swapChainImages.size());
-
-		for (uint32_t i = 0; i < swapChainImages.size(); i++) {
-			swapChainImageViews[i] = createImageView(device, swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
-		}
 	}
 
 	void createRenderPass() {
@@ -823,7 +703,7 @@ private:
 			throw std::runtime_error("failed to create synchronization objects for compute shader!");
 	}
 	
-	void drawFrame() {
+	void drawFrame(const VkSwapchainKHR& swapChain) {
 		vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, std::numeric_limits<uint64_t>::max());
 
 		uint32_t imageIndex;
@@ -895,55 +775,6 @@ private:
 
 		currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	}
-
-	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> & availableFormats) {
-		if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED) {
-			return{ VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
-		}
-
-		for (const auto& availableFormat : availableFormats) {
-			if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-				return availableFormat;
-			}
-		}
-
-		return availableFormats[0];
-	}
-
-	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> & availablePresentModes) {
-		VkPresentModeKHR bestMode = VK_PRESENT_MODE_FIFO_KHR;
-
-		for (const auto& availablePresentMode : availablePresentModes) {
-			if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-				return availablePresentMode;
-			}
-			else if (availablePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-				bestMode = availablePresentMode;
-			}
-		}
-
-		return bestMode;
-	}
-
-	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR & capabilities) {
-		if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
-			return capabilities.currentExtent;
-		}
-		else {
-			int width, height;
-			io.getFramebufferSize(width, height);
-
-			VkExtent2D actualExtent = {
-				static_cast<uint32_t>(width),
-				static_cast<uint32_t>(height)
-			};
-
-			actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
-			actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
-
-			return actualExtent;
-		}
-	}
 };
 
 int main() {
@@ -951,7 +782,7 @@ int main() {
 		MultiSamplingApplication app;
 
 		try {
-			app.run();
+			app.run(1280, 720, true);
 		}
 		catch (const std::exception & e) {
 			return EXIT_FAILURE;
