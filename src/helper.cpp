@@ -1,4 +1,5 @@
 #include "helper.h"
+#include "vk_mem_alloc.h"
 
 extern std::vector<char> readFile(const std::string& filename) {
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
@@ -293,4 +294,76 @@ extern QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, cons
 		throw std::runtime_error("Couldn't find all necessary queues!");
 
 	return indices;
+}
+
+uint32_t getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32* memTypeFound = nullptr)
+{
+	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)
+	{
+		if ((typeBits & 1) == 1)
+		{
+			if ((memoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
+			{
+				if (memTypeFound)
+				{
+					*memTypeFound = true;
+				}
+				return i;
+			}
+		}
+		typeBits >>= 1;
+	}
+
+	if (memTypeFound)
+	{
+		*memTypeFound = false;
+		return 0;
+	}
+	else
+	{
+		throw std::runtime_error("Could not find a matching memory type");
+	}
+}
+
+void createBottomLevelAccelerationStructure(const VkDevice &device, const VmaAllocator &allocator, const VkGeometryNV* geometries, AccelerationStructure &accelerationStructure)
+{
+	VkAccelerationStructureInfoNV accelerationStructureInfo{};
+	accelerationStructureInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
+	accelerationStructureInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_NV;
+	accelerationStructureInfo.instanceCount = 0;
+	accelerationStructureInfo.geometryCount = 1;
+	accelerationStructureInfo.pGeometries = geometries;
+
+	VkAccelerationStructureCreateInfoNV accelerationStructureCreateInfo{};
+	accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_NV;
+	accelerationStructureCreateInfo.info = accelerationStructureInfo;
+	if (vkCreateAccelerationStructureNV(device, &accelerationStructureCreateInfo, nullptr, &accelerationStructure.accelerationStructure) != VK_SUCCESS)
+		throw std::runtime_error("failed to create bottom level accelaration structure!");
+
+	VkAccelerationStructureMemoryRequirementsInfoNV memoryRequirementsInfo{};
+	memoryRequirementsInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_NV;
+	memoryRequirementsInfo.accelerationStructure = accelerationStructure.accelerationStructure;
+
+	VkMemoryRequirements2 memoryRequirements2{};
+	vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
+
+	// https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/issues/63
+	VmaAllocationCreateInfo allocCreateInfo = {};
+	allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	allocCreateInfo.memoryTypeBits = memoryRequirements2.memoryRequirements.memoryTypeBits;
+
+	VmaAllocationInfo allocInfo = {};
+	if (vmaAllocateMemory(allocator, &memoryRequirements2.memoryRequirements, &allocCreateInfo, &accelerationStructure.accelerationStructureAllocation, &allocInfo) != VK_SUCCESS)
+		throw std::runtime_error("failed to allocate memory for bottom level accelaration structure!");
+	
+	VkBindAccelerationStructureMemoryInfoNV accelerationStructureMemoryInfo{};
+	accelerationStructureMemoryInfo.sType = VK_STRUCTURE_TYPE_BIND_ACCELERATION_STRUCTURE_MEMORY_INFO_NV;
+	accelerationStructureMemoryInfo.accelerationStructure = accelerationStructure.accelerationStructure;
+	accelerationStructureMemoryInfo.memory = allocInfo.deviceMemory;
+	accelerationStructureMemoryInfo.memoryOffset = allocInfo.offset;
+	if (vkBindAccelerationStructureMemoryNV(device, 1, &accelerationStructureMemoryInfo) != VK_SUCCESS)
+		throw std::runtime_error("failed to bind memory for bottom level accelaration structure!");
+
+	if (vkGetAccelerationStructureHandleNV(device, accelerationStructure.accelerationStructure, sizeof(uint64_t), &accelerationStructure.handle) != VK_SUCCESS)
+		throw std::runtime_error("failed to retrive handle for bottom level accelaration structure!");
 }

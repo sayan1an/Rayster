@@ -31,6 +31,12 @@ struct SwapChainSupportDetails {
 	std::vector<VkPresentModeKHR> presentModes;
 };
 
+struct AccelerationStructure {
+	VmaAllocation accelerationStructureAllocation;
+	VkAccelerationStructureNV accelerationStructure;
+	uint64_t handle;
+};
+
 std::vector<char> readFile(const std::string& filename); 
 VkPhysicalDeviceFeatures checkSupportedDeviceFeatures(const VkPhysicalDevice& physicalDevice, const std::vector<const char*>& requiredFeatures);
 VkCommandBuffer beginSingleTimeCommands(const VkDevice& device, const VkCommandPool& commandPool);
