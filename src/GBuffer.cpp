@@ -89,7 +89,7 @@ public:
 		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 		inputAttachmentRefs.push_back({ 0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		inputAttachmentRefs.push_back({ 0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		inputAttachmentRefs.push_back({ 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -105,7 +105,7 @@ public:
 	}
 
 	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const uint32_t descriptorSetCount,
-		const VkImageView& inputImageView) {
+		const VkImageView& inputImageView0, const VkImageView &inputImageView1) {
 
 		auto bindingDescription = Model::getBindingDescription();
 		auto attributeDescription = Model::getAttributeDescriptions();
@@ -140,8 +140,8 @@ public:
 		shaders[0].allocateDescriptorSets(device, descriptorSetCount);
 
 		for (uint32_t i = 0; i < descriptorSetCount; i++) {
-			std::vector<VkDescriptorImageInfo> imageInfos = { {VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
-					{ VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
+			std::vector<VkDescriptorImageInfo> imageInfos = { {VK_NULL_HANDLE , inputImageView0,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+					{ VK_NULL_HANDLE , inputImageView1,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
 			std::vector<VkDescriptorBufferInfo> bufferInfo;
 			shaders[0].updateDescriptorSet(device, static_cast<uint32_t>(i), bufferInfo, imageInfos);
 		}
@@ -193,7 +193,7 @@ private:
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		cam.createBuffers(allocator, nSwapChainImages);
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, nSwapChainImages, cam, model.textureImageView, model.textureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, nSwapChainImages, colorImageView);
+		subpass2.createSubpass(device, swapChainExtent, renderPass, nSwapChainImages, depthImageView, colorImageView);
 		createCommandBuffers();
 		createSyncObjects();
 
@@ -231,7 +231,7 @@ private:
 		createFramebuffers();
 
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, nSwapChainImages, cam, model.textureImageView, model.textureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, nSwapChainImages, colorImageView);
+		subpass2.createSubpass(device, swapChainExtent, renderPass, nSwapChainImages, depthImageView, colorImageView);
 		createCommandBuffers();
 	}
 
@@ -401,7 +401,7 @@ private:
 		imageCreateInfo.format = depthFormat;
 		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
 		imageCreateInfo.samples = msaaSamples; // number of msaa samples
 		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
