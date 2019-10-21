@@ -5,6 +5,7 @@
 #include <optional>
 
 #include "vulkan/vulkan.h"
+#include "vk_mem_alloc.h"
 
 #define ROOT std::string("D:/projects/VkExperiment")
 
@@ -31,10 +32,19 @@ struct SwapChainSupportDetails {
 	std::vector<VkPresentModeKHR> presentModes;
 };
 
-struct AccelerationStructure {
+struct BottomLevelAccelerationStructure {
+	VkBuffer scratchBuffer;
+	VmaAllocation scratchBufferAllocation;
 	VmaAllocation accelerationStructureAllocation;
 	VkAccelerationStructureNV accelerationStructure;
 	uint64_t handle;
+	bool allowUpdate; // Allow for runtime update
+	PFN_vkCmdBuildAccelerationStructureNV vkCmdBuildAccelerationStructureNV;
+};
+
+struct TopLevelAccelerationStructure {
+	BottomLevelAccelerationStructure& blas;
+	bool allowUpdate; // Allow for runtime update
 };
 
 std::vector<char> readFile(const std::string& filename); 
@@ -52,3 +62,5 @@ VkFormat findSupportedFormat(VkPhysicalDevice& physicalDevice, const std::vector
 VkFormat findDepthFormat(VkPhysicalDevice& physicalDevice);
 SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
 QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
+void createBottomLevelAccelerationStructure(const VkDevice& device, const VmaAllocator& allocator, const std::vector<VkGeometryNV>& geometries, BottomLevelAccelerationStructure& blas, bool allowUpdate = false);
+void cmdBuildBotttomLevelAccelarationStructure(const VkCommandBuffer& cmdBuf, const std::vector<VkGeometryNV>& geometries, const BottomLevelAccelerationStructure& blas, bool partialRebuild = false, const BottomLevelAccelerationStructure& prevBlas = {});

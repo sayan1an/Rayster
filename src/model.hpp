@@ -8,6 +8,20 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 
+#include "helper.h"
+
+/*
+ * Mesh organisation - Think of each mesh having one or more instances. A model is composed of several such meshes and their instanaces. Simply put,
+ * a mesh is the largest set of vertices that can be represented by a transformation matrix. For example - A car can have several meshes - body, windshield, doors, wheels etc. Ideally,
+ * one should combine the body, windshield into a single mesh, since the combination only require one transformation matrix. We should have seperate mesh for wheels and doors as the each 
+ * require one transform matrix.
+
+ * Accelaration Structure notes - We want to minimize the number of bottom level accelaration structures for performance reasons. 
+ * Ideally one should categorize the meshes into groups and create one bottom level accelaration structure for each group.
+ * In our implementation we will simply associate one BLAS for each mesh. Thus we assume each mesh is already a combination of several other meshes as explained above.
+ * Also we simply use graphics queues and buffers for constructing the accelaration structure.
+ */
+
 static const std::vector<std::string> MODEL_PATHS = { ROOT + "/models/cat.obj", ROOT + "/models/chalet.obj", ROOT + "/models/deer.obj"};
 static const std::vector<std::string> TEXTURE_PATHS = { ROOT + "/textures/ubiLogo.jpg",  ROOT + "/textures/chalet.jpg" };
 
@@ -34,13 +48,16 @@ namespace std {
 	};
 }
 
+// A mesh can have multiple instances.
+// Each instance has dynamic data and static data.
+
 // Per instance data, not meant for draw time updates
-struct InstanceStatic {
+struct InstanceData_static {
 	glm::vec3 translate;
 };
 
 // Per instance data, update at drawtime
-struct InstanceDynamic {
+struct InstanceData_dynamic {
 	glm::mat4 model;
 };
 
@@ -100,8 +117,11 @@ public:
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
 	// set of instances for this type of mesh
-	std::vector<InstanceStatic> staticInstances;
-	std::vector<InstanceDynamic> dynamicInstances;
+	std::vector<InstanceData_static> instanceData_static;
+	std::vector<InstanceData_dynamic> instanceData_dynamic;
+	
+	BottomLevelAccelerationStructure as_bottomLevel;
+	std::vector<TopLevelAccelerationStructure> as_topLevel;
 
 	Mesh(const char *meshPath, float trans) {
 		tinyobj::attrib_t attrib;
@@ -152,14 +172,13 @@ public:
 		}
 
 		normailze(0.7f, glm::vec3(0, 0, 0));
-		staticInstances.push_back({ glm::vec3(trans, 0, 0) });
-		staticInstances.push_back({ glm::vec3(0, trans, 0) });
-		staticInstances.push_back({ glm::vec3(0, 0, trans) });
+		instanceData_static.push_back({ glm::vec3(trans, 0, 0) });
+		instanceData_static.push_back({ glm::vec3(0, trans, 0) });
+		instanceData_static.push_back({ glm::vec3(0, 0, trans) });
 
-		dynamicInstances.push_back({ glm::identity<glm::mat4>() });
-		dynamicInstances.push_back({ glm::identity<glm::mat4>() });
-		dynamicInstances.push_back({ glm::identity<glm::mat4>() });
-
+		instanceData_dynamic.push_back({ glm::identity<glm::mat4>() });
+		instanceData_dynamic.push_back({ glm::identity<glm::mat4>() });
+		instanceData_dynamic.push_back({ glm::identity<glm::mat4>() });
 	}
 private:
 	void normailze(float scale, const glm::vec3 &shift) {
@@ -182,6 +201,10 @@ private:
 			vertex.pos *= scale;
 			vertex.pos += shift;
 		}
+	}
+
+	void initAccelarationStructures() {
+
 	}
 };
 
@@ -210,11 +233,11 @@ public:
 		bindingDescription[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		bindingDescription[1].binding = STATIC_INSTANCE_BINDING_ID;
-		bindingDescription[1].stride = sizeof(InstanceStatic);
+		bindingDescription[1].stride = sizeof(InstanceData_static);
 		bindingDescription[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 		
 		bindingDescription[2].binding = DYNAMIC_INSTANCE_BINDING_ID;
-		bindingDescription[2].stride = sizeof(InstanceDynamic);
+		bindingDescription[2].stride = sizeof(InstanceData_dynamic);
 		bindingDescription[2].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 		
 		return std::vector<VkVertexInputBindingDescription>(bindingDescription.begin(), bindingDescription.end());
@@ -247,40 +270,40 @@ public:
 		attributeDescriptions[4].binding = STATIC_INSTANCE_BINDING_ID;
 		attributeDescriptions[4].location = 4;
 		attributeDescriptions[4].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[4].offset = offsetof(InstanceStatic, translate);
+		attributeDescriptions[4].offset = offsetof(InstanceData_static, translate);
 
 		// per instance dynamic
 		// We use next four locations for mat4 or 4 x vec4
 		attributeDescriptions[5].binding = DYNAMIC_INSTANCE_BINDING_ID;
 		attributeDescriptions[5].location = 5;
 		attributeDescriptions[5].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[5].offset = offsetof(InstanceDynamic, model);
+		attributeDescriptions[5].offset = offsetof(InstanceData_dynamic, model);
 
 		attributeDescriptions[6].binding = DYNAMIC_INSTANCE_BINDING_ID;
 		attributeDescriptions[6].location = 6;
 		attributeDescriptions[6].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[6].offset = offsetof(InstanceDynamic, model) + 16;
+		attributeDescriptions[6].offset = offsetof(InstanceData_dynamic, model) + 16;
 
 		attributeDescriptions[7].binding = DYNAMIC_INSTANCE_BINDING_ID;
 		attributeDescriptions[7].location = 7;
 		attributeDescriptions[7].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[7].offset = offsetof(InstanceDynamic, model) + 32;
+		attributeDescriptions[7].offset = offsetof(InstanceData_dynamic, model) + 32;
 
 		attributeDescriptions[8].binding = DYNAMIC_INSTANCE_BINDING_ID;
 		attributeDescriptions[8].location = 8;
 		attributeDescriptions[8].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[8].offset = offsetof(InstanceDynamic, model) + 48;
+		attributeDescriptions[8].offset = offsetof(InstanceData_dynamic, model) + 48;
 
 		return std::vector<VkVertexInputAttributeDescription>(attributeDescriptions.begin(), attributeDescriptions.end());
 	}
 
 	void updateMeshData() {
-		memcpy(mappedDynamicInstancePtr, dynamicInstances.data(), sizeof(dynamicInstances[0]) * dynamicInstances.size());
+		memcpy(mappedDynamicInstancePtr, instanceData_dynamic.data(), sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size());
 	}
 
 	void cmdTransferData(const VkCommandBuffer &cmdBuffer) {
 		VkBufferCopy copyRegion = {};
-		copyRegion.size = sizeof(dynamicInstances[0]) * dynamicInstances.size();
+		copyRegion.size = sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size();
 
 		vkCmdCopyBuffer(cmdBuffer, dynamicInstanceStagingBuffer, dynamicInstanceBuffer, 1, &copyRegion);
 
@@ -343,8 +366,8 @@ private:
 	std::vector<Mesh> meshes; // ideally store unique meshes
 	std::vector<Vertex> vertices; // concatenate vertices from all meshes
 	std::vector<uint32_t> indices;  // indeces into the above global vertices
-	std::vector<InstanceStatic> staticInstances; // concatenate instances from all meshes. Note each mesh can have multiple instances. 
-	std::vector<InstanceDynamic> dynamicInstances;  // concatenate instances from all meshes. Note each mesh can have multiple instances.
+	std::vector<InstanceData_static> instanceData_static; // concatenate instances from all meshes. Note each mesh can have multiple instances. 
+	std::vector<InstanceData_dynamic> instanceData_dynamic;  // concatenate instances from all meshes. Note each mesh can have multiple instances.
 	void *mappedDynamicInstancePtr;
 	std::vector<VkDrawIndexedIndirectCommand> indirectCommands; // Its size is meshes.size().
 	std::vector<Image2d> textureCache; // ideally only store unique textures.
@@ -377,15 +400,15 @@ private:
 			// Update global buffer from individual meshes
 			vertices.insert(vertices.end(), mesh.vertices.begin(), mesh.vertices.end());
 			indices.insert(indices.end(), mesh.indices.begin(), mesh.indices.end());
-			staticInstances.insert(staticInstances.end(), mesh.staticInstances.begin(), mesh.staticInstances.end());
-			dynamicInstances.insert(dynamicInstances.end(), mesh.dynamicInstances.begin(), mesh.dynamicInstances.end());
+			instanceData_static.insert(instanceData_static.end(), mesh.instanceData_static.begin(), mesh.instanceData_static.end());
+			instanceData_dynamic.insert(instanceData_dynamic.end(), mesh.instanceData_dynamic.begin(), mesh.instanceData_dynamic.end());
 			for (size_t i = indexOffset; i < indices.size(); i++)
 				indices[i] += static_cast<uint32_t>(meshVertexOffset);
 
 			// Create on indirect command for each mesh in the scene
 			VkDrawIndexedIndirectCommand indirectCmd = {};
-			indirectCmd.firstInstance = static_cast<uint32_t>(instanceOffset);
-			indirectCmd.instanceCount = static_cast<uint32_t>(mesh.staticInstances.size());
+			indirectCmd.firstInstance = static_cast<uint32_t>(instanceOffset); // Tells Vulkan which index of the instanceData (Static and Dynamic) to look at
+			indirectCmd.instanceCount = static_cast<uint32_t>(mesh.instanceData_static.size());
 			indirectCmd.firstIndex = static_cast<uint32_t>(indexOffset);
 			indirectCmd.indexCount = static_cast<uint32_t>(mesh.indices.size());
 
@@ -393,9 +416,9 @@ private:
 
 			indexOffset += mesh.indices.size();
 			meshVertexOffset += mesh.vertices.size();
-			instanceOffset += mesh.staticInstances.size(); // get number of instances per mesh
+			instanceOffset += mesh.instanceData_static.size(); // get number of instances per mesh
 
-			if (mesh.staticInstances.size() != mesh.dynamicInstances.size())
+			if (mesh.instanceData_static.size() != mesh.instanceData_dynamic.size())
 				throw std::runtime_error("Cannot determine instance count");
 		}
 	}
@@ -486,7 +509,7 @@ private:
 	}
 
 	void createStaticInstanceBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
-		VkDeviceSize bufferSize = sizeof(staticInstances[0]) * staticInstances.size();
+		VkDeviceSize bufferSize = sizeof(instanceData_static[0]) * instanceData_static.size();
 		VkBuffer stagingBuffer;
 		VmaAllocation stagingBufferAllocation;
 
@@ -504,7 +527,7 @@ private:
 
 		void* data;
 		vmaMapMemory(allocator, stagingBufferAllocation, &data);
-		memcpy(data, staticInstances.data(), (size_t)bufferSize);
+		memcpy(data, instanceData_static.data(), (size_t)bufferSize);
 		vmaUnmapMemory(allocator, stagingBufferAllocation);
 
 		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
@@ -519,7 +542,7 @@ private:
 	}
 
 	void createDynamicInstanceBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
-		VkDeviceSize bufferSize = sizeof(dynamicInstances[0]) * dynamicInstances.size();
+		VkDeviceSize bufferSize = sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size();
 	
 		VkBufferCreateInfo bufferCreateInfo = {};
 		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
