@@ -121,8 +121,7 @@ public:
 	std::vector<InstanceData_dynamic> instanceData_dynamic;
 	
 	BottomLevelAccelerationStructure as_bottomLevel;
-	std::vector<TopLevelAccelerationStructure> as_topLevel;
-
+	
 	Mesh(const char *meshPath, float trans) {
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
@@ -388,6 +387,9 @@ private:
 	uint32_t mipLevels;
 	VkImage textureImage;
 	VmaAllocation textureImageAllocation;
+
+	/** RTX Data **/
+	TopLevelAccelerationStructure as_topLevel;
 
 	void updateGlobalBuffers() {
 		indirectCommands.clear();

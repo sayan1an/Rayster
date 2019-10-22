@@ -296,15 +296,9 @@ extern QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, cons
 	return indices;
 }
 
-extern void createBottomLevelAccelerationStructure(const VkDevice &device, const VmaAllocator &allocator, const std::vector<VkGeometryNV> &geometries, BottomLevelAccelerationStructure &blas, bool allowUpdate)
+void BottomLevelAccelerationStructure::create(const VkDevice &device, const VmaAllocator &allocator, const std::vector<VkGeometryNV> &geometries, bool allowUpdate)
 {
-	if (blas.accelerationStructure == VK_NULL_HANDLE) {
-		blas.vkCreateAccelerationStructureNV = reinterpret_cast<PFN_vkCreateAccelerationStructureNV>(vkGetDeviceProcAddr(device, "vkCreateAccelerationStructureNV"));
-		blas.vkGetAccelerationStructureMemoryRequirementsNV = reinterpret_cast<PFN_vkGetAccelerationStructureMemoryRequirementsNV>(vkGetDeviceProcAddr(device, "vkGetAccelerationStructureMemoryRequirementsNV"));
-		blas.vkBindAccelerationStructureMemoryNV = reinterpret_cast<PFN_vkBindAccelerationStructureMemoryNV>(vkGetDeviceProcAddr(device, "vkBindAccelerationStructureMemoryNV"));
-		blas.vkGetAccelerationStructureHandleNV = reinterpret_cast<PFN_vkGetAccelerationStructureHandleNV>(vkGetDeviceProcAddr(device, "vkGetAccelerationStructureHandleNV"));
-		blas.vkCmdBuildAccelerationStructureNV = reinterpret_cast<PFN_vkCmdBuildAccelerationStructureNV>(vkGetDeviceProcAddr(device, "vkCmdBuildAccelerationStructureNV"));
-	}
+	initProcAddress(device);
 
 	VkAccelerationStructureInfoNV accelerationStructureInfo{};
 	accelerationStructureInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
@@ -314,22 +308,22 @@ extern void createBottomLevelAccelerationStructure(const VkDevice &device, const
 	accelerationStructureInfo.pGeometries = geometries.data();
 	accelerationStructureInfo.flags = allowUpdate ? VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV : 0;
 
-	blas.allowUpdate = allowUpdate;
+	allowUpdate = allowUpdate;
 
 	VkAccelerationStructureCreateInfoNV accelerationStructureCreateInfo{};
 	accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_NV;
 	accelerationStructureCreateInfo.info = accelerationStructureInfo;
-	if (blas.vkCreateAccelerationStructureNV(device, &accelerationStructureCreateInfo, nullptr, &blas.accelerationStructure) != VK_SUCCESS)
+	if (vkCreateAccelerationStructureNV(device, &accelerationStructureCreateInfo, nullptr, &accelerationStructure) != VK_SUCCESS)
 		throw std::runtime_error("failed to create bottom level accelaration structure!");
 
 	// Find memory requirements for accelaration structure object
 	VkAccelerationStructureMemoryRequirementsInfoNV memoryRequirementsInfo{};
 	memoryRequirementsInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_NV;
-	memoryRequirementsInfo.accelerationStructure = blas.accelerationStructure;
+	memoryRequirementsInfo.accelerationStructure = accelerationStructure;
 	memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_OBJECT_NV;
 
 	VkMemoryRequirements2 memoryRequirements2{};
-	blas.vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
+	vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
 
 	// Allocate memory for accelaration structure object
 	// https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/issues/63
@@ -338,35 +332,35 @@ extern void createBottomLevelAccelerationStructure(const VkDevice &device, const
 	allocCreateInfo.memoryTypeBits = memoryRequirements2.memoryRequirements.memoryTypeBits;
 
 	VmaAllocationInfo allocInfo = {};
-	if (vmaAllocateMemory(allocator, &memoryRequirements2.memoryRequirements, &allocCreateInfo, &blas.accelerationStructureAllocation, &allocInfo) != VK_SUCCESS)
+	if (vmaAllocateMemory(allocator, &memoryRequirements2.memoryRequirements, &allocCreateInfo, &accelerationStructureAllocation, &allocInfo) != VK_SUCCESS)
 		throw std::runtime_error("failed to allocate memory for bottom level accelaration structure!");
 	
 	// Bind Accelaration structure with its memory
 	VkBindAccelerationStructureMemoryInfoNV accelerationStructureMemoryInfo{};
 	accelerationStructureMemoryInfo.sType = VK_STRUCTURE_TYPE_BIND_ACCELERATION_STRUCTURE_MEMORY_INFO_NV;
-	accelerationStructureMemoryInfo.accelerationStructure = blas.accelerationStructure;
+	accelerationStructureMemoryInfo.accelerationStructure = accelerationStructure;
 	accelerationStructureMemoryInfo.memory = allocInfo.deviceMemory;
 	accelerationStructureMemoryInfo.memoryOffset = allocInfo.offset;
-	if (blas.vkBindAccelerationStructureMemoryNV(device, 1, &accelerationStructureMemoryInfo) != VK_SUCCESS)
+	if (vkBindAccelerationStructureMemoryNV(device, 1, &accelerationStructureMemoryInfo) != VK_SUCCESS)
 		throw std::runtime_error("failed to bind memory for bottom level accelaration structure!");
 
 	// Get a handle for the acceleration structure
-	if (blas.vkGetAccelerationStructureHandleNV(device, blas.accelerationStructure, sizeof(uint64_t), &blas.handle) != VK_SUCCESS)
+	if (vkGetAccelerationStructureHandleNV(device, accelerationStructure, sizeof(uint64_t), &handle) != VK_SUCCESS)
 		throw std::runtime_error("failed to retrive handle for bottom level accelaration structure!");
 
 	
 	// Find memory requirements for accelaration structure build scratch
 	memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_NV;
 	memoryRequirements2 = {};
-	blas.vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
+	vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
 	size_t scratchSize = memoryRequirements2.memoryRequirements.size;
 
 	// Find memory requirements for accelaration structure update scratch
-	if (blas.allowUpdate) {
+	if (allowUpdate) {
 		uint32_t buildScratchType = memoryRequirements2.memoryRequirements.memoryTypeBits;
 		memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_UPDATE_SCRATCH_NV;
 		memoryRequirements2 = {};
-		blas.vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
+		vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
 		scratchSize = scratchSize > memoryRequirements2.memoryRequirements.size ? scratchSize : memoryRequirements2.memoryRequirements.size;
 
 		if (buildScratchType != memoryRequirements2.memoryRequirements.memoryTypeBits)
@@ -385,26 +379,26 @@ extern void createBottomLevelAccelerationStructure(const VkDevice &device, const
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	// Allocate memory and bind it to the buffer
-	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &blas.scratchBuffer, &blas.scratchBufferAllocation, nullptr)  != VK_SUCCESS)
+	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &scratchBuffer, &scratchBufferAllocation, nullptr)  != VK_SUCCESS)
 		throw std::runtime_error("failed to allocate scratch buffer for bottom level accelaration structure!");
 }
 
-void cmdBuildBotttomLevelAccelarationStructure(VkCommandBuffer& cmdBuf, const std::vector<VkGeometryNV>& geometries, const BottomLevelAccelerationStructure& blas, bool partialRebuild, const BottomLevelAccelerationStructure& prevBlas) 
+void BottomLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, const std::vector<VkGeometryNV>& geometries, bool partialRebuild) 
 {	
-	if (blas.allowUpdate != partialRebuild || prevBlas.allowUpdate != partialRebuild)
+	if (allowUpdate != partialRebuild)
 		throw std::runtime_error("Partial rebuild for bottom level accelaration structure is not allowed. First create the BLAS with appropriate flag!");
 
 	// Build the actual bottom-level acceleration structure
 	VkAccelerationStructureInfoNV buildInfo = {};
 	buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
 	buildInfo.pNext = nullptr;
-	buildInfo.flags = blas.allowUpdate ? VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV : 0;
+	buildInfo.flags = allowUpdate ? VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV : 0;
 	buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_NV;
 	buildInfo.geometryCount = static_cast<uint32_t>(geometries.size());
 	buildInfo.pGeometries = geometries.data();
 	
-	blas.vkCmdBuildAccelerationStructureNV(cmdBuf, &buildInfo, VK_NULL_HANDLE, 0, partialRebuild,
-		blas.accelerationStructure, partialRebuild ? prevBlas.accelerationStructure : VK_NULL_HANDLE, blas.scratchBuffer,
+	vkCmdBuildAccelerationStructureNV(cmdBuf, &buildInfo, VK_NULL_HANDLE, 0, partialRebuild,
+		accelerationStructure, partialRebuild ? accelerationStructure : VK_NULL_HANDLE, scratchBuffer,
 		0);
 
 	// Wait for the builder to complete by setting a barrier on the resulting buffer. This is
@@ -423,8 +417,10 @@ void cmdBuildBotttomLevelAccelarationStructure(VkCommandBuffer& cmdBuf, const st
 		0, nullptr, 0, nullptr);
 }
 
-extern void createTopLevelAccelerationStructure(const VkDevice& device, const VmaAllocator& allocator, const std::vector<TopLevelAccelerationStructureData> &instances, TopLevelAccelerationStructure& tlas, bool allowUpdate)
-{
+void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllocator& allocator, const std::vector<TopLevelAccelerationStructureData> &instances, bool allowUpdate)
+{	
+	initProcAddress(device);
+
 	VkAccelerationStructureInfoNV accelerationStructureInfo{};
 	accelerationStructureInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
 	accelerationStructureInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_NV;
@@ -432,22 +428,22 @@ extern void createTopLevelAccelerationStructure(const VkDevice& device, const Vm
 	accelerationStructureInfo.geometryCount = 0;
 	accelerationStructureInfo.flags = allowUpdate ? VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV : 0;
 
-	tlas.allowUpdate = allowUpdate;
+	allowUpdate = allowUpdate;
 
 	VkAccelerationStructureCreateInfoNV accelerationStructureCreateInfo{};
 	accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_NV;
 	accelerationStructureCreateInfo.info = accelerationStructureInfo;
-	if (tlas.blas.vkCreateAccelerationStructureNV(device, &accelerationStructureCreateInfo, nullptr, &tlas.accelerationStructure) != VK_SUCCESS)
+	if (vkCreateAccelerationStructureNV(device, &accelerationStructureCreateInfo, nullptr, &accelerationStructure) != VK_SUCCESS)
 		throw std::runtime_error("failed to create top level accelaration structure!");
 
 	// Find memory requirements for accelaration structure object
 	VkAccelerationStructureMemoryRequirementsInfoNV memoryRequirementsInfo{};
 	memoryRequirementsInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_NV;
-	memoryRequirementsInfo.accelerationStructure = tlas.accelerationStructure;
+	memoryRequirementsInfo.accelerationStructure = accelerationStructure;
 	memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_OBJECT_NV;
 
 	VkMemoryRequirements2 memoryRequirements2{};
-	tlas.blas.vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
+	vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
 
 	// Allocate memory for accelaration structure object
 	// https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/issues/63
@@ -456,31 +452,31 @@ extern void createTopLevelAccelerationStructure(const VkDevice& device, const Vm
 	allocCreateInfo.memoryTypeBits = memoryRequirements2.memoryRequirements.memoryTypeBits;
 
 	VmaAllocationInfo allocInfo = {};
-	if (vmaAllocateMemory(allocator, &memoryRequirements2.memoryRequirements, &allocCreateInfo, &tlas.accelerationStructureAllocation, &allocInfo) != VK_SUCCESS)
+	if (vmaAllocateMemory(allocator, &memoryRequirements2.memoryRequirements, &allocCreateInfo, &accelerationStructureAllocation, &allocInfo) != VK_SUCCESS)
 		throw std::runtime_error("failed to allocate memory for bottom level accelaration structure!");
 
 	// Bind Accelaration structure with its memory
 	VkBindAccelerationStructureMemoryInfoNV accelerationStructureMemoryInfo{};
 	accelerationStructureMemoryInfo.sType = VK_STRUCTURE_TYPE_BIND_ACCELERATION_STRUCTURE_MEMORY_INFO_NV;
-	accelerationStructureMemoryInfo.accelerationStructure = tlas.accelerationStructure;
+	accelerationStructureMemoryInfo.accelerationStructure = accelerationStructure;
 	accelerationStructureMemoryInfo.memory = allocInfo.deviceMemory;
 	accelerationStructureMemoryInfo.memoryOffset = allocInfo.offset;
-	if (tlas.blas.vkBindAccelerationStructureMemoryNV(device, 1, &accelerationStructureMemoryInfo) != VK_SUCCESS)
+	if (vkBindAccelerationStructureMemoryNV(device, 1, &accelerationStructureMemoryInfo) != VK_SUCCESS)
 		throw std::runtime_error("failed to bind memory for top level accelaration structure!");
 
 
 	// Find memory requirements for accelaration structure build scratch
 	memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_NV;
 	memoryRequirements2 = {};
-	tlas.blas.vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
+	vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
 	VkDeviceSize scratchSize = memoryRequirements2.memoryRequirements.size;
 
 	// Find memory requirements for accelaration structure update scratch
-	if (tlas.allowUpdate) {
+	if (allowUpdate) {
 		uint32_t buildScratchType = memoryRequirements2.memoryRequirements.memoryTypeBits;
 		memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_UPDATE_SCRATCH_NV;
 		memoryRequirements2 = {};
-		tlas.blas.vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
+		vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
 		scratchSize = scratchSize > memoryRequirements2.memoryRequirements.size ? scratchSize : memoryRequirements2.memoryRequirements.size;
 
 		if (buildScratchType != memoryRequirements2.memoryRequirements.memoryTypeBits)
@@ -499,45 +495,78 @@ extern void createTopLevelAccelerationStructure(const VkDevice& device, const Vm
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	// Allocate memory and bind it to the buffer
-	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &tlas.scratchBuffer, &tlas.scratchBufferAllocation, nullptr) != VK_SUCCESS)
+	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &scratchBuffer, &scratchBufferAllocation, nullptr) != VK_SUCCESS)
 		throw std::runtime_error("failed to allocate scratch buffer for top level accelaration structure!");
 
 	// Create instance buffer
 	allocCreateInfo = {};
-	allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+	allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
 	bufferCreateInfo = {};
 	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferCreateInfo.size = instances.size() * sizeof(TopLevelAccelerationStructureData);
-	bufferCreateInfo.usage = VK_BUFFER_USAGE_RAY_TRACING_BIT_NV;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_RAY_TRACING_BIT_NV | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	// Allocate memory and bind it to the buffer
-	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &tlas.instanceBuffer, &tlas.instanceBufferAllocation, nullptr) != VK_SUCCESS)
+	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &instanceBuffer, &instanceBufferAllocation, nullptr) != VK_SUCCESS)
 		throw std::runtime_error("failed to allocate instance buffer for top level accelaration structure!");
 
-	if (vmaMapMemory(allocator, tlas.instanceBufferAllocation, &tlas.mappedInstanceBuffer) != VK_SUCCESS)
+	// Create staging buffer for instances
+	allocCreateInfo = {};
+	allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+	bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.size = instances.size() * sizeof(TopLevelAccelerationStructureData);
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &instanceStagingBuffer, &instanceStagingBufferAllocation, nullptr) != VK_SUCCESS)
+		throw std::runtime_error("failed to allocate instance buffer for top level accelaration structure!");
+
+	if (vmaMapMemory(allocator, instanceStagingBufferAllocation, &mappedInstanceBuffer) != VK_SUCCESS)
 		throw std::runtime_error("failed to map instance buffer for top level accelaration structure!");
 
-	memcpy(tlas.mappedInstanceBuffer, instances.data(), instances.size() * sizeof(TopLevelAccelerationStructureData));
+	memcpy(mappedInstanceBuffer, instances.data(), instances.size() * sizeof(TopLevelAccelerationStructureData));
 }
 
-extern void cmdBuildTopLevelAccelarationStructure(VkCommandBuffer& cmdBuf, const uint32_t instanceCount, const TopLevelAccelerationStructure& tlas, bool partialRebuild, const TopLevelAccelerationStructure *prevTlas)
+void TopLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, const uint32_t instanceCount, bool rebuild)
 {
-	if (tlas.allowUpdate != partialRebuild || (prevTlas != nullptr && prevTlas->allowUpdate != partialRebuild))
+	if (allowUpdate != rebuild)
 		throw std::runtime_error("Partial rebuild for bottom level accelaration structure is not allowed. First create the BLAS with appropriate flag!");
+
+	VkBufferCopy copyRegion = {};
+	copyRegion.size = sizeof(TopLevelAccelerationStructureData) * instanceCount;
+
+	vkCmdCopyBuffer(cmdBuf, instanceStagingBuffer, instanceBuffer, 1, &copyRegion);
+
+	VkBufferMemoryBarrier bufferMemoryBarrier = {};
+	bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	bufferMemoryBarrier.buffer = instanceBuffer;
+	bufferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	bufferMemoryBarrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV;
+
+	// Cobmine this barrier with the next
+	vkCmdPipelineBarrier(
+		cmdBuf,
+		VK_PIPELINE_STAGE_TRANSFER_BIT,
+		VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV,
+		0,
+		0, nullptr,
+		1, &bufferMemoryBarrier,
+		0, nullptr);
 
 	// Build the actual bottom-level acceleration structure
 	VkAccelerationStructureInfoNV buildInfo = {};
 	buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
 	buildInfo.pNext = nullptr;
-	buildInfo.flags = tlas.allowUpdate ? VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV : 0;
+	buildInfo.flags = allowUpdate ? VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV : 0;
 	buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_NV;
 	buildInfo.instanceCount = instanceCount;
 
-	tlas.blas.vkCmdBuildAccelerationStructureNV(cmdBuf, &buildInfo, VK_NULL_HANDLE, 0, partialRebuild,
-		tlas.accelerationStructure, partialRebuild ? prevTlas->accelerationStructure : VK_NULL_HANDLE, tlas.scratchBuffer,
-		0);
+	vkCmdBuildAccelerationStructureNV(cmdBuf, &buildInfo, instanceBuffer, 0, rebuild,
+		accelerationStructure, rebuild ? accelerationStructure : VK_NULL_HANDLE, scratchBuffer, 0);
 
 	// Wait for the builder to complete by setting a barrier on the resulting buffer. This is
 	// particularly important as the construction of the top-level hierarchy may be called right
@@ -550,7 +579,8 @@ extern void cmdBuildTopLevelAccelarationStructure(VkCommandBuffer& cmdBuf, const
 	memoryBarrier.dstAccessMask =
 		VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV;
 
-	vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV,
+	vkCmdPipelineBarrier(cmdBuf, 
+		VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV,
 		VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV, 0, 1, &memoryBarrier,
 		0, nullptr, 0, nullptr);
 }

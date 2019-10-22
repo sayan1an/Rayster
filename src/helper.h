@@ -26,27 +26,42 @@ struct QueueFamilyIndices {
 	}
 };
 
-
 struct SwapChainSupportDetails {
 	VkSurfaceCapabilitiesKHR capabilities;
 	std::vector<VkSurfaceFormatKHR> formats;
 	std::vector<VkPresentModeKHR> presentModes;
 };
 
-struct BottomLevelAccelerationStructure {
+class AccelerationStructure {
+protected:
 	VkBuffer scratchBuffer = VK_NULL_HANDLE;
 	VmaAllocation scratchBufferAllocation = VK_NULL_HANDLE;
 	VmaAllocation accelerationStructureAllocation = VK_NULL_HANDLE;
 	VkAccelerationStructureNV accelerationStructure = VK_NULL_HANDLE;
-	uint64_t handle = 0;
+
 	bool allowUpdate = false; // Allow for runtime update
 
+	void initProcAddress(const VkDevice& device) {
+		if (vkCreateAccelerationStructureNV != nullptr) return;
+		vkCreateAccelerationStructureNV = reinterpret_cast<PFN_vkCreateAccelerationStructureNV>(vkGetDeviceProcAddr(device, "vkCreateAccelerationStructureNV"));
+		vkGetAccelerationStructureMemoryRequirementsNV = reinterpret_cast<PFN_vkGetAccelerationStructureMemoryRequirementsNV>(vkGetDeviceProcAddr(device, "vkGetAccelerationStructureMemoryRequirementsNV"));
+		vkBindAccelerationStructureMemoryNV = reinterpret_cast<PFN_vkBindAccelerationStructureMemoryNV>(vkGetDeviceProcAddr(device, "vkBindAccelerationStructureMemoryNV"));
+		vkGetAccelerationStructureHandleNV = reinterpret_cast<PFN_vkGetAccelerationStructureHandleNV>(vkGetDeviceProcAddr(device, "vkGetAccelerationStructureHandleNV"));
+		vkCmdBuildAccelerationStructureNV = reinterpret_cast<PFN_vkCmdBuildAccelerationStructureNV>(vkGetDeviceProcAddr(device, "vkCmdBuildAccelerationStructureNV"));
+	}
 	// also store function pointers
 	PFN_vkCreateAccelerationStructureNV vkCreateAccelerationStructureNV = nullptr;
 	PFN_vkGetAccelerationStructureMemoryRequirementsNV vkGetAccelerationStructureMemoryRequirementsNV = nullptr;
 	PFN_vkBindAccelerationStructureMemoryNV vkBindAccelerationStructureMemoryNV = nullptr;
 	PFN_vkGetAccelerationStructureHandleNV vkGetAccelerationStructureHandleNV = nullptr;
 	PFN_vkCmdBuildAccelerationStructureNV vkCmdBuildAccelerationStructureNV = nullptr;
+};
+
+class BottomLevelAccelerationStructure : public AccelerationStructure {
+public:
+	uint64_t handle = 0;
+	void create(const VkDevice& device, const VmaAllocator& allocator, const std::vector<VkGeometryNV>& geometries, bool allowUpdate = false);
+	void cmdBuild(const VkCommandBuffer& cmdBuf, const std::vector<VkGeometryNV>& geometries, bool partialRebuild = false);
 };
 
 // Data layout expected by VK_NV_ray_tracing for top level acceleration structure 
@@ -59,16 +74,16 @@ struct TopLevelAccelerationStructureData {
 	uint64_t blasHandle; // Opaque handle of the bottom-level acceleration structure
 };
 
-struct TopLevelAccelerationStructure {
-	BottomLevelAccelerationStructure& blas;
-	VkBuffer scratchBuffer = VK_NULL_HANDLE;
-	VmaAllocation scratchBufferAllocation = VK_NULL_HANDLE;
+class TopLevelAccelerationStructure : public AccelerationStructure {
+private:
 	VkBuffer instanceBuffer = VK_NULL_HANDLE;
 	VmaAllocation instanceBufferAllocation = VK_NULL_HANDLE;
+	VkBuffer instanceStagingBuffer = VK_NULL_HANDLE;
+	VmaAllocation instanceStagingBufferAllocation = VK_NULL_HANDLE;
 	void* mappedInstanceBuffer = nullptr;
-	VmaAllocation accelerationStructureAllocation = VK_NULL_HANDLE;
-	VkAccelerationStructureNV accelerationStructure = VK_NULL_HANDLE;
-	bool allowUpdate = false; // Allow for runtime update
+public:
+	void create(const VkDevice& device, const VmaAllocator& allocator, const std::vector<TopLevelAccelerationStructureData> &instances, bool allowUpdate = true);
+	void cmdBuild(const VkCommandBuffer& cmdBuf, const uint32_t instanceCount, bool rebuild);
 };
 
 std::vector<char> readFile(const std::string& filename); 
@@ -86,7 +101,3 @@ VkFormat findSupportedFormat(VkPhysicalDevice& physicalDevice, const std::vector
 VkFormat findDepthFormat(VkPhysicalDevice& physicalDevice);
 SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
 QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
-void createBottomLevelAccelerationStructure(const VkDevice& device, const VmaAllocator& allocator, const std::vector<VkGeometryNV>& geometries, BottomLevelAccelerationStructure& blas, bool allowUpdate = false);
-void cmdBuildBotttomLevelAccelarationStructure(const VkCommandBuffer& cmdBuf, const std::vector<VkGeometryNV>& geometries, const BottomLevelAccelerationStructure& blas, bool partialRebuild = false, const BottomLevelAccelerationStructure& prevBlas = {});
-void createTopLevelAccelerationStructure(const VkDevice& device, const VmaAllocator& allocator, const std::vector<TopLevelAccelerationStructureData>& instances, TopLevelAccelerationStructure& tlas, bool allowUpdate = true);
-void cmdBuildTopLevelAccelarationStructure(VkCommandBuffer& cmdBuf, const uint32_t instanceCount, const TopLevelAccelerationStructure& tlas, bool partialRebuild, const TopLevelAccelerationStructure* prevTlas);
