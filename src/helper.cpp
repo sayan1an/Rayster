@@ -395,15 +395,14 @@ void cmdBuildBotttomLevelAccelarationStructure(VkCommandBuffer& cmdBuf, const st
 		throw std::runtime_error("Partial rebuild for bottom level accelaration structure is not allowed. First create the BLAS with appropriate flag!");
 
 	// Build the actual bottom-level acceleration structure
-	VkAccelerationStructureInfoNV buildInfo;
+	VkAccelerationStructureInfoNV buildInfo = {};
 	buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
 	buildInfo.pNext = nullptr;
 	buildInfo.flags = blas.allowUpdate ? VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV : 0;
 	buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_NV;
 	buildInfo.geometryCount = static_cast<uint32_t>(geometries.size());
 	buildInfo.pGeometries = geometries.data();
-	buildInfo.instanceCount = 0;
-
+	
 	blas.vkCmdBuildAccelerationStructureNV(cmdBuf, &buildInfo, VK_NULL_HANDLE, 0, partialRebuild,
 		blas.accelerationStructure, partialRebuild ? prevBlas.accelerationStructure : VK_NULL_HANDLE, blas.scratchBuffer,
 		0);
@@ -521,4 +520,37 @@ extern void createTopLevelAccelerationStructure(const VkDevice& device, const Vm
 		throw std::runtime_error("failed to map instance buffer for top level accelaration structure!");
 
 	memcpy(tlas.mappedInstanceBuffer, instances.data(), instances.size() * sizeof(TopLevelAccelerationStructureData));
+}
+
+extern void cmdBuildTopLevelAccelarationStructure(VkCommandBuffer& cmdBuf, const uint32_t instanceCount, const TopLevelAccelerationStructure& tlas, bool partialRebuild, const TopLevelAccelerationStructure *prevTlas)
+{
+	if (tlas.allowUpdate != partialRebuild || (prevTlas != nullptr && prevTlas->allowUpdate != partialRebuild))
+		throw std::runtime_error("Partial rebuild for bottom level accelaration structure is not allowed. First create the BLAS with appropriate flag!");
+
+	// Build the actual bottom-level acceleration structure
+	VkAccelerationStructureInfoNV buildInfo = {};
+	buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
+	buildInfo.pNext = nullptr;
+	buildInfo.flags = tlas.allowUpdate ? VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV : 0;
+	buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_NV;
+	buildInfo.instanceCount = instanceCount;
+
+	tlas.blas.vkCmdBuildAccelerationStructureNV(cmdBuf, &buildInfo, VK_NULL_HANDLE, 0, partialRebuild,
+		tlas.accelerationStructure, partialRebuild ? prevTlas->accelerationStructure : VK_NULL_HANDLE, tlas.scratchBuffer,
+		0);
+
+	// Wait for the builder to complete by setting a barrier on the resulting buffer. This is
+	// particularly important as the construction of the top-level hierarchy may be called right
+	// afterwards, before executing the command list.
+	VkMemoryBarrier memoryBarrier;
+	memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+	memoryBarrier.pNext = nullptr;
+	memoryBarrier.srcAccessMask =
+		VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV;
+	memoryBarrier.dstAccessMask =
+		VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV;
+
+	vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV,
+		VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV, 0, 1, &memoryBarrier,
+		0, nullptr, 0, nullptr);
 }

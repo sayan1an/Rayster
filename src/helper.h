@@ -68,7 +68,7 @@ struct TopLevelAccelerationStructure {
 	void* mappedInstanceBuffer = nullptr;
 	VmaAllocation accelerationStructureAllocation = VK_NULL_HANDLE;
 	VkAccelerationStructureNV accelerationStructure = VK_NULL_HANDLE;
-	bool allowUpdate; // Allow for runtime update
+	bool allowUpdate = false; // Allow for runtime update
 };
 
 std::vector<char> readFile(const std::string& filename); 
@@ -89,3 +89,4 @@ QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, const VkSur
 void createBottomLevelAccelerationStructure(const VkDevice& device, const VmaAllocator& allocator, const std::vector<VkGeometryNV>& geometries, BottomLevelAccelerationStructure& blas, bool allowUpdate = false);
 void cmdBuildBotttomLevelAccelarationStructure(const VkCommandBuffer& cmdBuf, const std::vector<VkGeometryNV>& geometries, const BottomLevelAccelerationStructure& blas, bool partialRebuild = false, const BottomLevelAccelerationStructure& prevBlas = {});
 void createTopLevelAccelerationStructure(const VkDevice& device, const VmaAllocator& allocator, const std::vector<TopLevelAccelerationStructureData>& instances, TopLevelAccelerationStructure& tlas, bool allowUpdate = true);
+void cmdBuildTopLevelAccelarationStructure(VkCommandBuffer& cmdBuf, const uint32_t instanceCount, const TopLevelAccelerationStructure& tlas, bool partialRebuild, const TopLevelAccelerationStructure* prevTlas);
