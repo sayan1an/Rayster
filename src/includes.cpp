@@ -6,3 +6,6 @@
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
+
+#include "io.hpp"
+bool IO::glfwInitialized = false;

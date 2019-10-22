@@ -153,7 +153,7 @@ private:
 
 class GBufferApplication : public WindowApplication {
 public:
-	GBufferApplication() : WindowApplication(std::vector<const char*>(), std::vector<const char*>(), std::vector<const char*>()) {}
+	GBufferApplication() : WindowApplication(std::vector<const char*>(), std::vector<const char*>(), std::vector<const char*>(), std::vector<const char*>()) {}
 private:
 	const int MAX_FRAMES_IN_FLIGHT = 2;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
@@ -562,7 +562,7 @@ private:
 	}
 };
 
-
+/*
 int main() {
 	{
 		GBufferApplication app;
@@ -578,4 +578,4 @@ int main() {
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}
+}*/

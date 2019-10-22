@@ -26,7 +26,7 @@ protected:
 	VkCommandPool graphicsCommandPool;
 	VkCommandPool computeCommandPool;
 
-	void createInstance() {
+	void createInstance(const std::vector<const char*> extraInstanceExtensions) {
 		if (enableValidationLayers && !checkValidationLayerSupport()) {
 			throw std::runtime_error("validation layers requested, but not available!");
 		}
@@ -43,9 +43,10 @@ protected:
 		createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		createInfo.pApplicationInfo = &appInfo;
 
-		auto extensions = IO::getRequiredExtensions(enableValidationLayers);
-		createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-		createInfo.ppEnabledExtensionNames = extensions.data();
+		instanceExtensions.insert(instanceExtensions.end(), extraInstanceExtensions.begin(), extraInstanceExtensions.end());
+
+		createInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
+		createInfo.ppEnabledExtensionNames = instanceExtensions.data();
 
 		VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
 		if (enableValidationLayers) {
@@ -57,7 +58,6 @@ protected:
 		}
 		else {
 			createInfo.enabledLayerCount = 0;
-
 			createInfo.pNext = nullptr;
 		}
 
@@ -176,11 +176,15 @@ protected:
 		}
 	}
 public:
-	Application(const std::vector<const char*> &_validationLayers, const std::vector<const char*>& _deviceExtensions, const std::vector<const char*>&_requiredDeviceFeatures) {
+	Application(const std::vector<const char*> &_validationLayers, const std::vector<const char*>&_instanceExtensions, const std::vector<const char*>&_deviceExtensions, const std::vector<const char*>&_requiredDeviceFeatures) {
 		validationLayers = _validationLayers;
 		validationLayers.push_back("VK_LAYER_LUNARG_standard_validation");
 		deviceExtensions = _deviceExtensions;
-		requiredDeviceFeatures = requiredDeviceFeatures;
+		instanceExtensions = _instanceExtensions;
+		if (enableValidationLayers)
+			instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+			
+		requiredDeviceFeatures = _requiredDeviceFeatures;
 		requiredDeviceFeatures.push_back("samplerAnisotropy");
 		requiredDeviceFeatures.push_back("multiDrawIndirect");
 	}
@@ -201,6 +205,7 @@ public:
 private:
 	std::vector<const char*> validationLayers;
 	std::vector<const char*> deviceExtensions;
+	std::vector<const char*> instanceExtensions;
 	std::vector<const char*> requiredDeviceFeatures;
 	VkDebugUtilsMessengerEXT debugMessenger;
 	
@@ -312,15 +317,19 @@ private:
 
 class WindowApplication : public Application {
 public:
-	WindowApplication(const std::vector<const char*>& _validationLayers, const std::vector<const char*>& _deviceExtensions, const std::vector<const char*>& _requiredDeviceFeatures)
-		: Application(_validationLayers, [_deviceExtensions]() {
-		std::vector<const char*> deviceExtensions = _deviceExtensions;
-		deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-		return deviceExtensions;}(), _requiredDeviceFeatures) {}
+	WindowApplication(const std::vector<const char*>& _validationLayers, const std::vector<const char*>& _instanceExtensions, const std::vector<const char*>& _deviceExtensions, const std::vector<const char*>& _requiredDeviceFeatures)
+		: Application(_validationLayers,
+			_instanceExtensions,
+			[_deviceExtensions]() {
+				std::vector<const char*> deviceExtensions = _deviceExtensions;
+				deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+				return deviceExtensions;
+			}(), 
+			_requiredDeviceFeatures) {}
 
 	void run(const int width, const int height, bool enableMsaa) {
 		io.init(width, height);
-		createInstance();
+		createInstance(IO::getRequiredExtensions());
 		setupDebugMessenger();
 		io.createSurface(instance, surface);
 		pickPhysicalDevice(surface, enableMsaa);

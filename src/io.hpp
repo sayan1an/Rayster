@@ -5,22 +5,21 @@
 
 class IO {
 public:
-	static std::vector<const char*> getRequiredExtensions(bool enableValidationLayers) {
+	static std::vector<const char*> getRequiredExtensions() {
+		if (!glfwInitialized)
+			throw std::runtime_error("failed to initialize glfw!");
+
 		uint32_t glfwExtensionCount = 0;
 		const char** glfwExtensions;
 		glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
 		std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-
-		if (enableValidationLayers) {
-			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-		}
 
 		return extensions;
 	}
 
 	void init(int width, int height) {
-		glfwInit();
+		if (glfwInit() != GLFW_TRUE)
+			throw std::runtime_error("failed to initialize glfw!");
 
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
@@ -30,6 +29,8 @@ public:
 		glfwSetKeyCallback(window, keyboardCallback);
 		glfwSetMouseButtonCallback(window, mouseButtonCallback);
 		glfwSetScrollCallback(window, mouseScrollCallback);
+
+		glfwInitialized = true;
 	}
 
 	void createSurface(const VkInstance &instance, VkSurfaceKHR &surface) {
@@ -88,6 +89,7 @@ public:
 		glfwTerminate();
 	}
 private:
+	static bool glfwInitialized;
 	GLFWwindow * window;
 
 	bool framebufferResized = false;
