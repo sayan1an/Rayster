@@ -171,13 +171,13 @@ public:
 		}
 
 		normailze(0.7f, glm::vec3(0, 0, 0));
-		instanceData_static.push_back({ glm::vec3(trans, 0, 0) });
-		instanceData_static.push_back({ glm::vec3(0, trans, 0) });
-		instanceData_static.push_back({ glm::vec3(0, 0, trans) });
-
-		instanceData_dynamic.push_back({ glm::identity<glm::mat4>() });
-		instanceData_dynamic.push_back({ glm::identity<glm::mat4>() });
-		instanceData_dynamic.push_back({ glm::identity<glm::mat4>() });
+		instanceData_static.push_back({ glm::vec3(0, 0, 0) });
+		instanceData_static.push_back({ glm::vec3(0, 0, 0) });
+		instanceData_static.push_back({ glm::vec3(0, 0, 0) });
+				
+		instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(trans, 0, 0)) });
+		instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(0, trans, 0)) });
+		instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(0, 0, trans)) });
 	}
 
 	void initBLAS(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkBuffer &vertexBuffer, const VkDeviceSize vertexBufferOffset) {
@@ -428,10 +428,41 @@ public:
 
 	void createRtxBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
 		VkDeviceSize vertexOffsetInBytes = 0;
+		
 		for (auto &mesh : meshes) {
 			mesh.initBLAS(device, allocator, queue, commandPool, vertexBuffer, vertexOffsetInBytes);
 			vertexOffsetInBytes += static_cast<VkDeviceSize>(mesh.vertices.size() * sizeof(Vertex));
 		}
+
+		as_topLevel.create(device, allocator, static_cast<uint32_t>(instanceData_dynamic.size()));
+		updateTlasData();
+		VkCommandBuffer cmdBuf = beginSingleTimeCommands(device, commandPool);
+		as_topLevel.cmdBuild(cmdBuf, static_cast<uint32_t>(instanceData_dynamic.size()), false);
+		endSingleTimeCommands(device, queue, commandPool, cmdBuf);
+	}
+
+	void updateTlasData() {
+		tlas_instanceData.resize(instanceData_dynamic.size());
+
+		uint32_t globalInstanceId = 0;
+		for (auto& mesh : meshes) {
+			for (auto& instance : mesh.instanceData_dynamic) {
+				tlas_instanceData[globalInstanceId].blasHandle = mesh.as_bottomLevel.handle;
+				tlas_instanceData[globalInstanceId].instanceOffset = 0; // Since this is used to determine hit group index compuation, this may change
+				tlas_instanceData[globalInstanceId].mask = 0xff;
+				tlas_instanceData[globalInstanceId].flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
+				tlas_instanceData[globalInstanceId].instanceId = globalInstanceId;
+				// Copy first three rows of transformation matrix of each instance
+				glm::mat4 modelTrans = glm::transpose(instance.model);
+				memcpy(tlas_instanceData[globalInstanceId].transform, &modelTrans, sizeof(tlas_instanceData[globalInstanceId].transform));
+				globalInstanceId++;
+			}
+		}
+
+		if (globalInstanceId != instanceData_dynamic.size())
+			throw std::runtime_error("Number of instances for Top Level Accelaration structure should match dynamic instance data count.");
+
+		as_topLevel.updateInstanceData(tlas_instanceData);
 	}
 
 	void cleanUp(const VkDevice& device, const VmaAllocator& allocator) {
@@ -450,8 +481,10 @@ public:
 	}
 
 	void cleanUpRtx(const VkDevice& device, const VmaAllocator& allocator) {
-		for (auto mesh : meshes)
+		for (auto &mesh : meshes)
 			mesh.cleanUpBlas(device, allocator);
+
+		as_topLevel.cleanUp(device, allocator);
 	}
 private:
 	std::vector<Mesh> meshes; // ideally store unique meshes
@@ -459,6 +492,7 @@ private:
 	std::vector<uint32_t> indices;  // indeces into the above global vertices
 	std::vector<InstanceData_static> instanceData_static; // concatenate instances from all meshes. Note each mesh can have multiple instances. 
 	std::vector<InstanceData_dynamic> instanceData_dynamic;  // concatenate instances from all meshes. Note each mesh can have multiple instances.
+	
 	void *mappedDynamicInstancePtr;
 	std::vector<VkDrawIndexedIndirectCommand> indirectCommands; // Its size is meshes.size().
 	std::vector<Image2d> textureCache; // ideally only store unique textures.
@@ -482,6 +516,7 @@ private:
 
 	/** RTX Data **/
 	TopLevelAccelerationStructure as_topLevel;
+	std::vector<TopLevelAccelerationStructureData> tlas_instanceData;
 
 	void updateGlobalBuffers() {
 		indirectCommands.clear();

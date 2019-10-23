@@ -79,13 +79,15 @@ public:
 
 // Data layout expected by VK_NV_ray_tracing for top level acceleration structure 
 struct TopLevelAccelerationStructureData {
-	glm::mat3x4 transform;  // Transform matrix, containing only the top 3 rows
+	float transform[12];  // Transform matrix, containing only the top 3 rows
 	uint32_t instanceId : 24;  // id of the instance, a unique number
 	uint32_t mask : 8; // Visibility mask
 	uint32_t instanceOffset : 24; // Index of the hit group which will be invoked when a ray hits the instance
 	uint32_t flags : 8; // Instance flags, such as culling
 	uint64_t blasHandle; // Opaque handle of the bottom-level acceleration structure
 };
+
+static_assert(sizeof(TopLevelAccelerationStructureData) == 64, "The size in bytes of the top level accelaration structure data must be 64 bytes.");
 
 class TopLevelAccelerationStructure : public AccelerationStructure {
 private:
@@ -95,8 +97,21 @@ private:
 	VmaAllocation instanceStagingBufferAllocation = VK_NULL_HANDLE;
 	void* mappedInstanceBuffer = nullptr;
 public:
-	void create(const VkDevice& device, const VmaAllocator& allocator, const std::vector<TopLevelAccelerationStructureData> &instances, bool allowUpdate = true);
+	void create(const VkDevice& device, const VmaAllocator& allocator, const uint32_t instanceCount, bool allowUpdate = true);
+	void updateInstanceData(const std::vector<TopLevelAccelerationStructureData>& instances) {
+		if (mappedInstanceBuffer == nullptr)
+			throw std::runtime_error("Accelaration structure is NOT initialized!");
+
+		memcpy(mappedInstanceBuffer, instances.data(), instances.size() * sizeof(TopLevelAccelerationStructureData));
+	}
 	void cmdBuild(const VkCommandBuffer& cmdBuf, const uint32_t instanceCount, bool rebuild);
+	void cleanUp(const VkDevice& device, const VmaAllocator& allocator) {
+		AccelerationStructure::cleanUp(device, allocator);
+		vmaUnmapMemory(allocator, instanceStagingBufferAllocation);
+		mappedInstanceBuffer = nullptr;
+		vmaDestroyBuffer(allocator, instanceStagingBuffer, instanceStagingBufferAllocation);
+		vmaDestroyBuffer(allocator, instanceBuffer, instanceBufferAllocation);
+	}
 };
 
 std::vector<char> readFile(const std::string& filename); 
