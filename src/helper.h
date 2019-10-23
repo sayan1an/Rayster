@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <vector>
 #include <fstream>
 #include <optional>
@@ -48,6 +49,7 @@ protected:
 		vkBindAccelerationStructureMemoryNV = reinterpret_cast<PFN_vkBindAccelerationStructureMemoryNV>(vkGetDeviceProcAddr(device, "vkBindAccelerationStructureMemoryNV"));
 		vkGetAccelerationStructureHandleNV = reinterpret_cast<PFN_vkGetAccelerationStructureHandleNV>(vkGetDeviceProcAddr(device, "vkGetAccelerationStructureHandleNV"));
 		vkCmdBuildAccelerationStructureNV = reinterpret_cast<PFN_vkCmdBuildAccelerationStructureNV>(vkGetDeviceProcAddr(device, "vkCmdBuildAccelerationStructureNV"));
+		vkDestroyAccelerationStructureNV = reinterpret_cast<PFN_vkDestroyAccelerationStructureNV>(vkGetDeviceProcAddr(device, "vkDestroyAccelerationStructureNV"));
 	}
 	// also store function pointers
 	PFN_vkCreateAccelerationStructureNV vkCreateAccelerationStructureNV = nullptr;
@@ -55,6 +57,17 @@ protected:
 	PFN_vkBindAccelerationStructureMemoryNV vkBindAccelerationStructureMemoryNV = nullptr;
 	PFN_vkGetAccelerationStructureHandleNV vkGetAccelerationStructureHandleNV = nullptr;
 	PFN_vkCmdBuildAccelerationStructureNV vkCmdBuildAccelerationStructureNV = nullptr;
+	PFN_vkDestroyAccelerationStructureNV vkDestroyAccelerationStructureNV = nullptr;
+
+public:
+	void cleanUp(const VkDevice &device, const VmaAllocator &allocator) {
+		if (vkDestroyAccelerationStructureNV == nullptr)
+			throw std::runtime_error("Accelaration structure is NOT initialized!");
+
+		vmaDestroyBuffer(allocator, scratchBuffer, scratchBufferAllocation);
+		vmaFreeMemory(allocator, accelerationStructureAllocation);
+		vkDestroyAccelerationStructureNV(device, accelerationStructure, nullptr);
+	}
 };
 
 class BottomLevelAccelerationStructure : public AccelerationStructure {

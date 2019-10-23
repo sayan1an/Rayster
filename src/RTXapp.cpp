@@ -192,6 +192,7 @@ private:
 		createFramebuffers();
 
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
+		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
 		cam.createBuffers(allocator, nSwapChainImages);
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, nSwapChainImages, cam, model.textureImageView, model.textureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, nSwapChainImages, depthImageView, colorImageView);
@@ -240,6 +241,7 @@ private:
 		vkDestroyDescriptorSetLayout(device, subpass1.shaders[0].descriptorSetLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, subpass2.shaders[0].descriptorSetLayout, nullptr);
 		
+		model.cleanUpRtx(device, allocator);
 		model.cleanUp(device, allocator);
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
