@@ -67,6 +67,8 @@ public:
 		vmaDestroyBuffer(allocator, scratchBuffer, scratchBufferAllocation);
 		vmaFreeMemory(allocator, accelerationStructureAllocation);
 		vkDestroyAccelerationStructureNV(device, accelerationStructure, nullptr);
+
+		vkDestroyAccelerationStructureNV = nullptr;
 	}
 };
 
