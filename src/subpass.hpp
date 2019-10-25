@@ -9,7 +9,7 @@ class DescriptorSet {
 public:
 	VkDescriptorSetLayout descriptorSetLayout; // create second
 	VkDescriptorPool descriptorPool; // create fifth
-	std::vector<VkDescriptorSet> descriptorSets; // create sixth
+	VkDescriptorSet descriptorSet; // create sixth
 		
 	void createDescriptorSetLayout(const VkDevice &device, std::vector<VkDescriptorSetLayoutBinding> &_bindings) {
 		bindings.assign(_bindings.begin(), _bindings.end());
@@ -24,13 +24,13 @@ public:
 		}
 	}
 
-	void allocateDescriptorSets(const VkDevice &device, uint32_t descriptorSetCount) {
+	void allocateDescriptorSet(const VkDevice &device) {
 		std::vector<VkDescriptorPoolSize> poolSizes;
 
 		for (auto &binding : bindings) {
 			VkDescriptorPoolSize poolSize;
 			poolSize.type = binding.descriptorType;
-			poolSize.descriptorCount = descriptorSetCount;
+			poolSize.descriptorCount = 1;
 			poolSizes.push_back(poolSize);
 		}
 
@@ -38,26 +38,24 @@ public:
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 		poolInfo.pPoolSizes = poolSizes.data();
-		poolInfo.maxSets = descriptorSetCount;
+		poolInfo.maxSets = 1;
 
 		if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create descriptor pool!");
 		}
 		
-		std::vector<VkDescriptorSetLayout> layouts(descriptorSetCount, descriptorSetLayout);
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		allocInfo.descriptorPool = descriptorPool;
-		allocInfo.descriptorSetCount = descriptorSetCount;
-		allocInfo.pSetLayouts = layouts.data();
+		allocInfo.descriptorSetCount = 1;
+		allocInfo.pSetLayouts = &descriptorSetLayout;
 
-		descriptorSets.resize(descriptorSetCount);
-		if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+		if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS) {
 			throw std::runtime_error("failed to allocate descriptor sets!");
 		}
 	}
 
-	virtual void updateDescriptorSet(const VkDevice &device, const uint32_t index, const std::vector<VkDescriptorBufferInfo> &bufferInfos, const std::vector<VkDescriptorImageInfo> &imageInfos) {
+	virtual void updateDescriptorSet(const VkDevice &device, const std::vector<VkDescriptorBufferInfo> &bufferInfos, const std::vector<VkDescriptorImageInfo> &imageInfos) {
 
 		std::vector<VkWriteDescriptorSet> descriptorWrites;
 		if (bindings.size() != bufferInfos.size() + imageInfos.size())
@@ -67,7 +65,7 @@ public:
 		for (auto &bufferInfo : bufferInfos) {
 			VkWriteDescriptorSet write = {};
 			write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			write.dstSet = descriptorSets[index];
+			write.dstSet = descriptorSet;
 			write.dstBinding = bindings[counter].binding;
 			write.dstArrayElement = 0;
 			write.descriptorType = bindings[counter].descriptorType;
@@ -79,7 +77,7 @@ public:
 		for (auto &imageInfo : imageInfos) {
 			VkWriteDescriptorSet write = {};
 			write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			write.dstSet = descriptorSets[index];
+			write.dstSet = descriptorSet;
 			write.dstBinding = bindings[counter].binding;
 			write.dstArrayElement = 0;
 			write.descriptorType = bindings[counter].descriptorType;

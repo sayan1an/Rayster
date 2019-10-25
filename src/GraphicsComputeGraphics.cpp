@@ -55,7 +55,7 @@ public:
 		shaders[0].createDescriptorSetLayout(device, bindings);
 	}
 	
-	void createSubpass(const VkDevice &device, const VkExtent2D &swapChainExtent, const VkSampleCountFlagBits &msaaSamples, const VkRenderPass &renderPass, const uint32_t descriptorSetCount,
+	void createSubpass(const VkDevice &device, const VkExtent2D &swapChainExtent, const VkSampleCountFlagBits &msaaSamples, const VkRenderPass &renderPass,
 		const Camera &cam, const VkImageView &textureImageView, const VkSampler &textureSampler) {
 		
 		auto bindingDescription = Model::getBindingDescription();
@@ -73,14 +73,13 @@ public:
 
 		shaders[0].cleanPipelineInternalState(device);
 		
-		shaders[0].allocateDescriptorSets(device, descriptorSetCount);
+		shaders[0].allocateDescriptorSet(device);
 
-		for (uint32_t i = 0; i < descriptorSetCount; i++) {
-			std::vector<VkDescriptorBufferInfo> bufferInfo = { cam.getDescriptorBufferInfo(i) };
-			std::vector<VkDescriptorImageInfo> imageInfo = { { textureSampler,  textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
+		std::vector<VkDescriptorBufferInfo> bufferInfo = { cam.getDescriptorBufferInfo() };
+		std::vector<VkDescriptorImageInfo> imageInfo = { { textureSampler,  textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
 			
-			shaders[0].updateDescriptorSet(device, i, bufferInfo, imageInfo);
-		}
+		shaders[0].updateDescriptorSet(device, bufferInfo, imageInfo);
+		
 	}
 private:
 	VkAttachmentReference colorAttachmentRef;
@@ -111,7 +110,7 @@ public:
 		shaders[0].createDescriptorSetLayout(device, bindings);
 	}
 
-	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const uint32_t descriptorSetCount,
+	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass,
 		const VkImageView& inputImageView) {
 		
 		auto bindingDescription = Model::getBindingDescription();
@@ -144,14 +143,12 @@ public:
 
 		shaders[0].cleanPipelineInternalState(device);
 		
-		shaders[0].allocateDescriptorSets(device, descriptorSetCount);
+		shaders[0].allocateDescriptorSet(device);
 
-		for (uint32_t i = 0; i < descriptorSetCount; i++) {
-			std::vector<VkDescriptorImageInfo> imageInfos = { {VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
-					{ VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
-			std::vector<VkDescriptorBufferInfo> bufferInfo;
-			shaders[0].updateDescriptorSet(device, static_cast<uint32_t>(i), bufferInfo, imageInfos);
-		}
+		std::vector<VkDescriptorImageInfo> imageInfos = { {VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+			{ VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
+		std::vector<VkDescriptorBufferInfo> bufferInfo;
+		shaders[0].updateDescriptorSet(device, bufferInfo, imageInfos);
 	}
 private:
 	VkAttachmentReference colorAttachmentRef;
@@ -176,12 +173,12 @@ public:
 
 		cleanPipelineInternalState(device);
 
-		allocateDescriptorSets(device, 1);
+		allocateDescriptorSet(device);
 
 		std::vector<VkDescriptorImageInfo> imageInfos = { { VK_NULL_HANDLE , inView,  VK_IMAGE_LAYOUT_GENERAL },
 		{ VK_NULL_HANDLE , outView,  VK_IMAGE_LAYOUT_GENERAL } };
 		std::vector<VkDescriptorBufferInfo> bufferInfo;
-		updateDescriptorSet(device, 0, bufferInfo, imageInfos);
+		updateDescriptorSet(device, bufferInfo, imageInfos);
 	}
 };
 
@@ -236,9 +233,9 @@ private:
 		createFramebuffers();
 		
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
-		cam.createBuffers(allocator, nSwapChainImages);
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, nSwapChainImages, cam, model.textureImageView, model.textureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, nSwapChainImages, computeShaderOutImageView);
+		cam.createBuffers(allocator);
+		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.textureImageView, model.textureSampler);
+		subpass2.createSubpass(device, swapChainExtent, renderPass, computeShaderOutImageView);
 		computeShader.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
 		createComputeCommandBuffer();
@@ -287,8 +284,8 @@ private:
 		createDepthResources();
 		createFramebuffers();
 
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, nSwapChainImages, cam, model.textureImageView, model.textureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, nSwapChainImages, computeShaderOutImageView);
+		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.textureImageView, model.textureSampler);
+		subpass2.createSubpass(device, swapChainExtent, renderPass, computeShaderOutImageView);
 		computeShader.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
 		createComputeCommandBuffer();
@@ -625,7 +622,7 @@ private:
 
 			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.shaders[0].pipeline);
 
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.shaders[0].pipelineLayout, 0, 1, &subpass1.shaders[0].descriptorSets[i], 0, nullptr);
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.shaders[0].pipelineLayout, 0, 1, &subpass1.shaders[0].descriptorSet, 0, nullptr);
 
 			// put model draw
 			model.cmdDraw(commandBuffers[i]);
@@ -633,7 +630,7 @@ private:
 			vkCmdNextSubpass(commandBuffers[i], VK_SUBPASS_CONTENTS_INLINE);
 
 			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.shaders[0].pipeline);
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.shaders[0].pipelineLayout, 0, 1, &subpass2.shaders[0].descriptorSets[i], 0, nullptr);
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.shaders[0].pipelineLayout, 0, 1, &subpass2.shaders[0].descriptorSet, 0, nullptr);
 			vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
 
 			vkCmdEndRenderPass(commandBuffers[i]);
@@ -666,7 +663,7 @@ private:
 		}
 		
 		vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computeShader.pipeline);
-		vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computeShader.pipelineLayout, 0, 1, &computeShader.descriptorSets[0], 0, 0);
+		vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computeShader.pipelineLayout, 0, 1, &computeShader.descriptorSet, 0, 0);
 
 		vkCmdDispatch(computeCommandBuffer, swapChainExtent.width / 16, swapChainExtent.height / 16, 1);
 
@@ -718,7 +715,7 @@ private:
 		}
 
 		model.updateMeshData();
-		cam.updateProjViewMat(io, imageIndex, swapChainExtent.width, swapChainExtent.height);
+		cam.updateProjViewMat(io, swapChainExtent.width, swapChainExtent.height);
 
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -777,7 +774,6 @@ private:
 	}
 };
 
-/*
 int main() {
 	{
 		GraphicsComputeApplication app;
@@ -786,6 +782,7 @@ int main() {
 			app.run(1280, 720, true);
 		}
 		catch (const std::exception & e) {
+			std::cerr << e.what() << std::endl;
 			return EXIT_FAILURE;
 		}
 	}
@@ -793,4 +790,4 @@ int main() {
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}*/
+}

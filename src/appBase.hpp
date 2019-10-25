@@ -374,7 +374,7 @@ protected:
 
 		createSwapChain();
 		createImageViews();
-		cam.createBuffers(allocator, swapChainImages.size());
+		cam.createBuffers(allocator);
 
 		recreateAfterSwapChainResize(static_cast<uint32_t>(swapChainImages.size()));
 	}
