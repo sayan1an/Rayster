@@ -217,11 +217,6 @@ private:
 	VkCommandBuffer computeCommandBuffer;
 	VkFence computeShaderFence;
 
-	std::vector<VkSemaphore> imageAvailableSemaphores;
-	std::vector<VkSemaphore> renderFinishedSemaphores;
-	std::vector<VkFence> inFlightFences;
-	size_t currentFrame = 0;
-
 	void init() {
 		subpass1.createSubpassDescription(device);
 		subpass2.createSubpassDescription(device);
@@ -238,7 +233,6 @@ private:
 		computeShader.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
 		createComputeCommandBuffer();
-		createSyncObjects();
 		createComputeSyncObject();
 	}
 	   
@@ -296,13 +290,6 @@ private:
 		vkDestroyDescriptorSetLayout(device, computeShader.descriptorSetLayout, nullptr);
 
 		model.cleanUp(device, allocator);
-
-		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-			vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
-			vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
-			vkDestroyFence(device, inFlightFences[i], nullptr);
-		}
-
 		vkDestroyFence(device, computeShaderFence, nullptr);
 	}
 
@@ -576,6 +563,7 @@ private:
 			model.cmdTransferData(commandBuffers[i]);
 
 			// Image memory barrier to make sure that compute shader writes are finished before sampling from the texture
+			// Let the compute shader finish wrting before starting the second subpass
 			std::array<VkImageMemoryBarrier, 2> imageMemoryBarriers = {};
 			imageMemoryBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 			imageMemoryBarriers[0].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -585,6 +573,7 @@ private:
 			imageMemoryBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 			imageMemoryBarriers[0].dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
 
+			// Let the compute shader finish reading before staring the first subpass
 			imageMemoryBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 			imageMemoryBarriers[1].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
 			imageMemoryBarriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -669,27 +658,6 @@ private:
 		vkEndCommandBuffer(computeCommandBuffer);
 	}
 
-	void createSyncObjects() {
-		imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-		renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-		inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-
-		VkSemaphoreCreateInfo semaphoreInfo = {};
-		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-		VkFenceCreateInfo fenceInfo = {};
-		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-			if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-				vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-				vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-				throw std::runtime_error("failed to create synchronization objects for a frame!");
-			}
-		}
-	}
-
 	void createComputeSyncObject() {
 		VkFenceCreateInfo fenceInfo = {};
 		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -699,61 +667,16 @@ private:
 			throw std::runtime_error("failed to create synchronization objects for compute shader!");
 	}
 	
-	void drawFrame(const VkSwapchainKHR& swapChain) {
-		vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, std::numeric_limits<uint64_t>::max());
-
-		uint32_t imageIndex;
-		VkResult result = vkAcquireNextImageKHR(device, swapChain, std::numeric_limits<uint64_t>::max(), imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
-
-		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-			recreateSwapChain();
+	void drawFrame() {
+		
+		uint32_t imageIndex = frameBegin();
+		if (imageIndex == 0xffffffff)
 			return;
-		}
-		else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-			throw std::runtime_error("failed to acquire swap chain image!");
-		}
 
 		model.updateMeshData();
 		cam.updateProjViewMat(io, swapChainExtent.width, swapChainExtent.height);
 
-		VkSubmitInfo submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-		VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
-		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = waitSemaphores;
-		submitInfo.pWaitDstStageMask = waitStages;
-
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
-
-		VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
-		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = signalSemaphores;
-
-		vkResetFences(device, 1, &inFlightFences[currentFrame]);
-
-		if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
-			throw std::runtime_error("failed to submit draw command buffer!");
-		}
-
-		VkPresentInfoKHR presentInfo = {};
-		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-
-		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = signalSemaphores;
-
-		VkSwapchainKHR swapChains[] = { swapChain };
-		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = swapChains;
-
-		presentInfo.pImageIndices = &imageIndex;
-
-		result = vkQueuePresentKHR(presentQueue, &presentInfo);
-
-		//vkWaitForFences(device, 1, &computeShaderFence, VK_TRUE, UINT64_MAX);
-		//vkResetFences(device, 1, &computeShaderFence);
+		submitRenderCmd(commandBuffers[imageIndex]);
 
 		VkSubmitInfo computeSubmitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
 		computeSubmitInfo.commandBufferCount = 1;
@@ -762,14 +685,7 @@ private:
 		if (vkQueueSubmit(computeQueue, 1, &computeSubmitInfo, nullptr) != VK_SUCCESS)
 			throw std::runtime_error("failed to submit compute command buffer!");
 
-		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || io.isFramebufferResized(true)) {
-			recreateSwapChain();
-		}
-		else if (result != VK_SUCCESS) {
-			throw std::runtime_error("failed to present swap chain image!");
-		}
-
-		currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+		frameEnd(imageIndex);
 	}
 };
 
@@ -792,3 +708,4 @@ int main() {
 	return EXIT_SUCCESS;
 }
 */
+
