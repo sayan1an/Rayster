@@ -203,7 +203,7 @@ private:
 	std::vector<VkFence> inFlightFences;
 	size_t currentFrame = 0;
 
-	void init(uint32_t nSwapChainImages) {
+	void init() {
 		subpass1.createSubpassDescription(device);
 		subpass2.createSubpassDescription(device);
 		rtxPass.createDescriptorSetLayout(device);
@@ -215,7 +215,6 @@ private:
 
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
-		cam.createBuffers(allocator);
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.textureImageView, model.textureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, depthImageView, colorImageView);
 		rtxPass.createPipeline(device);
@@ -249,7 +248,7 @@ private:
 		vkDestroyDescriptorPool(device, subpass2.shaders[0].descriptorPool, nullptr);
 	}
 
-	void recreateAfterSwapChainResize(uint32_t nSwapChainImages) {
+	void recreateAfterSwapChainResize() {
 		createRenderPass();
 		createColorResources();
 		createDepthResources();
@@ -607,5 +606,4 @@ int main() {
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}
-*/
+}*/

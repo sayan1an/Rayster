@@ -338,7 +338,8 @@ public:
 		vmaInit();
 		createSwapChain();
 		createImageViews();
-		init(static_cast<uint32_t>(swapChainImages.size()));
+		cam.createBuffers(allocator);
+		init();
 
 		while (!io.windowShouldClose()) {
 			io.pollEvents();
@@ -361,9 +362,9 @@ protected:
 	std::vector<VkImageView> swapChainImageViews;
 	
 	virtual void cleanUpAfterSwapChainResize() = 0;
-	virtual void recreateAfterSwapChainResize(uint32_t nSwapChainImages) = 0;
+	virtual void recreateAfterSwapChainResize() = 0;
 	virtual void drawFrame(const VkSwapchainKHR &swapChain) = 0;
-	virtual void init(uint32_t nSwapChainImages) = 0;
+	virtual void init() = 0;
 	virtual void cleanupFinal() = 0;
 	
 	void recreateSwapChain() {
@@ -376,7 +377,7 @@ protected:
 		createImageViews();
 		cam.createBuffers(allocator);
 
-		recreateAfterSwapChainResize(static_cast<uint32_t>(swapChainImages.size()));
+		recreateAfterSwapChainResize();
 	}
 private:
 	VkSurfaceKHR surface;
