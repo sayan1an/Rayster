@@ -13,7 +13,7 @@ layout(location = 2) in vec3 inNormal;
 layout(location = 3) in vec2 inTexCoord;
 
 // per instance static
-layout(location = 4) in vec3 inTranslate;
+layout(location = 4) in vec3 inputInfo;
 
 // per instance dynamic
 layout(location = 5) in mat4 modelTransform;
@@ -22,7 +22,8 @@ layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec3 fragTexCoord;
 
 void main() {
-    gl_Position = ubo.proj * ubo.view * modelTransform * vec4(inPosition + inTranslate, 1.0);
+    gl_Position = ubo.proj * ubo.view * modelTransform * vec4(inPosition, 1.0);
     fragColor = inColor;
-    fragTexCoord = vec3(inTexCoord, 0);
+    float textureId = inputInfo.x;
+    fragTexCoord = vec3(inTexCoord, textureId);
 }

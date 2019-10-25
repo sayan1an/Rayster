@@ -150,7 +150,6 @@ class GBufferApplication : public WindowApplication {
 public:
 	GBufferApplication() : WindowApplication(std::vector<const char*>(), std::vector<const char*>(), std::vector<const char*>(), std::vector<const char*>()) {}
 private:
-	const int MAX_FRAMES_IN_FLIGHT = 2;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
 
 	VkRenderPass renderPass;
@@ -470,8 +469,7 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-
-
+/*
 int main() {
 	{
 		GBufferApplication app;
@@ -489,4 +487,5 @@ int main() {
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
+*/
 

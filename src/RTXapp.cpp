@@ -147,8 +147,11 @@ private:
 	std::vector<VkAttachmentReference> inputAttachmentRefs;
 };
 
-class RtxPass : private Shaders {
+class RtxPass : private DescriptorSet {
 public:
+	VkPipelineLayout m_rtPipelineLayout = VK_NULL_HANDLE;
+	VkPipeline m_rtPipeline = VK_NULL_HANDLE;
+
 	void createDescriptorSetLayout(const VkDevice& device) {
 		
 		std::vector<VkDescriptorSetLayoutBinding> bindings = { { 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV },
@@ -159,13 +162,17 @@ public:
 
 	void createPipeline(const VkDevice& device) {
 		RayTracingPipelineGenerator rtxPipeGen;
+		VkPipelineLayout m_rtPipelineLayout = VK_NULL_HANDLE;
+		VkPipeline m_rtPipeline = VK_NULL_HANDLE;
 
 		rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RTXApp/01_rgen.spv");
 		rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RTXApp/01_rmiss.spv");
 		rtxPipeGen.startHitGroup();
 		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RTXApp/01_rchit.spv");
 		rtxPipeGen.endHitGroup();
+		rtxPipeGen.setMaxRecursionDepth(1);
 
+		rtxPipeGen.createPipeline(device, descriptorSetLayout, &m_rtPipeline, &m_rtPipelineLayout);
 		
 		
 	}
@@ -176,7 +183,6 @@ public:
 	RTXApplication(const std::vector<const char*>& _instanceExtensions, const std::vector<const char*>& _deviceExtensions) : 
 		WindowApplication(std::vector<const char*>(), _instanceExtensions, _deviceExtensions, std::vector<const char*>()) {}
 private:
-	const int MAX_FRAMES_IN_FLIGHT = 2;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
 
 	VkRenderPass renderPass;
@@ -503,7 +509,6 @@ private:
 	}
 };
 
-/*
 int main() {
 	{	
 		std::vector<const char*> deviceExtensions = { VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME};
@@ -523,4 +528,3 @@ int main() {
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-*/

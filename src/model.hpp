@@ -23,7 +23,7 @@
  */
 
 static const std::vector<std::string> MODEL_PATHS = { ROOT + "/models/cat.obj", ROOT + "/models/chalet.obj", ROOT + "/models/deer.obj"};
-static const std::vector<std::string> TEXTURE_PATHS = { ROOT + "/textures/ubiLogo.jpg",  ROOT + "/textures/chalet.jpg" };
+static const std::vector<std::string> TEXTURE_PATHS = { ROOT + "/textures/ubiLogo.jpg", ROOT + "/textures/chalet.jpg" };
 
 #define VERTEX_BINDING_ID	0
 #define STATIC_INSTANCE_BINDING_ID	1
@@ -122,7 +122,7 @@ public:
 	
 	BottomLevelAccelerationStructure as_bottomLevel;
 	
-	Mesh(const char *meshPath, float trans) {
+	Mesh(const char *meshPath, int textureId, float trans) {
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
@@ -171,9 +171,9 @@ public:
 		}
 
 		normailze(0.7f, glm::vec3(0, 0, 0));
-		instanceData_static.push_back({ glm::vec3(0, 0, 0) });
-		instanceData_static.push_back({ glm::vec3(0, 0, 0) });
-		instanceData_static.push_back({ glm::vec3(0, 0, 0) });
+		instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
+		instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
+		instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
 				
 		instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(trans, 0, 0)) });
 		instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(0, trans, 0)) });
@@ -298,9 +298,11 @@ public:
 		fixTextureCache();
 
 		int ctr = -1;
-		for (const auto& modelPath : MODEL_PATHS)
-			meshes.push_back(Mesh(modelPath.c_str(), (float)2*ctr++));
-		
+		int textureId = 0;
+		for (const auto& modelPath : MODEL_PATHS) {
+			meshes.push_back(Mesh(modelPath.c_str(), textureId % textureCache.size(), (float)2 * ctr++));
+			textureId++;
+		}
 		updateGlobalBuffers();
 	}
 

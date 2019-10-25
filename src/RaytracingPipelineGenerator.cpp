@@ -226,7 +226,7 @@ void RayTracingPipelineGenerator::createPipeline(const VkDevice& device, VkDescr
 	rayPipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 	rayPipelineInfo.basePipelineIndex  = 0;
 
-	PFN_vkCreateRayTracingPipelinesNV vkCreateRayTracingPipelinesNV = reinterpret_cast<PFN_vkCreateRayTracingPipelinesNV>(vkGetDeviceProcAddr(device, "vvkCreateRayTracingPipelinesNV"));
+	PFN_vkCreateRayTracingPipelinesNV vkCreateRayTracingPipelinesNV = reinterpret_cast<PFN_vkCreateRayTracingPipelinesNV>(vkGetDeviceProcAddr(device, "vkCreateRayTracingPipelinesNV"));
 	if (vkCreateRayTracingPipelinesNV(device, nullptr, 1, &rayPipelineInfo, nullptr, pipeline) != VK_SUCCESS)
 	    throw std::logic_error("rt vkCreateRayTracingPipelinesNV failed");
 
