@@ -18,12 +18,11 @@
 #include "tiny_obj_loader.h"
 #include "vk_mem_alloc.h"
 
-#include "model.hpp"
-#include "io.hpp"
-#include "camera.hpp"
-#include "appBase.hpp"
-#include "RaytracingPipelineGenerator.h"
-#include "ShaderBindingTableGenerator.h"
+#include "../model.hpp"
+#include "../io.hpp"
+#include "../camera.hpp"
+#include "../appBase.hpp"
+#include "../generator.h"
 
 class Subpass1 {
 public:

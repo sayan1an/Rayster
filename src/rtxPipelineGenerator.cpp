@@ -39,7 +39,7 @@ compiling in debug mode.
 
 */
 
-#include "RaytracingPipelineGenerator.h"
+#include "generator.h"
 
 #include <stdexcept>
 #include <unordered_set>

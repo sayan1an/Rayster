@@ -9,6 +9,7 @@
 #include <glm/gtx/hash.hpp>
 
 #include "helper.h"
+#include "accelerationStructure.h"
 
 /*
  * Mesh organisation - Think of each mesh having one or more instances. A model is composed of several such meshes and their instanaces. Simply put,
