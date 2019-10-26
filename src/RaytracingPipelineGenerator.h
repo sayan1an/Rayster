@@ -59,12 +59,147 @@ rtStateObject = pipeline.Generate();
 #include <string>
 #include <vector>
 
+class DescriptorSetGenerator {
+public:
+	void bindBuffer(VkDescriptorSetLayoutBinding layout, VkDescriptorBufferInfo bufferInfo) {
+		VkDescriptorImageInfo imageInfo = {};
+		VkWriteDescriptorSetAccelerationStructureNV tlasInfo = {};
+		bindings.push_back(layout);
+		descriptorTypeInfo.push_back({ bufferInfo, imageInfo, tlasInfo, TYPE_BUFFER });
+	}
+
+	void bindImage(VkDescriptorSetLayoutBinding layout, VkDescriptorImageInfo imageInfo) {
+		VkDescriptorBufferInfo bufferInfo = {};
+		VkWriteDescriptorSetAccelerationStructureNV tlasInfo = {};
+		bindings.push_back(layout);
+		descriptorTypeInfo.push_back({ bufferInfo, imageInfo, tlasInfo, TYPE_IMAGE });
+	}
+
+	void bindTLAS(VkDescriptorSetLayoutBinding layout, VkWriteDescriptorSetAccelerationStructureNV tlasInfo) {
+		VkDescriptorBufferInfo bufferInfo = {};
+		VkDescriptorImageInfo imageInfo = {};
+		bindings.push_back(layout);
+		descriptorTypeInfo.push_back({ bufferInfo, imageInfo, tlasInfo, TYPE_TLAS });
+	}
+
+	void generateDescriptorSet(const VkDevice &device, VkDescriptorSetLayout* layout, VkDescriptorPool* descriptorPool, VkDescriptorSet* descriptorSets, uint32_t maxSets = 1) {
+		if (descriptorTypeInfo.size() == 0)
+			throw std::runtime_error("Descriptor bindings are un-initialized");
+
+		createDescriptorSetLayout(device, layout);
+		allocateDescriptorSets(device, *layout, descriptorPool, descriptorSets, maxSets);
+
+		for (uint32_t i = 0; i < maxSets; i++)
+			updateDescriptorSet(device, descriptorSets[i]);
+
+		reset();
+	}
+
+	void reset() {
+		bindings.clear();
+		descriptorTypeInfo.clear();
+	}
+
+private:
+	enum DESCRIPTOR_TYPE {TYPE_BUFFER, TYPE_IMAGE, TYPE_TLAS};
+
+	struct DescriptorTypeInfo {
+		VkDescriptorBufferInfo bufferInfo;
+		VkDescriptorImageInfo imageInfo;
+		VkWriteDescriptorSetAccelerationStructureNV tlasInfo;
+		DESCRIPTOR_TYPE type;
+	};
+	
+	std::vector<VkDescriptorSetLayoutBinding> bindings;
+	std::vector<DescriptorTypeInfo> descriptorTypeInfo;
+
+	void createDescriptorSetLayout(const VkDevice& device, VkDescriptorSetLayout* layout) {
+		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+		layoutInfo.pBindings = bindings.data();
+
+		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, layout) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to create descriptor set layout!");
+		}
+	}
+
+	void allocateDescriptorSets(const VkDevice& device, const VkDescriptorSetLayout &layout, VkDescriptorPool *descriptorPool, VkDescriptorSet *descriptorSets, uint32_t maxSets) {
+		std::vector<VkDescriptorPoolSize> poolSizes;
+
+		for (auto& binding : bindings) {
+			VkDescriptorPoolSize poolSize;
+			poolSize.type = binding.descriptorType;
+			poolSize.descriptorCount = maxSets;
+			poolSizes.push_back(poolSize);
+		}
+
+		VkDescriptorPoolCreateInfo poolInfo = {};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+		poolInfo.pPoolSizes = poolSizes.data();
+		poolInfo.maxSets = maxSets;
+
+		if (vkCreateDescriptorPool(device, &poolInfo, nullptr, descriptorPool) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create descriptor pool!");
+		}
+
+		VkDescriptorSetAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = *descriptorPool;
+		allocInfo.descriptorSetCount = maxSets;
+		allocInfo.pSetLayouts = &layout;
+
+		if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate descriptor sets!");
+		}
+	}
+
+	void updateDescriptorSet(const VkDevice &device, VkDescriptorSet &descriptorSet) {
+		std::vector<VkWriteDescriptorSet> descriptorWrites;
+
+		for (size_t i = 0; i < bindings.size(); i++) {
+			VkWriteDescriptorSet write = {};
+			write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			write.dstSet = descriptorSet;
+			write.dstBinding = bindings[i].binding;
+			write.dstArrayElement = 0;
+			write.descriptorType = bindings[i].descriptorType;
+			write.descriptorCount = bindings[i].descriptorCount;
+
+			if (descriptorTypeInfo[i].type == TYPE_BUFFER)
+				write.pBufferInfo = &descriptorTypeInfo[i].bufferInfo;
+			else if (descriptorTypeInfo[i].type == TYPE_IMAGE)
+				write.pImageInfo = &descriptorTypeInfo[i].imageInfo;
+			else if (descriptorTypeInfo[i].type == TYPE_TLAS)
+				write.pNext = &descriptorTypeInfo[i].tlasInfo;
+			else
+				throw std::runtime_error("Could not find descriptor set type");
+
+			descriptorWrites.push_back(write);
+		}
+
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+	}
+};
+
 class PipelineGenerator
 {
 protected:
 	/// Shader stages contained in the pipeline
-	std::vector<VkPipelineShaderStageCreateInfo> m_shaderStages;
-	std::vector<VkShaderModule> m_shaderModules;
+	std::vector<VkPipelineShaderStageCreateInfo> shaderStageCIs;
+	std::vector<VkShaderModule> shaderModules;
+
+	void createPipelineLayout(const VkDevice& device, const VkDescriptorSetLayout& descriptorSetLayout, VkPipelineLayout *pipelineLayout) {
+		VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutInfo.setLayoutCount = 1;
+		pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+
+		if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, pipelineLayout) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create pipeline layout!");
+		}
+	}
 	
 	void createShaderStage(const VkDevice& device, const std::string& filename, VkShaderStageFlagBits stageFlag)
 	{
@@ -81,8 +216,8 @@ protected:
 		stageCreate.flags = 0;
 		stageCreate.pSpecializationInfo = nullptr;
 
-		m_shaderStages.emplace_back(stageCreate);
-		m_shaderModules.push_back(shaderModule);
+		shaderStageCIs.emplace_back(stageCreate);
+		shaderModules.push_back(shaderModule);
 	}
 
 	static VkShaderModule createShaderModule(const std::vector<char>& code, const VkDevice& device) 
@@ -101,11 +236,188 @@ protected:
 
 	void cleanUp(const VkDevice& device) 
 	{
-		for (auto& sm : m_shaderModules)
+		for (auto& sm : shaderModules)
 			vkDestroyShaderModule(device, sm, nullptr);
 
-		m_shaderModules.clear();
-		m_shaderStages.clear();
+		shaderModules.clear();
+		shaderStageCIs.clear();
+	}
+};
+
+class GraphicsPipelineGenerator : public PipelineGenerator
+{
+public:
+	GraphicsPipelineGenerator() {
+		reset();
+	}
+	void addVertexShaderStage(const VkDevice& device, const std::string& filename)
+	{
+		createShaderStage(device, filename, VK_SHADER_STAGE_VERTEX_BIT);
+	}
+
+	void addFragmentShaderStage(const VkDevice& device, const std::string& filename)
+	{
+		createShaderStage(device, filename, VK_SHADER_STAGE_FRAGMENT_BIT);
+	}
+
+	void addVertexInputState(const std::vector<VkVertexInputBindingDescription>& bindingDescription, const std::vector<VkVertexInputAttributeDescription>& attributeDescriptions) 
+	{
+		vertexInputStateCI.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescription.size());
+		vertexInputStateCI.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+		vertexInputStateCI.pVertexBindingDescriptions = bindingDescription.data();
+		vertexInputStateCI.pVertexAttributeDescriptions = attributeDescriptions.data();
+	}
+
+	void addInputAssemblyState(VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
+	{
+		inputAssemblyStateCI.topology = topology;
+		inputAssemblyStateCI.primitiveRestartEnable = VK_FALSE;
+	}
+	
+	void addViewportState(const VkExtent2D& swapChainExtent, float minDepth = 0.0f, float maxDepth = 1.0f)
+	{	
+		viewport.width = (float)swapChainExtent.width;
+		viewport.height = (float)swapChainExtent.height;
+		viewport.minDepth = minDepth;
+		viewport.maxDepth = maxDepth;
+
+		scissor.extent = swapChainExtent;
+
+		viewportStateCI.pViewports = &viewport;
+		viewportStateCI.pScissors = &scissor;
+	}
+
+	void addRasterizationState(VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT)
+	{
+		rasterizationStateCI.cullMode = cullMode;
+	}
+
+	void addMsaaSate(VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT)
+	{
+		msaaStateCI.rasterizationSamples = msaaSamples;
+	}
+
+	void addDepthStencilState(VkBool32 depthWriteEnable = VK_TRUE)
+	{
+		depthStencilStateCI.depthWriteEnable = depthWriteEnable;
+	}
+
+	void createPipeline(const VkDevice& device, const VkDescriptorSetLayout& descriptorSetLayout, const VkRenderPass& renderPass, uint32_t subpassIdx, VkPipeline* pipeline, VkPipelineLayout* pipelineLayout)
+	{
+		createPipelineLayout(device, descriptorSetLayout, pipelineLayout);
+
+		VkGraphicsPipelineCreateInfo pipelineInfo = {};
+		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		pipelineInfo.stageCount = static_cast<uint32_t>(shaderStageCIs.size());
+		pipelineInfo.pStages = shaderStageCIs.data();
+		pipelineInfo.pVertexInputState = &vertexInputStateCI;
+		pipelineInfo.pInputAssemblyState = &inputAssemblyStateCI;
+		pipelineInfo.pViewportState = &viewportStateCI;
+		pipelineInfo.pRasterizationState = &rasterizationStateCI;
+		pipelineInfo.pMultisampleState = &msaaStateCI;
+		pipelineInfo.pDepthStencilState = &depthStencilStateCI;
+		pipelineInfo.pColorBlendState = &colorBlendAttachmentStateCI;
+		pipelineInfo.layout = *pipelineLayout;
+		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+		pipelineInfo.renderPass = renderPass;
+		pipelineInfo.subpass = subpassIdx;
+
+		if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, pipeline) != VK_SUCCESS)
+			throw std::runtime_error("failed to create graphics pipeline!");
+		
+		cleanUp(device);
+		reset();
+	}
+
+	void reset() {
+		vertexInputStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		
+		inputAssemblyStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		addInputAssemblyState();
+
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		scissor.offset = { 0, 0 };
+		viewportStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+		viewportStateCI.viewportCount = 1;
+		viewportStateCI.scissorCount = 1;
+		
+		rasterizationStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		rasterizationStateCI.depthClampEnable = VK_FALSE;
+		rasterizationStateCI.rasterizerDiscardEnable = VK_FALSE;
+		rasterizationStateCI.polygonMode = VK_POLYGON_MODE_FILL;
+		rasterizationStateCI.lineWidth = 1.0f;
+		rasterizationStateCI.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+		rasterizationStateCI.depthBiasEnable = VK_FALSE;
+		addRasterizationState();
+
+		msaaStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		msaaStateCI.sampleShadingEnable = VK_FALSE;
+		addMsaaSate();
+
+		depthStencilStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		depthStencilStateCI.depthTestEnable = VK_TRUE;
+		depthStencilStateCI.depthCompareOp = VK_COMPARE_OP_LESS;
+		depthStencilStateCI.depthBoundsTestEnable = VK_FALSE;
+		depthStencilStateCI.stencilTestEnable = VK_FALSE;
+		addDepthStencilState();
+				
+		colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		colorBlendAttachmentState.blendEnable = VK_FALSE;
+
+		colorBlendAttachmentStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		colorBlendAttachmentStateCI.logicOpEnable = VK_FALSE;
+		colorBlendAttachmentStateCI.logicOp = VK_LOGIC_OP_COPY;
+		colorBlendAttachmentStateCI.attachmentCount = 1;
+		colorBlendAttachmentStateCI.pAttachments = &colorBlendAttachmentState;
+		colorBlendAttachmentStateCI.blendConstants[0] = 0.0f;
+		colorBlendAttachmentStateCI.blendConstants[1] = 0.0f;
+		colorBlendAttachmentStateCI.blendConstants[2] = 0.0f;
+		colorBlendAttachmentStateCI.blendConstants[3] = 0.0f;
+	}
+private:
+	VkPipelineVertexInputStateCreateInfo vertexInputStateCI;
+	
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCI;
+
+	VkViewport viewport;
+	VkRect2D scissor;
+	VkPipelineViewportStateCreateInfo viewportStateCI;
+
+	VkPipelineRasterizationStateCreateInfo rasterizationStateCI;
+
+	VkPipelineMultisampleStateCreateInfo msaaStateCI;
+
+	VkPipelineDepthStencilStateCreateInfo depthStencilStateCI;
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachmentState;
+	VkPipelineColorBlendStateCreateInfo colorBlendAttachmentStateCI;
+};
+
+class ComputePipelineGenerator : public PipelineGenerator
+{
+public:
+	void addComputeShaderStage(const VkDevice& device, const std::string& filename)
+	{
+		createShaderStage(device, filename, VK_SHADER_STAGE_COMPUTE_BIT);
+	}
+
+	void createPipeline(const VkDevice& device, const VkDescriptorSetLayout& descriptorSetLayout, VkPipeline* pipeline, VkPipelineLayout* pipelineLayout)
+	{
+		createPipelineLayout(device, descriptorSetLayout, pipelineLayout);
+
+		if (shaderStageCIs.size() != 1)
+			throw std::runtime_error("no compute shader stage found.");
+
+		VkComputePipelineCreateInfo pipelineInfo = {};
+		pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+		pipelineInfo.stage = shaderStageCIs[0];
+		pipelineInfo.layout = *pipelineLayout;
+
+		if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, pipeline) != VK_SUCCESS)
+			throw std::runtime_error("failed to create compute pipeline!");
+		
+		cleanUp(device);
 	}
 };
 
@@ -140,7 +452,7 @@ public:
   void setMaxRecursionDepth(uint32_t maxDepth);
 
   /// Compiles the raytracing state object
-  void createPipeline(const VkDevice &device, VkDescriptorSetLayout descriptorSetLayout, VkPipeline *pipeline, VkPipelineLayout *layout);
+  void createPipeline(const VkDevice &device, const VkDescriptorSetLayout &descriptorSetLayout, VkPipeline *pipeline, VkPipelineLayout *pipelineLayout);
 
 private:
   /// Each shader stage belongs to a group. There are 3 group types: general, triangle hit and procedural hit.

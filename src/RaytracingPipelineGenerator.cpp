@@ -85,7 +85,7 @@ uint32_t RayTracingPipelineGenerator::addAnyHitShaderStage(const VkDevice& devic
       
 	createShaderStage(device, filename, VK_SHADER_STAGE_ANY_HIT_BIT_NV);
 
-	group.anyHitShader = static_cast<uint32_t>(m_shaderStages.size() - 1);
+	group.anyHitShader = static_cast<uint32_t>(shaderStageCIs.size() - 1);
 
 	return m_currentGroupIndex;
 }
@@ -102,7 +102,7 @@ uint32_t RayTracingPipelineGenerator::addCloseHitShaderStage(const VkDevice& dev
 
 	createShaderStage(device, filename, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
-	group.closestHitShader = static_cast<uint32_t>(m_shaderStages.size() - 1);
+	group.closestHitShader = static_cast<uint32_t>(shaderStageCIs.size() - 1);
 
 	return m_currentGroupIndex;
 }
@@ -120,7 +120,7 @@ uint32_t RayTracingPipelineGenerator::addIntersectionShaderStage(const VkDevice&
 	createShaderStage(device, filename, VK_SHADER_STAGE_INTERSECTION_BIT_NV);
 
 	group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_NV;
-	group.intersectionShader = static_cast<uint32_t>(m_shaderStages.size() - 1);
+	group.intersectionShader = static_cast<uint32_t>(shaderStageCIs.size() - 1);
    
 	return m_currentGroupIndex;
 }
@@ -151,7 +151,7 @@ uint32_t RayTracingPipelineGenerator::addRayGenShaderStage(const VkDevice& devic
 	groupInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_NV;
 	groupInfo.pNext = nullptr;
 	groupInfo.type  = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_NV;
-	groupInfo.generalShader = static_cast<uint32_t>(m_shaderStages.size() - 1);
+	groupInfo.generalShader = static_cast<uint32_t>(shaderStageCIs.size() - 1);
 	groupInfo.closestHitShader = VK_SHADER_UNUSED_NV;
 	groupInfo.anyHitShader = VK_SHADER_UNUSED_NV;
 	groupInfo.intersectionShader = VK_SHADER_UNUSED_NV;
@@ -174,7 +174,7 @@ uint32_t RayTracingPipelineGenerator::addMissShaderStage(const VkDevice& device,
 	groupInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_NV;
 	groupInfo.pNext = nullptr;
 	groupInfo.type  = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_NV;
-	groupInfo.generalShader = static_cast<uint32_t>(m_shaderStages.size() - 1);;
+	groupInfo.generalShader = static_cast<uint32_t>(shaderStageCIs.size() - 1);;
 	groupInfo.closestHitShader = VK_SHADER_UNUSED_NV;
 	groupInfo.anyHitShader = VK_SHADER_UNUSED_NV;
 	groupInfo.intersectionShader = VK_SHADER_UNUSED_NV;
@@ -197,32 +197,22 @@ void RayTracingPipelineGenerator::setMaxRecursionDepth(uint32_t maxDepth)
 //--------------------------------------------------------------------------------------------------
 //
 // Compiles the raytracing state object
-void RayTracingPipelineGenerator::createPipeline(const VkDevice& device, VkDescriptorSetLayout descriptorSetLayout, VkPipeline* pipeline, VkPipelineLayout* layout)
+void RayTracingPipelineGenerator::createPipeline(const VkDevice& device, const VkDescriptorSetLayout &descriptorSetLayout, VkPipeline* pipeline, VkPipelineLayout* pipelineLayout)
 {
 	// Create the layout of the pipeline following the provided descriptor set layout
-	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo;
-	pipelineLayoutCreateInfo.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutCreateInfo.pNext                  = nullptr;
-	pipelineLayoutCreateInfo.flags                  = 0;
-	pipelineLayoutCreateInfo.setLayoutCount         = 1;
-	pipelineLayoutCreateInfo.pSetLayouts            = &descriptorSetLayout;
-	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-	pipelineLayoutCreateInfo.pPushConstantRanges    = nullptr;
-
-  	if (vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, layout) != VK_SUCCESS)
-		throw std::logic_error("rt vkCreatePipelineLayout failed");
+	createPipelineLayout(device, descriptorSetLayout, pipelineLayout);
   
 	// Assemble the shader stages and recursion depth info into the raytracing pipeline
 	VkRayTracingPipelineCreateInfoNV rayPipelineInfo;
 	rayPipelineInfo.sType              = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_NV;
 	rayPipelineInfo.pNext              = nullptr;
 	rayPipelineInfo.flags              = 0;
-	rayPipelineInfo.stageCount         = static_cast<uint32_t>(m_shaderStages.size());
-	rayPipelineInfo.pStages            = m_shaderStages.data();
+	rayPipelineInfo.stageCount         = static_cast<uint32_t>(shaderStageCIs.size());
+	rayPipelineInfo.pStages            = shaderStageCIs.data();
 	rayPipelineInfo.groupCount         = static_cast<uint32_t>(m_shaderGroups.size());
 	rayPipelineInfo.pGroups            = m_shaderGroups.data();
 	rayPipelineInfo.maxRecursionDepth  = m_maxRecursionDepth;
-	rayPipelineInfo.layout             = *layout;
+	rayPipelineInfo.layout             = *pipelineLayout;
 	rayPipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 	rayPipelineInfo.basePipelineIndex  = 0;
 
