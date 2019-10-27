@@ -35,6 +35,7 @@ struct Vertex {
 	glm::vec3 color;
 	glm::vec3 normal;
 	glm::vec2 texCoord;
+	float dummy;
 
 	bool operator==(const Vertex& other) const {
 		return pos == other.pos && color == other.color && normal == other.normal && texCoord == other.texCoord;
@@ -122,7 +123,7 @@ public:
 	std::vector<InstanceData_dynamic> instanceData_dynamic;
 	
 	BottomLevelAccelerationStructure as_bottomLevel;
-	
+
 	Mesh(const char *meshPath, int textureId, float trans) {
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
@@ -181,7 +182,7 @@ public:
 		//instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(0, 0, trans)) });
 	}
 
-	void initBLAS(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkBuffer &vertexBuffer, const VkDeviceSize vertexBufferOffset) {
+	void initBLAS(const VkDevice& device, const VkCommandBuffer &cmdBuf, const VmaAllocator& allocator, const VkBuffer &vertexBuffer, const VkDeviceSize vertexBufferOffset, const VkBuffer &gIdx) {
 		/*
 		 * We get the hanlde of the global vertex buffer and the offset for this mesh.
 		 * However, we create per mesh instances of index buffer locally. This is because the indices in the global index buffer cannot of be used due to offset.
@@ -192,32 +193,35 @@ public:
 		if (indices.size() == 0)
 			throw std::runtime_error("Vertex indices for creating BLAS not initialized");
 
-		createIndexBuffer(device, allocator, queue, commandPool);
+		//createIndexBuffer(device, allocator, queue, commandPool);
 
-		std::vector<VkGeometryNV> geometry = { VkGeometryNV() };
-		geometry[0].sType = VK_STRUCTURE_TYPE_GEOMETRY_NV;
-		geometry[0].geometryType = VK_GEOMETRY_TYPE_TRIANGLES_NV;
-		geometry[0].geometry.triangles.sType = VK_STRUCTURE_TYPE_GEOMETRY_TRIANGLES_NV;
-		geometry[0].geometry.triangles.vertexData = vertexBuffer;
-		geometry[0].geometry.triangles.vertexOffset = vertexBufferOffset;
-		geometry[0].geometry.triangles.vertexCount = static_cast<uint32_t>(vertices.size());
-		geometry[0].geometry.triangles.vertexStride = sizeof(Vertex);
-		geometry[0].geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-		geometry[0].geometry.triangles.indexData = indexBuffer;
-		geometry[0].geometry.triangles.indexOffset = 0;
-		geometry[0].geometry.triangles.indexCount = static_cast<uint32_t>(indices.size());
-		geometry[0].geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-		geometry[0].geometry.triangles.transformData = VK_NULL_HANDLE;
-		geometry[0].geometry.triangles.transformOffset = 0;
-		geometry[0].geometry.aabbs = {};
-		geometry[0].geometry.aabbs.sType = { VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV };
-		geometry[0].flags = VK_GEOMETRY_OPAQUE_BIT_NV;
+		std::vector<VkGeometryNV> vGeometry;
 
-		as_bottomLevel.create(device, allocator, geometry);
+		VkGeometryNV geometry;
+		geometry.sType = VK_STRUCTURE_TYPE_GEOMETRY_NV;
+		geometry.pNext = nullptr;
+		geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_NV;
+		geometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_GEOMETRY_TRIANGLES_NV;
+		geometry.geometry.triangles.pNext = nullptr;
+		geometry.geometry.triangles.vertexData = vertexBuffer;
+		geometry.geometry.triangles.vertexOffset = vertexBufferOffset;
+		geometry.geometry.triangles.vertexCount = vertices.size();
+		geometry.geometry.triangles.vertexStride = sizeof(Vertex);
+		// Limitation to 3xfloat32 for vertices
+		geometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+		geometry.geometry.triangles.indexData = gIdx;
+		geometry.geometry.triangles.indexOffset = 0;
+		geometry.geometry.triangles.indexCount = indices.size();
+		// Limitation to 32-bit indices
+		geometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
+		geometry.geometry.triangles.transformData = VK_NULL_HANDLE;
+		geometry.geometry.triangles.transformOffset = 0;
+		geometry.geometry.aabbs = { VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV };
+		geometry.flags = VK_GEOMETRY_OPAQUE_BIT_NV;
 
-		VkCommandBuffer cmdBuf = beginSingleTimeCommands(device, commandPool);
-		as_bottomLevel.cmdBuild(cmdBuf, geometry);
-		endSingleTimeCommands(device, queue, commandPool, cmdBuf);
+		vGeometry.push_back(geometry);
+		as_bottomLevel.create(device, allocator, vGeometry);
+		as_bottomLevel.cmdBuild(cmdBuf, vGeometry);
 	}
 
 	void cleanUpBlas(const VkDevice& device, const VmaAllocator& allocator) {
@@ -304,7 +308,7 @@ public:
 			//meshes.push_back(Mesh(modelPath.c_str(), textureId % textureCache.size(), (float)2 * ctr++));
 			//textureId++;
 		//}
-		meshes.push_back(Mesh(MODEL_PATHS[0].c_str(), 0, 0.0));
+		meshes.push_back(Mesh(MODEL_PATHS[1].c_str(), 1, 0.0));
 		updateGlobalBuffers();
 	}
 
@@ -432,33 +436,32 @@ public:
 
 	void createRtxBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
 		VkDeviceSize vertexOffsetInBytes = 0;
-		
+		VkCommandBuffer cmdBuf = beginSingleTimeCommands(device, commandPool);
 		for (auto &mesh : meshes) {
-			mesh.initBLAS(device, allocator, queue, commandPool, vertexBuffer, vertexOffsetInBytes);
+			mesh.initBLAS(device, cmdBuf, allocator, vertexBuffer, vertexOffsetInBytes, indexBuffer);
 			vertexOffsetInBytes += static_cast<VkDeviceSize>(mesh.vertices.size() * sizeof(Vertex));
 		}
 
-		as_topLevel.create(device, allocator, static_cast<uint32_t>(instanceData_dynamic.size()));
+		as_topLevel.create(device, allocator, static_cast<uint32_t>(instanceData_dynamic.size()), false);
 		updateTlasData();
-		VkCommandBuffer cmdBuf = beginSingleTimeCommands(device, commandPool);
 		as_topLevel.cmdBuild(cmdBuf, static_cast<uint32_t>(instanceData_dynamic.size()), false);
 		endSingleTimeCommands(device, queue, commandPool, cmdBuf);
 	}
 
 	void updateTlasData() {
-		tlas_instanceData.resize(instanceData_dynamic.size());
-
 		uint32_t globalInstanceId = 0;
 		for (auto& mesh : meshes) {
 			for (auto& instance : mesh.instanceData_dynamic) {
-				tlas_instanceData[globalInstanceId].blasHandle = mesh.as_bottomLevel.handle;
-				tlas_instanceData[globalInstanceId].instanceOffset = 0; // Since this is used to determine hit group index compuation, this may change
-				tlas_instanceData[globalInstanceId].mask = 0xff;
-				tlas_instanceData[globalInstanceId].flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
-				tlas_instanceData[globalInstanceId].instanceId = globalInstanceId;
+				TopLevelAccelerationStructureData data;
 				// Copy first three rows of transformation matrix of each instance
 				glm::mat4 modelTrans = glm::transpose(instance.model);
-				memcpy(tlas_instanceData[globalInstanceId].transform, &modelTrans, sizeof(tlas_instanceData[globalInstanceId].transform));
+				memcpy(data.transform, &modelTrans, sizeof(data.transform));
+				data.instanceId = globalInstanceId;
+				data.mask = 0xff;
+				data.instanceOffset = 0; // Since this is used to determine hit group index compuation, this may change
+				data.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
+				data.blasHandle = mesh.as_bottomLevel.handle;
+				tlas_instanceData.push_back(data);
 				globalInstanceId++;
 			}
 		}
@@ -601,7 +604,7 @@ private:
 		memcpy(data, vertices.data(), (size_t)bufferSize);
 		vmaUnmapMemory(allocator, stagingBufferAllocation);
 
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
 		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &vertexBuffer, &vertexBufferAllocation, nullptr) != VK_SUCCESS)
@@ -635,7 +638,7 @@ private:
 		memcpy(data, indices.data(), (size_t)bufferSize);
 		vmaUnmapMemory(allocator, stagingBufferAllocation);
 
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
 		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &indexBuffer, &indexBufferAllocation, nullptr) != VK_SUCCESS)

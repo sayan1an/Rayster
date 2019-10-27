@@ -47,11 +47,10 @@ void BottomLevelAccelerationStructure::create(const VkDevice& device, const VmaA
 	accelerationStructureMemoryInfo.memoryOffset = allocInfo.offset;
 	if (vkBindAccelerationStructureMemoryNV(device, 1, &accelerationStructureMemoryInfo) != VK_SUCCESS)
 		throw std::runtime_error("failed to bind memory for bottom level accelaration structure!");
-
+		
 	// Get a handle for the acceleration structure
 	if (vkGetAccelerationStructureHandleNV(device, accelerationStructure, sizeof(uint64_t), &handle) != VK_SUCCESS)
 		throw std::runtime_error("failed to retrive handle for bottom level accelaration structure!");
-
 
 	// Find memory requirements for accelaration structure build scratch
 	memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_NV;
@@ -83,7 +82,7 @@ void BottomLevelAccelerationStructure::create(const VkDevice& device, const VmaA
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	// Allocate memory and bind it to the buffer
-	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &scratchBuffer, &scratchBufferAllocation, nullptr) != VK_SUCCESS)
+	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &scratchBuffer, &scratchBufferAllocation, &allocInfo) != VK_SUCCESS)
 		throw std::runtime_error("failed to allocate scratch buffer for bottom level accelaration structure!");
 }
 
@@ -148,13 +147,13 @@ void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllo
 
 	VkMemoryRequirements2 memoryRequirements2{};
 	vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
-
+	
 	// Allocate memory for accelaration structure object
 	// https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/issues/63
 	VmaAllocationCreateInfo allocCreateInfo = {};
 	allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 	allocCreateInfo.memoryTypeBits = memoryRequirements2.memoryRequirements.memoryTypeBits;
-
+	
 	VmaAllocationInfo allocInfo = {};
 	if (vmaAllocateMemory(allocator, &memoryRequirements2.memoryRequirements, &allocCreateInfo, &accelerationStructureAllocation, &allocInfo) != VK_SUCCESS)
 		throw std::runtime_error("failed to allocate memory for bottom level accelaration structure!");
@@ -165,10 +164,10 @@ void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllo
 	accelerationStructureMemoryInfo.accelerationStructure = accelerationStructure;
 	accelerationStructureMemoryInfo.memory = allocInfo.deviceMemory;
 	accelerationStructureMemoryInfo.memoryOffset = allocInfo.offset;
+	
 	if (vkBindAccelerationStructureMemoryNV(device, 1, &accelerationStructureMemoryInfo) != VK_SUCCESS)
 		throw std::runtime_error("failed to bind memory for top level accelaration structure!");
-
-
+	
 	// Find memory requirements for accelaration structure build scratch
 	memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_NV;
 	memoryRequirements2 = {};
@@ -198,8 +197,9 @@ void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllo
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_RAY_TRACING_BIT_NV;
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
+	allocInfo = {};
 	// Allocate memory and bind it to the buffer
-	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &scratchBuffer, &scratchBufferAllocation, nullptr) != VK_SUCCESS)
+	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &scratchBuffer, &scratchBufferAllocation, &allocInfo) != VK_SUCCESS)
 		throw std::runtime_error("failed to allocate scratch buffer for top level accelaration structure!");
 
 	// Create instance buffer
@@ -246,14 +246,14 @@ void TopLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, cons
 	VkBufferMemoryBarrier bufferMemoryBarrier = {};
 	bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
 	bufferMemoryBarrier.buffer = instanceBuffer;
-	bufferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	bufferMemoryBarrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV;
+	bufferMemoryBarrier.srcAccessMask = 0;// VK_ACCESS_TRANSFER_WRITE_BIT;
+	bufferMemoryBarrier.dstAccessMask = 0;// VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV;
 
 	// Cobmine this barrier with the next
 	vkCmdPipelineBarrier(
 		cmdBuf,
-		VK_PIPELINE_STAGE_TRANSFER_BIT,
-		VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV,
+		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
 		0,
 		0, nullptr,
 		1, &bufferMemoryBarrier,
@@ -266,7 +266,7 @@ void TopLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, cons
 	buildInfo.flags = allowUpdate ? VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV : 0;
 	buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_NV;
 	buildInfo.instanceCount = instanceCount;
-
+	
 	vkCmdBuildAccelerationStructureNV(cmdBuf, &buildInfo, instanceBuffer, 0, rebuild,
 		accelerationStructure, rebuild ? accelerationStructure : VK_NULL_HANDLE, scratchBuffer, 0);
 

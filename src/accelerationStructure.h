@@ -81,7 +81,7 @@ public:
 	{
 		if (mappedInstanceBuffer == nullptr)
 			throw std::runtime_error("Accelaration structure is NOT initialized!");
-
+				
 		memcpy(mappedInstanceBuffer, instances.data(), instances.size() * sizeof(TopLevelAccelerationStructureData));
 	}
 	

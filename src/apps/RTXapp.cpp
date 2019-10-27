@@ -59,7 +59,7 @@ public:
 		sbtGen.addHitGroup(hitGroupId, {});
 
 		VkDeviceSize shaderBindingTableSize = sbtGen.computeSBTSize(raytracingProperties);
-
+		
 		VmaAllocationCreateInfo allocCreateInfo = {};
 		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 

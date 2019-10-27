@@ -4,6 +4,8 @@
 layout(binding = 0) uniform UniformBufferObject {
     mat4 view;
     mat4 proj;
+    mat4 viewInv;
+    mat4 projInv;
 } ubo;
 
 // per vertex

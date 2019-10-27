@@ -75,15 +75,19 @@ public:
 		projViewMat.viewInv = glm::inverse(projViewMat.view);
 		projViewMat.projInv = glm::inverse(projViewMat.proj);
 
-		glm::vec4 camOrigin = projViewMat.viewInv * glm::vec4(0, 0, 0, 1);
+		/*glm::vec4 camOrigin = projViewMat.viewInv * glm::vec4(0, 0, 0, 1);
 		glm::vec4 target = projViewMat.projInv * glm::vec4(0, 0, 1, 1);
 		glm::vec4 direction = projViewMat.viewInv * (glm::normalize(glm::vec4(target.x, target.y, target.z, 0)));
-		std::cout << direction.x << " " << direction.y << " " << direction.z << " c " << cameraFront.x << " " << cameraFront.y << " " << cameraFront.z << std::endl;
+		std::cout << direction.x << " " << direction.y << " " << direction.z << " c " << cameraFront.x << " " << cameraFront.y << " " << cameraFront.z << std::endl;*/
 		memcpy(uniformBuffersAllocationInfo.pMappedData, &projViewMat, sizeof(projViewMat));
 	}
 
 	Camera() {
-		cameraPosition = glm::vec3(2.0f, 2.0f, 2.0f);
+		//cameraPosition = glm::vec3(2.0f, 2.0f, 2.0f);
+		//cameraFocus = glm::vec3(0.0f, 0.0f, 0.0f);
+		//cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
+
+		cameraPosition = glm::vec3(0.0f, 5.0f, 0.0f);
 		cameraFocus = glm::vec3(0.0f, 0.0f, 0.0f);
 		cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
 
