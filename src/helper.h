@@ -45,6 +45,7 @@ void endSingleTimeCommands(const VkDevice& device, const VkQueue& queue, const V
 void copyBuffer(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool, const VkBuffer& srcBuffer, const VkBuffer& dstBuffer, VkDeviceSize size);
 VkImageView createImageView(const VkDevice& device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, uint32_t layerCount);
 bool hasStencilComponent(VkFormat format);
+void cmdTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount);
 void transitionImageLayout(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,
 	VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount);
 void copyBufferToImage(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,

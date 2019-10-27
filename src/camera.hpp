@@ -10,6 +10,8 @@
 struct ProjectionViewMat {
 	alignas(16) glm::mat4 view;
 	alignas(16) glm::mat4 proj;
+	alignas(16) glm::mat4 viewInv;
+	alignas(16) glm::mat4 projInv;
 };
 
 class Camera {
@@ -53,6 +55,9 @@ public:
 	}
 
 	VkDescriptorBufferInfo getDescriptorBufferInfo() const {
+		if (uniformBuffer == VK_NULL_HANDLE)
+			throw std::runtime_error("Uniform buffer for projection and view matrix un-initialized");
+
 		VkDescriptorBufferInfo info = { uniformBuffer, 0, sizeof(ProjectionViewMat) };
 		return info;
 	}
@@ -67,6 +72,13 @@ public:
 		projViewMat.proj = glm::perspective(glm::radians(45.0f), screenWidth / (float)screenHeight, 0.1f, 10.0f);
 		projViewMat.proj[1][1] *= -1;
 
+		projViewMat.viewInv = glm::inverse(projViewMat.view);
+		projViewMat.projInv = glm::inverse(projViewMat.proj);
+
+		glm::vec4 camOrigin = projViewMat.viewInv * glm::vec4(0, 0, 0, 1);
+		glm::vec4 target = projViewMat.projInv * glm::vec4(0, 0, 1, 1);
+		glm::vec4 direction = projViewMat.viewInv * (glm::normalize(glm::vec4(target.x, target.y, target.z, 0)));
+		std::cout << direction.x << " " << direction.y << " " << direction.z << " c " << cameraFront.x << " " << cameraFront.y << " " << cameraFront.z << std::endl;
 		memcpy(uniformBuffersAllocationInfo.pMappedData, &projViewMat, sizeof(projViewMat));
 	}
 
@@ -80,7 +92,7 @@ public:
 private:
 	ProjectionViewMat projViewMat;
 
-	VkBuffer uniformBuffer;
+	VkBuffer uniformBuffer = VK_NULL_HANDLE;
 	VmaAllocation uniformBuffersAllocation;
 	VmaAllocationInfo uniformBuffersAllocationInfo;
 

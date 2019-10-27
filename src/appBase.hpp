@@ -362,6 +362,7 @@ protected:
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
 	std::vector<VkImageView> swapChainImageViews;
+	std::vector<VkImage> swapChainImages;
 	
 	virtual void cleanUpAfterSwapChainResize() = 0;
 	virtual void recreateAfterSwapChainResize() = 0;
@@ -440,7 +441,7 @@ protected:
 private:
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapChain;
-	std::vector<VkImage> swapChainImages;
+	
 
 	const int MAX_FRAMES_IN_FLIGHT = 2;
 	std::vector<VkSemaphore> imageAvailableSemaphores;
@@ -482,7 +483,7 @@ private:
 		createInfo.imageColorSpace = surfaceFormat.colorSpace;
 		createInfo.imageExtent = extent;
 		createInfo.imageArrayLayers = 1;
-		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
 		QueueFamilyIndices indices = findQueueFamilies(physicalDevice, surface);
 		uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };

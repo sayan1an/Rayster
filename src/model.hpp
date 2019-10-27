@@ -23,8 +23,8 @@
  * Also we simply use graphics queues and buffers for constructing the accelaration structure.
  */
 
-static const std::vector<std::string> MODEL_PATHS = { ROOT + "/models/cat.obj", ROOT + "/models/chalet.obj", ROOT + "/models/deer.obj"};
-static const std::vector<std::string> TEXTURE_PATHS = { ROOT + "/textures/ubiLogo.jpg", ROOT + "/textures/chalet.jpg" };
+static const std::vector<std::string> MODEL_PATHS = {  ROOT + "/models/chalet.obj", ROOT + "/models/deer.obj", ROOT + "/models/cat.obj" };
+static const std::vector<std::string> TEXTURE_PATHS = { ROOT + "/textures/chalet.jpg", ROOT + "/textures/ubiLogo.jpg" };
 
 #define VERTEX_BINDING_ID	0
 #define STATIC_INSTANCE_BINDING_ID	1
@@ -173,12 +173,12 @@ public:
 
 		normailze(0.7f, glm::vec3(0, 0, 0));
 		instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
-		instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
-		instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
+		//instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
+		//instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
 				
 		instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(trans, 0, 0)) });
-		instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(0, trans, 0)) });
-		instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(0, 0, trans)) });
+		//instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(0, trans, 0)) });
+		//instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(0, 0, trans)) });
 	}
 
 	void initBLAS(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkBuffer &vertexBuffer, const VkDeviceSize vertexBufferOffset) {
@@ -300,10 +300,11 @@ public:
 
 		int ctr = -1;
 		int textureId = 0;
-		for (const auto& modelPath : MODEL_PATHS) {
-			meshes.push_back(Mesh(modelPath.c_str(), textureId % textureCache.size(), (float)2 * ctr++));
-			textureId++;
-		}
+		//for (const auto& modelPath : MODEL_PATHS) {
+			//meshes.push_back(Mesh(modelPath.c_str(), textureId % textureCache.size(), (float)2 * ctr++));
+			//textureId++;
+		//}
+		meshes.push_back(Mesh(MODEL_PATHS[0].c_str(), 0, 0.0));
 		updateGlobalBuffers();
 	}
 
@@ -488,6 +489,11 @@ public:
 			mesh.cleanUpBlas(device, allocator);
 
 		as_topLevel.cleanUp(device, allocator);
+	}
+
+	VkWriteDescriptorSetAccelerationStructureNV getDescriptorTlas() const
+	{
+		return as_topLevel.getDescriptorTlasInfo();
 	}
 private:
 	std::vector<Mesh> meshes; // ideally store unique meshes

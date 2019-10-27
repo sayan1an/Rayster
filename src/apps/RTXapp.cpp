@@ -24,58 +24,64 @@
 #include "../appBase.hpp"
 #include "../generator.h"
 
-class Subpass1 {
+class RtxPass {
 public:
-	VkSubpassDescription subpassDescription;
-
 	VkDescriptorSetLayout descriptorSetLayout;
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSet descriptorSet;
 
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
+	VkBuffer sbtBuffer;
+	VmaAllocation sbtBufferAllocation;
+	ShaderBindingTableGenerator sbtGen;
 
-	void createSubpassDescription(const VkDevice& device) {
-		colorAttachmentRef = {};
-		colorAttachmentRef.attachment = 0; // index to frame buffer
-		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		depthAttachmentRef = {};
-		depthAttachmentRef.attachment = 1;
-		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-		subpassDescription = {};
-		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpassDescription.colorAttachmentCount = 1;
-		subpassDescription.pColorAttachments = &colorAttachmentRef;
-		subpassDescription.pDepthStencilAttachment = &depthAttachmentRef;
-	}
-
-	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkSampleCountFlagBits& msaaSamples, const VkRenderPass& renderPass, const Camera& cam, const VkImageView& textureImageView, const VkSampler& textureSampler) 
+	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator, const Model& model, const VkImageView& storageImageView, const Camera& cam)
 	{
-		descGen.bindBuffer({ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT }, cam.getDescriptorBufferInfo());
-		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { textureSampler,  textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		descGen.bindTLAS({ 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, model.getDescriptorTlas());
+		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, storageImageView, VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindBuffer({ 2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, cam.getDescriptorBufferInfo());
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		auto bindingDescription = Model::getBindingDescription();
-		auto attributeDescription = Model::getAttributeDescriptions();
+		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RTXApp/01_rgen.spv");
+		uint32_t missShaderId = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RTXApp/01_rmiss.spv");
+		uint32_t hitGroupId = rtxPipeGen.startHitGroup();
 
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/01_vert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/01_frag.spv");
-		gfxPipeGen.addVertexInputState(bindingDescription, attributeDescription);
-		gfxPipeGen.addViewportState(swapChainExtent);
+		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RTXApp/01_rchit.spv");
+		rtxPipeGen.endHitGroup();
+		rtxPipeGen.setMaxRecursionDepth(1);
 
-		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 0, &pipeline, &pipelineLayout);
+		rtxPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
+
+		sbtGen.addRayGenerationProgram(rayGenId, {});
+		sbtGen.addMissProgram(missShaderId, {});
+		sbtGen.addHitGroup(hitGroupId, {});
+
+		VkDeviceSize shaderBindingTableSize = sbtGen.computeSBTSize(raytracingProperties);
+
+		VmaAllocationCreateInfo allocCreateInfo = {};
+		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+		VkBufferCreateInfo bufferCreateInfo = {};
+		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferCreateInfo.size = shaderBindingTableSize;
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		// Allocate memory and bind it to the buffer
+		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &sbtBuffer, &sbtBufferAllocation, nullptr) != VK_SUCCESS)
+			throw std::runtime_error("failed to allocate buffer for shader binding table!");
+
+		sbtGen.populateSBT(device, pipeline, allocator, sbtBufferAllocation);
 	}
+
 private:
-	VkAttachmentReference colorAttachmentRef;
-	VkAttachmentReference depthAttachmentRef;
 	DescriptorSetGenerator descGen;
-	GraphicsPipelineGenerator gfxPipeGen;
+	RayTracingPipelineGenerator rtxPipeGen;
 };
 
-class Subpass2 {
+class Subpass1 {
 public:
 	VkSubpassDescription subpassDescription;
 
@@ -115,7 +121,7 @@ public:
 		gfxPipeGen.addDepthStencilState(VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
 
-		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 1, &pipeline, &pipelineLayout);
+		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 0, &pipeline, &pipelineLayout);
 	}
 private:
 	VkAttachmentReference colorAttachmentRef;
@@ -124,68 +130,7 @@ private:
 	GraphicsPipelineGenerator gfxPipeGen;
 };
 
-class RtxPass {
-public:
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkDescriptorPool descriptorPool;
-	VkDescriptorSet descriptorSet;
 
-	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
-	VkBuffer sbtBuffer;
-	VmaAllocation sbtBufferAllocation;
-
-	void createDescriptorSetLayout(const VkDevice& device) {
-		
-		/*
-		std::vector<VkDescriptorSetLayoutBinding> bindings = { { 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV },
-			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV },
-			{ 2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV } };
-		DescriptorSet::createDescriptorSetLayout(device, bindings);
-		*/
-	}
-
-	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV &raytracingProperties, const VmaAllocator &allocator)
-	{	
-		/*
-		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RTXApp/01_rgen.spv");
-		uint32_t missShaderId = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RTXApp/01_rmiss.spv");
-		uint32_t hitGroupId = rtxPipeGen.startHitGroup();
-		
-		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RTXApp/01_rchit.spv");
-		rtxPipeGen.endHitGroup();
-		rtxPipeGen.setMaxRecursionDepth(1);
-
-		rtxPipeGen.createPipeline(device, descriptorSetLayout, &m_rtPipeline, &m_rtPipelineLayout);
-
-		sbtGen.addRayGenerationProgram(rayGenId, {});
-		sbtGen.addMissProgram(missShaderId, {});
-		sbtGen.addHitGroup(hitGroupId, {});
-
-		VkDeviceSize shaderBindingTableSize = sbtGen.computeSBTSize(raytracingProperties);
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-		
-		VkBufferCreateInfo bufferCreateInfo = {};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = shaderBindingTableSize;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		// Allocate memory and bind it to the buffer
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &sbtBuffer, &sbtBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("failed to allocate buffer for shader binding table!");
-
-		sbtGen.populateSBT(device, m_rtPipeline, allocator, sbtBufferAllocation);
-		*/
-
-	}
-
-private:
-	RayTracingPipelineGenerator rtxPipeGen;
-	ShaderBindingTableGenerator sbtGen;
-};
 
 class RTXApplication : public WindowApplication {
 public:
@@ -198,10 +143,9 @@ private:
 
 	VkRenderPass renderPass;
 
-	Subpass1 subpass1;
-	Subpass2 subpass2;
 	RtxPass rtxPass;
-
+	Subpass1 subpass1;
+	
 	VkImage colorImage;
 	VmaAllocation colorImageAllocation;
 	VkImageView colorImageView;
@@ -214,13 +158,12 @@ private:
 
 	std::vector<VkCommandBuffer> commandBuffers;
 	VkCommandBuffer computeCommandBuffer;
-	
+	PFN_vkCmdTraceRaysNV vkCmdTraceRaysNV = nullptr;
 	void init() {
 		getRtxProperties();
 		
+		vkCmdTraceRaysNV = reinterpret_cast<PFN_vkCmdTraceRaysNV>(vkGetDeviceProcAddr(device, "vkCmdTraceRaysNV"));
 		subpass1.createSubpassDescription(device);
-		subpass2.createSubpassDescription(device);
-		rtxPass.createDescriptorSetLayout(device);
 		createRenderPass();
 
 		createColorResources();
@@ -229,9 +172,10 @@ private:
 
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.textureImageView, model.textureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, depthImageView, colorImageView);
-		rtxPass.createPipeline(device, raytracingProperties, allocator);
+		
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, colorImageView, cam);
+		subpass1.createSubpass(device, swapChainExtent, renderPass, depthImageView, colorImageView);
+		
 		createCommandBuffers();
 	}
 
@@ -267,16 +211,19 @@ private:
 		vkDestroyPipeline(device, subpass1.pipeline, nullptr);
 		vkDestroyPipelineLayout(device, subpass1.pipelineLayout, nullptr);
 
-		vkDestroyPipeline(device, subpass2.pipeline, nullptr);
-		vkDestroyPipelineLayout(device, subpass2.pipelineLayout, nullptr);
+		vkDestroyPipeline(device, rtxPass.pipeline, nullptr);
+		vkDestroyPipelineLayout(device, rtxPass.pipelineLayout, nullptr);
+
+		vmaDestroyBuffer(allocator, rtxPass.sbtBuffer, rtxPass.sbtBufferAllocation);
 
 		vkDestroyRenderPass(device, renderPass, nullptr);
 
+		vkDestroyDescriptorSetLayout(device, rtxPass.descriptorSetLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, subpass1.descriptorSetLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device, subpass2.descriptorSetLayout, nullptr);
-	
+		
+		
+		vkDestroyDescriptorPool(device, rtxPass.descriptorPool, nullptr);
 		vkDestroyDescriptorPool(device, subpass1.descriptorPool, nullptr);
-		vkDestroyDescriptorPool(device, subpass2.descriptorPool, nullptr);
 	}
 
 	void recreateAfterSwapChainResize() {
@@ -285,8 +232,8 @@ private:
 		createDepthResources();
 		createFramebuffers();
 
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.textureImageView, model.textureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, depthImageView, colorImageView);
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, colorImageView, cam);
+		subpass1.createSubpass(device, swapChainExtent, renderPass, depthImageView, colorImageView);
 		createCommandBuffers();
 	}
 
@@ -302,22 +249,22 @@ private:
 		// This corresponds to the multi-sampled color buffer
 		VkAttachmentDescription colorAttachment = {};
 		colorAttachment.format = swapChainImageFormat;
-		colorAttachment.samples = msaaSamples; // multiple samples
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colorAttachment.samples = msaaSamples;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // since we are not directly presenting the color attachment we use K_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL instead of VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
+		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		VkAttachmentDescription depthAttachment = {};
 		depthAttachment.format = findDepthFormat(physicalDevice);
 		depthAttachment.samples = msaaSamples; // multiple samples
-		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		depthAttachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 		// this corresponds to the swap chain images
@@ -331,43 +278,34 @@ private:
 		swapChainAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		swapChainAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-		std::array<VkSubpassDescription, 2> subpassDesc = { subpass1.subpassDescription, subpass2.subpassDescription };
+		std::array<VkSubpassDescription, 1> subpassDesc = { subpass1.subpassDescription };
 
-		std::array<VkSubpassDependency, 3> dependencies;
+		std::array<VkSubpassDependency, 2> dependencies;
 
 		dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
 		dependencies[0].dstSubpass = 0;
 		dependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-		dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-		dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		dependencies[0].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+		dependencies[0].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
 		dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-		// This dependency transitions the input attachment from color attachment to shader read
 		dependencies[1].srcSubpass = 0;
-		dependencies[1].dstSubpass = 1;
+		dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
 		dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-		dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		dependencies[1].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+		dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 		dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-
-		dependencies[2].srcSubpass = 0;
-		dependencies[2].dstSubpass = VK_SUBPASS_EXTERNAL;
-		dependencies[2].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		dependencies[2].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-		dependencies[2].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		dependencies[2].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-		dependencies[2].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 		std::array<VkAttachmentDescription, 3> attachments = { colorAttachment, depthAttachment, swapChainAttachment};
 		VkRenderPassCreateInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 		renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
 		renderPassInfo.pAttachments = attachments.data();
-		renderPassInfo.subpassCount = 2;
+		renderPassInfo.subpassCount = subpassDesc.size();
 		renderPassInfo.pSubpasses = subpassDesc.data();
-		renderPassInfo.dependencyCount = 3;
+		renderPassInfo.dependencyCount = dependencies.size();
 		renderPassInfo.pDependencies = dependencies.data();
 
 		if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
@@ -416,7 +354,7 @@ private:
 			imageCreateInfo.format = colorFormat;
 			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+			imageCreateInfo.usage = VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 			imageCreateInfo.samples = msaaSamples; // number of msaa samples
 			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -428,7 +366,7 @@ private:
 
 			colorImageView = createImageView(device, colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 
-			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, colorImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1, 1);
+			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, colorImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
 		}
 		
 	}
@@ -487,7 +425,36 @@ private:
 
 			model.cmdTransferData(commandBuffers[i]);
 
-			VkRenderPassBeginInfo renderPassInfo = {};
+			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipeline);
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipelineLayout, 0, 1, &rtxPass.descriptorSet, 0, nullptr);
+
+			// Calculate shader binding offsets, which is pretty straight forward in our example
+			VkDeviceSize rayGenOffset = rtxPass.sbtGen.getRayGenOffset();
+			VkDeviceSize missOffset = rtxPass.sbtGen.getMissOffset();
+			VkDeviceSize missStride = rtxPass.sbtGen.getMissEntrySize();
+			VkDeviceSize hitGroupOffset = rtxPass.sbtGen.getHitGroupOffset();
+			VkDeviceSize hitGroupStride = rtxPass.sbtGen.getHitGroupEntrySize();
+
+			vkCmdTraceRaysNV(commandBuffers[i], rtxPass.sbtBuffer, rayGenOffset,
+				rtxPass.sbtBuffer, missOffset, missStride,
+				rtxPass.sbtBuffer, hitGroupOffset, hitGroupStride,
+				VK_NULL_HANDLE, 0, 0, swapChainExtent.width,
+				swapChainExtent.height, 1);
+
+			cmdTransitionImageLayout(commandBuffers[i], swapChainImages[i], swapChainImageFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, 1);
+			cmdTransitionImageLayout(commandBuffers[i], colorImage, swapChainImageFormat, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 1, 1);
+
+			VkImageCopy copyRegion{};
+			copyRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+			copyRegion.srcOffset = { 0, 0, 0 };
+			copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+			copyRegion.dstOffset = { 0, 0, 0 };
+			copyRegion.extent = { swapChainExtent.width, swapChainExtent.height, 1 };
+			vkCmdCopyImage(commandBuffers[i], colorImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+
+			cmdTransitionImageLayout(commandBuffers[i], swapChainImages[i], swapChainImageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 1, 1);
+			cmdTransitionImageLayout(commandBuffers[i], colorImage, swapChainImageFormat, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
+			/*VkRenderPassBeginInfo renderPassInfo = {};
 			renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			renderPassInfo.renderPass = renderPass;
 			renderPassInfo.framebuffer = swapChainFramebuffers[i];
@@ -504,20 +471,11 @@ private:
 			vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipeline);
-
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipelineLayout, 0, 1, &subpass1.descriptorSet, 0, nullptr);
-
-			// put model draw
-			model.cmdDraw(commandBuffers[i]);
-
-			vkCmdNextSubpass(commandBuffers[i], VK_SUBPASS_CONTENTS_INLINE);
-
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipeline);
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipelineLayout, 0, 1, &subpass2.descriptorSet, 0, nullptr);
 			vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
 
 			vkCmdEndRenderPass(commandBuffers[i]);
-
+			*/
 			if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
 				throw std::runtime_error("failed to record command buffer!");
 			}
@@ -538,7 +496,7 @@ private:
 	}
 };
 
-/*
+
 int main() {
 	{	
 		std::vector<const char*> deviceExtensions = { VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME};
@@ -558,4 +516,3 @@ int main() {
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-*/

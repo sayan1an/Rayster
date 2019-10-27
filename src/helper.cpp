@@ -104,11 +104,8 @@ extern bool hasStencilComponent(VkFormat format) {
 	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
-extern void transitionImageLayout(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,
-	VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount) {
-
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
-
+extern void cmdTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount)
+{
 	VkImageMemoryBarrier barrier = {};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	barrier.oldLayout = oldLayout;
@@ -169,6 +166,25 @@ extern void transitionImageLayout(const VkDevice& device, const VkQueue& queue, 
 		sourceStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 		destinationStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_GENERAL && newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		sourceStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+		destinationStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = 0;
+		sourceStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+		destinationStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_GENERAL) {
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		barrier.dstAccessMask = 0;
+		sourceStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+		destinationStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+	}
+
 	else {
 		throw std::invalid_argument("unsupported layout transition!");
 	}
@@ -181,7 +197,13 @@ extern void transitionImageLayout(const VkDevice& device, const VkQueue& queue, 
 		0, nullptr,
 		1, &barrier
 	);
+}
 
+extern void transitionImageLayout(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,
+	VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount) {
+
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
+	cmdTransitionImageLayout(commandBuffer, image, format, oldLayout, newLayout, mipLevels, layerCount);
 	endSingleTimeCommands(device, queue, commandPool, commandBuffer);
 }
 

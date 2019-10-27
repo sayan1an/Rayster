@@ -2,7 +2,8 @@
 
 #include "helper.h"
 
-class AccelerationStructure {
+class AccelerationStructure 
+{
 protected:
 	VkBuffer scratchBuffer = VK_NULL_HANDLE;
 	VmaAllocation scratchBufferAllocation = VK_NULL_HANDLE;
@@ -20,6 +21,7 @@ protected:
 		vkCmdBuildAccelerationStructureNV = reinterpret_cast<PFN_vkCmdBuildAccelerationStructureNV>(vkGetDeviceProcAddr(device, "vkCmdBuildAccelerationStructureNV"));
 		vkDestroyAccelerationStructureNV = reinterpret_cast<PFN_vkDestroyAccelerationStructureNV>(vkGetDeviceProcAddr(device, "vkDestroyAccelerationStructureNV"));
 	}
+
 	// also store function pointers
 	PFN_vkCreateAccelerationStructureNV vkCreateAccelerationStructureNV = nullptr;
 	PFN_vkGetAccelerationStructureMemoryRequirementsNV vkGetAccelerationStructureMemoryRequirementsNV = nullptr;
@@ -29,7 +31,8 @@ protected:
 	PFN_vkDestroyAccelerationStructureNV vkDestroyAccelerationStructureNV = nullptr;
 
 public:
-	void cleanUp(const VkDevice& device, const VmaAllocator& allocator) {
+	void cleanUp(const VkDevice& device, const VmaAllocator& allocator) 
+	{
 		if (vkDestroyAccelerationStructureNV == nullptr)
 			throw std::runtime_error("Accelaration structure is NOT initialized!");
 
@@ -41,7 +44,8 @@ public:
 	}
 };
 
-class BottomLevelAccelerationStructure : public AccelerationStructure {
+class BottomLevelAccelerationStructure : public AccelerationStructure 
+{
 public:
 	uint64_t handle = 0;
 	void create(const VkDevice& device, const VmaAllocator& allocator, const std::vector<VkGeometryNV>& geometries, bool allowUpdate = false);
@@ -49,7 +53,8 @@ public:
 };
 
 // Data layout expected by VK_NV_ray_tracing for top level acceleration structure 
-struct TopLevelAccelerationStructureData {
+struct TopLevelAccelerationStructureData 
+{
 	float transform[12];  // Transform matrix, containing only the top 3 rows
 	uint32_t instanceId : 24;  // id of the instance, a unique number
 	uint32_t mask : 8; // Visibility mask
@@ -60,27 +65,47 @@ struct TopLevelAccelerationStructureData {
 
 static_assert(sizeof(TopLevelAccelerationStructureData) == 64, "The size in bytes of the top level accelaration structure data must be 64 bytes.");
 
-class TopLevelAccelerationStructure : public AccelerationStructure {
+class TopLevelAccelerationStructure : public AccelerationStructure 
+{
 private:
 	VkBuffer instanceBuffer = VK_NULL_HANDLE;
 	VmaAllocation instanceBufferAllocation = VK_NULL_HANDLE;
 	VkBuffer instanceStagingBuffer = VK_NULL_HANDLE;
 	VmaAllocation instanceStagingBufferAllocation = VK_NULL_HANDLE;
 	void* mappedInstanceBuffer = nullptr;
+
 public:
 	void create(const VkDevice& device, const VmaAllocator& allocator, const uint32_t instanceCount, bool allowUpdate = true);
-	void updateInstanceData(const std::vector<TopLevelAccelerationStructureData>& instances) {
+	
+	void updateInstanceData(const std::vector<TopLevelAccelerationStructureData>& instances) 
+	{
 		if (mappedInstanceBuffer == nullptr)
 			throw std::runtime_error("Accelaration structure is NOT initialized!");
 
 		memcpy(mappedInstanceBuffer, instances.data(), instances.size() * sizeof(TopLevelAccelerationStructureData));
 	}
+	
 	void cmdBuild(const VkCommandBuffer& cmdBuf, const uint32_t instanceCount, bool rebuild);
-	void cleanUp(const VkDevice& device, const VmaAllocator& allocator) {
+	
+	void cleanUp(const VkDevice& device, const VmaAllocator& allocator) 
+	{
 		AccelerationStructure::cleanUp(device, allocator);
 		vmaUnmapMemory(allocator, instanceStagingBufferAllocation);
 		mappedInstanceBuffer = nullptr;
 		vmaDestroyBuffer(allocator, instanceStagingBuffer, instanceStagingBufferAllocation);
 		vmaDestroyBuffer(allocator, instanceBuffer, instanceBufferAllocation);
+	}
+
+	VkWriteDescriptorSetAccelerationStructureNV getDescriptorTlasInfo() const 
+	{
+		if (accelerationStructure == VK_NULL_HANDLE)
+			throw std::runtime_error("Accelaration structure is NOT initialized!");
+
+		VkWriteDescriptorSetAccelerationStructureNV info = {};
+		info.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_NV;
+		info.accelerationStructureCount = 1;
+		info.pAccelerationStructures = &accelerationStructure;
+		
+		return info;
 	}
 };
