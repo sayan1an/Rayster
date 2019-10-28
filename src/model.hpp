@@ -7,6 +7,7 @@
 #include "vulkan/vulkan.h"
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include "helper.h"
 #include "accelerationStructure.h"
@@ -174,26 +175,21 @@ public:
 
 		normailze(0.7f, glm::vec3(0, 0, 0));
 		instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
-		//instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
+		instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
 		//instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
 				
 		instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(trans, 0, 0)) });
-		//instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(0, trans, 0)) });
+		instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(0, trans, 0)) });
 		//instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(0, 0, trans)) });
 	}
 
-	void initBLAS(const VkDevice& device, const VkCommandBuffer &cmdBuf, const VmaAllocator& allocator, const VkBuffer &vertexBuffer, const VkDeviceSize vertexBufferOffset, const VkBuffer &gIdx) {
-		/*
-		 * We get the hanlde of the global vertex buffer and the offset for this mesh.
-		 * However, we create per mesh instances of index buffer locally. This is because the indices in the global index buffer cannot of be used due to offset.
-		 */
+	void initBLAS(const VkDevice& device, const VkCommandBuffer &cmdBuf, const VmaAllocator& allocator, const VkBuffer &vertexBuffer, const VkDeviceSize vertexBufferOffset, const VkBuffer &indexBuffer, const VkDeviceSize indexBufferOffset) 
+	{
 		if (vertexBuffer == VK_NULL_HANDLE)
 			throw std::runtime_error("Vertex buffer for creating BLAS not initialized");
 
-		if (indices.size() == 0)
+		if (indexBuffer == VK_NULL_HANDLE)
 			throw std::runtime_error("Vertex indices for creating BLAS not initialized");
-
-		//createIndexBuffer(device, allocator, queue, commandPool);
 
 		std::vector<VkGeometryNV> vGeometry;
 
@@ -205,13 +201,13 @@ public:
 		geometry.geometry.triangles.pNext = nullptr;
 		geometry.geometry.triangles.vertexData = vertexBuffer;
 		geometry.geometry.triangles.vertexOffset = vertexBufferOffset;
-		geometry.geometry.triangles.vertexCount = vertices.size();
+		geometry.geometry.triangles.vertexCount = static_cast<uint32_t>(vertices.size());
 		geometry.geometry.triangles.vertexStride = sizeof(Vertex);
 		// Limitation to 3xfloat32 for vertices
 		geometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-		geometry.geometry.triangles.indexData = gIdx;
-		geometry.geometry.triangles.indexOffset = 0;
-		geometry.geometry.triangles.indexCount = indices.size();
+		geometry.geometry.triangles.indexData = indexBuffer;
+		geometry.geometry.triangles.indexOffset = indexBufferOffset;
+		geometry.geometry.triangles.indexCount = static_cast<uint32_t>(indices.size());
 		// Limitation to 32-bit indices
 		geometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
 		geometry.geometry.triangles.transformData = VK_NULL_HANDLE;
@@ -223,12 +219,6 @@ public:
 		as_bottomLevel.create(device, allocator, vGeometry);
 		as_bottomLevel.cmdBuild(cmdBuf, vGeometry);
 	}
-
-	void cleanUpBlas(const VkDevice& device, const VmaAllocator& allocator) {
-		vmaDestroyBuffer(allocator, indexBuffer, indexBufferAllocation);
-		as_bottomLevel.cleanUp(device, allocator);
-	}
-
 private:
 	void normailze(float scale, const glm::vec3 &shift) {
 		glm::vec3 centroid(0.0f);
@@ -251,44 +241,6 @@ private:
 			vertex.pos += shift;
 		}
 	}
-
-	/** RTX Data **/
-	VkBuffer indexBuffer = VK_NULL_HANDLE;
-	VmaAllocation indexBufferAllocation = VK_NULL_HANDLE;
-
-	void createIndexBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
-		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-		VkBuffer stagingBuffer;
-		VmaAllocation stagingBufferAllocation;
-
-		VkBufferCreateInfo bufferCreateInfo = {};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = bufferSize;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create staging buffer for index buffer!");
-
-		void* data;
-		vmaMapMemory(allocator, stagingBufferAllocation, &data);
-		memcpy(data, indices.data(), (size_t)bufferSize);
-		vmaUnmapMemory(allocator, stagingBufferAllocation);
-
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &indexBuffer, &indexBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create index buffer!");
-
-		copyBuffer(device, queue, commandPool, stagingBuffer, indexBuffer, bufferSize);
-
-		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
-	}
 };
 
 // composed of individual meshes
@@ -308,7 +260,8 @@ public:
 			//meshes.push_back(Mesh(modelPath.c_str(), textureId % textureCache.size(), (float)2 * ctr++));
 			//textureId++;
 		//}
-		meshes.push_back(Mesh(MODEL_PATHS[1].c_str(), 1, 0.0));
+		meshes.push_back(Mesh(MODEL_PATHS[0].c_str(), 0, -2.0));
+		meshes.push_back(Mesh(MODEL_PATHS[1].c_str(), 1, 2.0));
 		updateGlobalBuffers();
 	}
 
@@ -384,10 +337,14 @@ public:
 	}
 
 	void updateMeshData() {
+		for (auto& instance : instanceData_dynamic)
+			instance.model = glm::rotate<float>(instance.model, 0.001, glm::vec3(0, 1, 0));
+
 		memcpy(mappedDynamicInstancePtr, instanceData_dynamic.data(), sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size());
 	}
 
-	void cmdTransferData(const VkCommandBuffer &cmdBuffer) {
+	void cmdTransferData(const VkCommandBuffer &cmdBuffer) 
+	{
 		VkBufferCopy copyRegion = {};
 		copyRegion.size = sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size();
 
@@ -409,7 +366,8 @@ public:
 			0, nullptr);
 	}
 
-	void cmdDraw(const VkCommandBuffer& cmdBuffer) {
+	void cmdDraw(const VkCommandBuffer& cmdBuffer) 
+	{
 		VkBuffer vertexBuffers[] = { vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(cmdBuffer, VERTEX_BINDING_ID, 1, vertexBuffers, offsets);
@@ -423,7 +381,8 @@ public:
 		//vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 	}
 
-	void createBuffers(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
+	void createBuffers(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) 
+	{
 		createVertexBuffer(device, allocator, queue, commandPool);
 		createStaticInstanceBuffer(device, allocator, queue, commandPool);
 		createDynamicInstanceBuffer(device, allocator, queue, commandPool);
@@ -434,24 +393,33 @@ public:
 		createTextureSampler(device);
 	}
 
-	void createRtxBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
+	void createRtxBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) 
+	{
 		VkDeviceSize vertexOffsetInBytes = 0;
+		VkDeviceSize indexOffsetInBytes = 0;
+		createIndexBufferRtx(device, allocator, queue, commandPool);
 		VkCommandBuffer cmdBuf = beginSingleTimeCommands(device, commandPool);
 		for (auto &mesh : meshes) {
-			mesh.initBLAS(device, cmdBuf, allocator, vertexBuffer, vertexOffsetInBytes, indexBuffer);
+			mesh.initBLAS(device, cmdBuf, allocator, vertexBuffer, vertexOffsetInBytes, indexBufferRtx, indexOffsetInBytes);
 			vertexOffsetInBytes += static_cast<VkDeviceSize>(mesh.vertices.size() * sizeof(Vertex));
+			indexOffsetInBytes += static_cast<VkDeviceSize>(mesh.indices.size() * sizeof(uint32_t));
 		}
 
-		as_topLevel.create(device, allocator, static_cast<uint32_t>(instanceData_dynamic.size()), false);
+		as_topLevel.create(device, allocator, static_cast<uint32_t>(instanceData_dynamic.size()));
 		updateTlasData();
 		as_topLevel.cmdBuild(cmdBuf, static_cast<uint32_t>(instanceData_dynamic.size()), false);
 		endSingleTimeCommands(device, queue, commandPool, cmdBuf);
 	}
 
+	void cmdUpdateTlas(const VkCommandBuffer& cmdBuf)
+	{
+		as_topLevel.cmdBuild(cmdBuf, static_cast<uint32_t>(instanceData_dynamic.size()), true);
+	}
+
 	void updateTlasData() {
+		tlas_instanceData.clear();
 		uint32_t globalInstanceId = 0;
-		for (auto& mesh : meshes) {
-			for (auto& instance : mesh.instanceData_dynamic) {
+		for (auto& instance :instanceData_dynamic) {
 				TopLevelAccelerationStructureData data;
 				// Copy first three rows of transformation matrix of each instance
 				glm::mat4 modelTrans = glm::transpose(instance.model);
@@ -460,10 +428,10 @@ public:
 				data.mask = 0xff;
 				data.instanceOffset = 0; // Since this is used to determine hit group index compuation, this may change
 				data.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
-				data.blasHandle = mesh.as_bottomLevel.handle;
+				data.blasHandle = meshes[meshPointers[globalInstanceId]].as_bottomLevel.handle;
 				tlas_instanceData.push_back(data);
 				globalInstanceId++;
-			}
+
 		}
 
 		if (globalInstanceId != instanceData_dynamic.size())
@@ -488,10 +456,11 @@ public:
 	}
 
 	void cleanUpRtx(const VkDevice& device, const VmaAllocator& allocator) {
-		for (auto &mesh : meshes)
-			mesh.cleanUpBlas(device, allocator);
+		for (auto& mesh : meshes)
+			mesh.as_bottomLevel.cleanUp(device, allocator);
 
 		as_topLevel.cleanUp(device, allocator);
+		vmaDestroyBuffer(allocator, indexBufferRtx, indexBufferAllocation);
 	}
 
 	VkWriteDescriptorSetAccelerationStructureNV getDescriptorTlas() const
@@ -504,6 +473,7 @@ private:
 	std::vector<uint32_t> indices;  // indeces into the above global vertices
 	std::vector<InstanceData_static> instanceData_static; // concatenate instances from all meshes. Note each mesh can have multiple instances. 
 	std::vector<InstanceData_dynamic> instanceData_dynamic;  // concatenate instances from all meshes. Note each mesh can have multiple instances.
+	std::vector<uint32_t> meshPointers; // Pointer to the mesh for each instance.
 	
 	void *mappedDynamicInstancePtr;
 	std::vector<VkDrawIndexedIndirectCommand> indirectCommands; // Its size is meshes.size().
@@ -529,6 +499,9 @@ private:
 	/** RTX Data **/
 	TopLevelAccelerationStructure as_topLevel;
 	std::vector<TopLevelAccelerationStructureData> tlas_instanceData;
+	VkBuffer indexBufferRtx = VK_NULL_HANDLE;
+	VmaAllocation indexBufferRtxAllocation = VK_NULL_HANDLE;
+	std::vector<uint32_t> indicesRtx;
 
 	void updateGlobalBuffers() {
 		indirectCommands.clear();
@@ -536,13 +509,15 @@ private:
 		size_t meshVertexOffset = 0;
 		size_t indexOffset = 0;
 		size_t instanceOffset = 0;
-				
+		uint32_t meshPtr = 0;
 		for (const auto &mesh : meshes) {
 			// Update global buffer from individual meshes
 			vertices.insert(vertices.end(), mesh.vertices.begin(), mesh.vertices.end());
 			indices.insert(indices.end(), mesh.indices.begin(), mesh.indices.end());
+			indicesRtx.insert(indicesRtx.end(), mesh.indices.begin(), mesh.indices.end());
 			instanceData_static.insert(instanceData_static.end(), mesh.instanceData_static.begin(), mesh.instanceData_static.end());
 			instanceData_dynamic.insert(instanceData_dynamic.end(), mesh.instanceData_dynamic.begin(), mesh.instanceData_dynamic.end());
+			meshPointers.insert(meshPointers.end(), mesh.instanceData_dynamic.size(), meshPtr++);
 			for (size_t i = indexOffset; i < indices.size(); i++)
 				indices[i] += static_cast<uint32_t>(meshVertexOffset);
 
@@ -638,13 +613,47 @@ private:
 		memcpy(data, indices.data(), (size_t)bufferSize);
 		vmaUnmapMemory(allocator, stagingBufferAllocation);
 
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
 		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &indexBuffer, &indexBufferAllocation, nullptr) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create index buffer!");
 
 		copyBuffer(device, queue, commandPool, stagingBuffer, indexBuffer, bufferSize);
+
+		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
+	}
+
+	void createIndexBufferRtx(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
+		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+
+		VkBuffer stagingBuffer;
+		VmaAllocation stagingBufferAllocation;
+
+		VkBufferCreateInfo bufferCreateInfo = {};
+		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferCreateInfo.size = bufferSize;
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		VmaAllocationCreateInfo allocCreateInfo = {};
+		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create staging buffer for index buffer!");
+
+		void* data;
+		vmaMapMemory(allocator, stagingBufferAllocation, &data);
+		memcpy(data, indicesRtx.data(), (size_t)bufferSize);
+		vmaUnmapMemory(allocator, stagingBufferAllocation);
+
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &indexBufferRtx, &indexBufferRtxAllocation, nullptr) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create index buffer!");
+
+		copyBuffer(device, queue, commandPool, stagingBuffer, indexBufferRtx, bufferSize);
 
 		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
 	}

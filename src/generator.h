@@ -554,12 +554,12 @@ private:
 	/// For each category, the size of an entry in the SBT depends on the maximum number of resources
 	/// used by the shaders in that category.The helper computes those values automatically in
 	/// GetEntrySize()
-	VkDeviceSize m_rayGenEntrySize;
-	VkDeviceSize m_missEntrySize;
-	VkDeviceSize m_hitGroupEntrySize;
+	VkDeviceSize m_rayGenEntrySize = 0;
+	VkDeviceSize m_missEntrySize = 0;
+	VkDeviceSize m_hitGroupEntrySize = 0;
 
 	/// The program names are translated into program identifiers.The size in bytes of an identifier
 	/// is provided by the device and is the same for all categories.
-	VkDeviceSize m_progIdSize;
-	VkDeviceSize m_sbtSize;
+	VkDeviceSize m_progIdSize = 0;
+	VkDeviceSize m_sbtSize = 0;
 };

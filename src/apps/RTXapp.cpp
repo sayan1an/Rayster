@@ -303,9 +303,9 @@ private:
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 		renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
 		renderPassInfo.pAttachments = attachments.data();
-		renderPassInfo.subpassCount = subpassDesc.size();
+		renderPassInfo.subpassCount = static_cast<uint32_t>(subpassDesc.size());
 		renderPassInfo.pSubpasses = subpassDesc.data();
-		renderPassInfo.dependencyCount = dependencies.size();
+		renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
 		renderPassInfo.pDependencies = dependencies.data();
 
 		if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
@@ -424,6 +424,7 @@ private:
 			}
 
 			model.cmdTransferData(commandBuffers[i]);
+			model.cmdUpdateTlas(commandBuffers[i]);
 
 			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipeline);
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipelineLayout, 0, 1, &rtxPass.descriptorSet, 0, nullptr);
@@ -488,6 +489,7 @@ private:
 			return;
 
 		model.updateMeshData();
+		model.updateTlasData();
 		cam.updateProjViewMat(io, swapChainExtent.width, swapChainExtent.height);
 
 		submitRenderCmd(commandBuffers[imageIndex]);
@@ -495,7 +497,6 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-
 
 int main() {
 	{	

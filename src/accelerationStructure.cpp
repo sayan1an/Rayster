@@ -12,7 +12,7 @@ void BottomLevelAccelerationStructure::create(const VkDevice& device, const VmaA
 	accelerationStructureInfo.pGeometries = geometries.data();
 	accelerationStructureInfo.flags = allowUpdate ? VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV : 0;
 
-	allowUpdate = allowUpdate;
+	this->allowUpdate = allowUpdate;
 
 	VkAccelerationStructureCreateInfoNV accelerationStructureCreateInfo{};
 	accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_NV;
@@ -131,7 +131,7 @@ void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllo
 	accelerationStructureInfo.geometryCount = 0;
 	accelerationStructureInfo.flags = allowUpdate ? VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV : 0;
 
-	allowUpdate = allowUpdate;
+	this->allowUpdate = allowUpdate;
 
 	VkAccelerationStructureCreateInfoNV accelerationStructureCreateInfo{};
 	accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_NV;
@@ -236,7 +236,7 @@ void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllo
 void TopLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, const uint32_t instanceCount, bool rebuild)
 {
 	if (rebuild && allowUpdate != rebuild)
-		throw std::runtime_error("Partial rebuild for bottom level accelaration structure is not allowed. First create the BLAS with appropriate flag!");
+		throw std::runtime_error("Partial rebuild for top level accelaration structure is not allowed. First create the BLAS with appropriate flag!");
 
 	VkBufferCopy copyRegion = {};
 	copyRegion.size = sizeof(TopLevelAccelerationStructureData) * instanceCount;

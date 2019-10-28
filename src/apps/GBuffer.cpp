@@ -77,14 +77,14 @@ private:
 
 class Subpass2 {
 public:
-	VkSubpassDescription subpassDescription;
+	VkSubpassDescription subpassDescription = {};
 
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkDescriptorPool descriptorPool;
-	VkDescriptorSet descriptorSet;
+	VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+	VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+	VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
 
-	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
+	VkPipeline pipeline = VK_NULL_HANDLE;
+	VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
 
 	void createSubpassDescription(const VkDevice& device)
 	{
@@ -450,7 +450,6 @@ private:
 	}
 };
 
-/*
 int main() {
 	{
 		GBufferApplication app;
@@ -468,6 +467,6 @@ int main() {
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-*/
+
 
 

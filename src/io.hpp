@@ -90,15 +90,15 @@ public:
 	}
 private:
 	static bool glfwInitialized;
-	GLFWwindow * window;
+	GLFWwindow * window = nullptr;
 
 	bool framebufferResized = false;
 
-	int kbKey;
-	int kbAction;
+	int kbKey = 0;
+	int kbAction = 0;
 
-	int muKey;
-	int muAction;
+	int muKey = 0;
+	int muAction = 0;
 
 	double muScrollOffset = 0;
 	
