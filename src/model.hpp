@@ -31,21 +31,26 @@ static const std::vector<std::string> TEXTURE_PATHS = { ROOT + "/textures/chalet
 #define STATIC_INSTANCE_BINDING_ID	1
 #define DYNAMIC_INSTANCE_BINDING_ID 2 
 
-struct Vertex {
+struct Vertex 
+{
 	glm::vec3 pos;
 	glm::vec3 color;
 	glm::vec3 normal;
 	glm::vec2 texCoord;
 	float dummy;
 
-	bool operator==(const Vertex& other) const {
+	bool operator==(const Vertex& other) const 
+	{
 		return pos == other.pos && color == other.color && normal == other.normal && texCoord == other.texCoord;
 	}
 };
 
-namespace std {
-	template<> struct hash<Vertex> {
-		size_t operator()(Vertex const& vertex) const {
+namespace std 
+{
+	template<> struct hash<Vertex> 
+	{
+		size_t operator()(Vertex const& vertex) const 
+		{
 			return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
 		}
 	};
@@ -55,8 +60,9 @@ namespace std {
 // Each instance has dynamic data and static data.
 
 // Per instance data, not meant for draw time updates
-struct InstanceData_static {
-	glm::vec3 translate;
+struct InstanceData_static 
+{
+	glm::vec3 data;
 };
 
 // Per instance data, update at drawtime
@@ -64,14 +70,16 @@ struct InstanceData_dynamic {
 	glm::mat4 model;
 };
 
-struct Image2d {
+struct Image2d 
+{
 	void *pixels = nullptr;
 	uint32_t width = 0;
 	uint32_t height = 0;
 	VkFormat format = VK_FORMAT_UNDEFINED;
 	std::string path;
 
-	uint32_t size() const {
+	uint32_t size() const 
+	{
 		switch (format) {
 			case VK_FORMAT_R8G8B8A8_UNORM:
 				return height * width * 4 * sizeof(unsigned char);
@@ -82,11 +90,13 @@ struct Image2d {
 		return 0;
 	}
 
-	uint32_t mipLevels() {
+	uint32_t mipLevels() 
+	{
 		return static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
 	}
 
-	Image2d(const std::string texturePath) {
+	Image2d(const std::string texturePath) 
+	{
 		int texChannels, iWidth, iHeight;
 		pixels = stbi_load(texturePath.c_str(), &iWidth, &iHeight, &texChannels, STBI_rgb_alpha);
 		if (!pixels) {
@@ -99,11 +109,13 @@ struct Image2d {
 		path = texturePath;
 	}
 
-	void cleanUp() {
+	void cleanUp() 
+	{
 		stbi_image_free(pixels);
 	}
 
-	Image2d() {
+	Image2d()
+	{
 		// creates a default white texture
 		width = height = 512;
 		format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -114,7 +126,8 @@ struct Image2d {
 };
 
 // defines a single mesh and its instances
-class Mesh {
+class Mesh 
+{
 public:
 	// define a single mesh
 	std::vector<Vertex> vertices;
@@ -125,7 +138,8 @@ public:
 	
 	BottomLevelAccelerationStructure as_bottomLevel;
 
-	Mesh(const char *meshPath, int textureId, float trans) {
+	Mesh(const char *meshPath, int textureId, float trans) 
+	{
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
@@ -220,7 +234,8 @@ public:
 		as_bottomLevel.cmdBuild(cmdBuf, vGeometry);
 	}
 private:
-	void normailze(float scale, const glm::vec3 &shift) {
+	void normailze(float scale, const glm::vec3 &shift) 
+	{
 		glm::vec3 centroid(0.0f);
 		for (const auto& vertex : vertices)
 			centroid += vertex.pos;
@@ -249,7 +264,8 @@ public:
 	VkImageView textureImageView;
 	VkSampler textureSampler;
 	
-	Model() {
+	Model()
+	{
 		for (const auto& texturePath : TEXTURE_PATHS)
 			textureCache.push_back(Image2d(texturePath));
 		fixTextureCache();
@@ -265,7 +281,8 @@ public:
 		updateGlobalBuffers();
 	}
 
-	static std::vector<VkVertexInputBindingDescription> getBindingDescription() {
+	static std::vector<VkVertexInputBindingDescription> getBindingDescription() 
+	{
 		std::array<VkVertexInputBindingDescription, 3> bindingDescription = {};
 		bindingDescription[0].binding = VERTEX_BINDING_ID;
 		bindingDescription[0].stride = sizeof(Vertex);
@@ -282,7 +299,8 @@ public:
 		return std::vector<VkVertexInputBindingDescription>(bindingDescription.begin(), bindingDescription.end());
 	}
 
-	static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
+	static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() 
+	{
 		std::array<VkVertexInputAttributeDescription, 9> attributeDescriptions = {};
 		// per vertex
 		attributeDescriptions[0].binding = VERTEX_BINDING_ID;
@@ -309,7 +327,7 @@ public:
 		attributeDescriptions[4].binding = STATIC_INSTANCE_BINDING_ID;
 		attributeDescriptions[4].location = 4;
 		attributeDescriptions[4].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[4].offset = offsetof(InstanceData_static, translate);
+		attributeDescriptions[4].offset = offsetof(InstanceData_static, data);
 
 		// per instance dynamic
 		// We use next four locations for mat4 or 4 x vec4
@@ -336,7 +354,8 @@ public:
 		return std::vector<VkVertexInputAttributeDescription>(attributeDescriptions.begin(), attributeDescriptions.end());
 	}
 
-	void updateMeshData() {
+	void updateMeshData() 
+	{
 		for (auto& instance : instanceData_dynamic)
 			instance.model = glm::rotate<float>(instance.model, 0.001, glm::vec3(0, 1, 0));
 
@@ -382,12 +401,12 @@ public:
 	}
 
 	void createBuffers(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) 
-	{
-		createVertexBuffer(device, allocator, queue, commandPool);
-		createStaticInstanceBuffer(device, allocator, queue, commandPool);
+	{	
+		createBuffer(device, allocator, queue, commandPool, vertexBuffer, vertexBufferAllocation, sizeof(Vertex) * vertices.size(), vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		createBuffer(device, allocator, queue, commandPool, staticInstanceBuffer, staticInstanceBufferAllocation, sizeof(instanceData_static[0]) * instanceData_static.size(), instanceData_static.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		createDynamicInstanceBuffer(device, allocator, queue, commandPool);
-		createIndexBuffer(device, allocator, queue, commandPool);
-		createIndirectCmdBuffer(device, allocator, queue, commandPool);
+		createBuffer(device, allocator, queue, commandPool, indexBuffer, indexBufferAllocation, sizeof(indices[0]) * indices.size(), indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+		createBuffer(device, allocator, queue, commandPool, indirectCmdBuffer, indirectCmdBufferAllocation, sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size(), indirectCommands.data(), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
 		createTextureImage(physicalDevice, device, allocator, queue, commandPool);
 		createTextureImageView(device);
 		createTextureSampler(device);
@@ -397,7 +416,7 @@ public:
 	{
 		VkDeviceSize vertexOffsetInBytes = 0;
 		VkDeviceSize indexOffsetInBytes = 0;
-		createIndexBufferRtx(device, allocator, queue, commandPool);
+		createBuffer(device, allocator, queue, commandPool, indexBufferRtx, indexBufferRtxAllocation, sizeof(indicesRtx[0]) * indicesRtx.size(), indicesRtx.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		VkCommandBuffer cmdBuf = beginSingleTimeCommands(device, commandPool);
 		for (auto &mesh : meshes) {
 			mesh.initBLAS(device, cmdBuf, allocator, vertexBuffer, vertexOffsetInBytes, indexBufferRtx, indexOffsetInBytes);
@@ -416,22 +435,22 @@ public:
 		as_topLevel.cmdBuild(cmdBuf, static_cast<uint32_t>(instanceData_dynamic.size()), true);
 	}
 
-	void updateTlasData() {
+	void updateTlasData() 
+	{
 		tlas_instanceData.clear();
 		uint32_t globalInstanceId = 0;
 		for (auto& instance :instanceData_dynamic) {
-				TopLevelAccelerationStructureData data;
-				// Copy first three rows of transformation matrix of each instance
-				glm::mat4 modelTrans = glm::transpose(instance.model);
-				memcpy(data.transform, &modelTrans, sizeof(data.transform));
-				data.instanceId = globalInstanceId;
-				data.mask = 0xff;
-				data.instanceOffset = 0; // Since this is used to determine hit group index compuation, this may change
-				data.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
-				data.blasHandle = meshes[meshPointers[globalInstanceId]].as_bottomLevel.handle;
-				tlas_instanceData.push_back(data);
-				globalInstanceId++;
-
+			TopLevelAccelerationStructureData data;
+			// Copy first three rows of transformation matrix of each instance
+			glm::mat4 modelTrans = glm::transpose(instance.model);
+			memcpy(data.transform, &modelTrans, sizeof(data.transform));
+			data.instanceId = globalInstanceId;
+			data.mask = 0xff;
+			data.instanceOffset = 0; // Since this is used to determine hit group index compuation, this may change
+			data.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
+			data.blasHandle = meshes[meshPointers[globalInstanceId]].as_bottomLevel.handle;
+			tlas_instanceData.push_back(data);
+			globalInstanceId++;
 		}
 
 		if (globalInstanceId != instanceData_dynamic.size())
@@ -440,7 +459,8 @@ public:
 		as_topLevel.updateInstanceData(tlas_instanceData);
 	}
 
-	void cleanUp(const VkDevice& device, const VmaAllocator& allocator) {
+	void cleanUp(const VkDevice& device, const VmaAllocator& allocator) 
+	{
 		vkDestroySampler(device, textureSampler, nullptr);
 		vkDestroyImageView(device, textureImageView, nullptr);
 
@@ -455,7 +475,8 @@ public:
 		vmaDestroyBuffer(allocator, indirectCmdBuffer, indirectCmdBufferAllocation);
 	}
 
-	void cleanUpRtx(const VkDevice& device, const VmaAllocator& allocator) {
+	void cleanUpRtx(const VkDevice& device, const VmaAllocator& allocator) 
+	{
 		for (auto& mesh : meshes)
 			mesh.as_bottomLevel.cleanUp(device, allocator);
 
@@ -503,7 +524,8 @@ private:
 	VmaAllocation indexBufferRtxAllocation = VK_NULL_HANDLE;
 	std::vector<uint32_t> indicesRtx;
 
-	void updateGlobalBuffers() {
+	void updateGlobalBuffers() 
+	{
 		indirectCommands.clear();
 
 		size_t meshVertexOffset = 0;
@@ -539,7 +561,8 @@ private:
 		}
 	}
 
-	void fixTextureCache() {
+	void fixTextureCache() 
+	{
 		if (textureCache.empty())
 			textureCache.push_back(Image2d());
 		else {
@@ -556,142 +579,9 @@ private:
 					throw std::runtime_error("Size and format for all texture images must be same.");
 		}
 	}
-
-	void createVertexBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
-		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-		VkBuffer stagingBuffer;
-		VmaAllocation stagingBufferAllocation;
-
-		VkBufferCreateInfo bufferCreateInfo = {};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = bufferSize;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create staging buffer for vertex buffer!");
-
-		void* data;
-		vmaMapMemory(allocator, stagingBufferAllocation, &data);
-		memcpy(data, vertices.data(), (size_t)bufferSize);
-		vmaUnmapMemory(allocator, stagingBufferAllocation);
-
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &vertexBuffer, &vertexBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create vertex buffer!");
-
-		copyBuffer(device, queue, commandPool, stagingBuffer, vertexBuffer, bufferSize);
-
-		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
-	}
-
-	void createIndexBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
-		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-		VkBuffer stagingBuffer;
-		VmaAllocation stagingBufferAllocation;
-
-		VkBufferCreateInfo bufferCreateInfo = {};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = bufferSize;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create staging buffer for index buffer!");
-
-		void* data;
-		vmaMapMemory(allocator, stagingBufferAllocation, &data);
-		memcpy(data, indices.data(), (size_t)bufferSize);
-		vmaUnmapMemory(allocator, stagingBufferAllocation);
-
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &indexBuffer, &indexBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create index buffer!");
-
-		copyBuffer(device, queue, commandPool, stagingBuffer, indexBuffer, bufferSize);
-
-		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
-	}
-
-	void createIndexBufferRtx(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
-		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-		VkBuffer stagingBuffer;
-		VmaAllocation stagingBufferAllocation;
-
-		VkBufferCreateInfo bufferCreateInfo = {};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = bufferSize;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create staging buffer for index buffer!");
-
-		void* data;
-		vmaMapMemory(allocator, stagingBufferAllocation, &data);
-		memcpy(data, indicesRtx.data(), (size_t)bufferSize);
-		vmaUnmapMemory(allocator, stagingBufferAllocation);
-
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &indexBufferRtx, &indexBufferRtxAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create index buffer!");
-
-		copyBuffer(device, queue, commandPool, stagingBuffer, indexBufferRtx, bufferSize);
-
-		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
-	}
-
-	void createStaticInstanceBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
-		VkDeviceSize bufferSize = sizeof(instanceData_static[0]) * instanceData_static.size();
-		VkBuffer stagingBuffer;
-		VmaAllocation stagingBufferAllocation;
-
-		VkBufferCreateInfo bufferCreateInfo = {};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = bufferSize;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create staging buffer for static instances!");
-
-		void* data;
-		vmaMapMemory(allocator, stagingBufferAllocation, &data);
-		memcpy(data, instanceData_static.data(), (size_t)bufferSize);
-		vmaUnmapMemory(allocator, stagingBufferAllocation);
-
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &staticInstanceBuffer, &staticInstanceBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create static instance buffer!");
-
-		copyBuffer(device, queue, commandPool, stagingBuffer, staticInstanceBuffer, bufferSize);
-
-		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
-	}
-
-	void createDynamicInstanceBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
+	
+	void createDynamicInstanceBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) 
+	{
 		VkDeviceSize bufferSize = sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size();
 	
 		VkBufferCreateInfo bufferCreateInfo = {};
@@ -715,41 +605,8 @@ private:
 			throw std::runtime_error("Failed to create vertex buffer!");
 	}
 
-	void createIndirectCmdBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
-		VkDeviceSize bufferSize = indirectCommands.size() * sizeof(VkDrawIndexedIndirectCommand);
-
-		VkBuffer stagingBuffer;
-		VmaAllocation stagingBufferAllocation;
-
-		VkBufferCreateInfo bufferCreateInfo = {};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = bufferSize;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create staging buffer for indirect command buffer!");
-
-		void* data;
-		vmaMapMemory(allocator, stagingBufferAllocation, &data);
-		memcpy(data, indirectCommands.data(), (size_t)bufferSize);
-		vmaUnmapMemory(allocator, stagingBufferAllocation);
-
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &indirectCmdBuffer, &indirectCmdBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create indirect command buffer!");
-
-		copyBuffer(device, queue, commandPool, stagingBuffer, indirectCmdBuffer, bufferSize);
-
-		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
-	}
-
-	void createTextureImage(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) {
+	void createTextureImage(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) 
+	{
 		mipLevels = textureCache[0].mipLevels();
 		
 		uint32_t bufferSize = 0;
@@ -837,7 +694,8 @@ private:
 	}
 
 	void generateMipmaps(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,
-		VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, uint32_t layerCount) {
+		VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, uint32_t layerCount) 
+	{
 		// Check if image format supports linear blitting
 		VkFormatProperties formatProperties;
 		vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
@@ -924,11 +782,13 @@ private:
 		endSingleTimeCommands(device, queue, commandPool, commandBuffer);
 	}
 
-	void createTextureImageView(const VkDevice& device) {
+	void createTextureImageView(const VkDevice& device) 
+	{
 		textureImageView = createImageView(device, textureImage, textureCache[0].format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, static_cast<uint32_t>(textureCache.size()));
 	}
 
-	void createTextureSampler(const VkDevice& device) {
+	void createTextureSampler(const VkDevice& device) 
+	{
 		VkSamplerCreateInfo samplerInfo = {};
 		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 		samplerInfo.magFilter = VK_FILTER_LINEAR;

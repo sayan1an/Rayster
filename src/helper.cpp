@@ -80,6 +80,39 @@ extern void copyBuffer(const VkDevice& device, const VkQueue& queue, const VkCom
 	endSingleTimeCommands(device, queue, commandPool, commandBuffer);
 }
 
+extern void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer &buffer, VmaAllocation &bufferAllocation, VkDeviceSize bufferSize, const void *srcData, VkBufferUsageFlags bufferUsageFlags)
+{
+	VkBuffer stagingBuffer;
+	VmaAllocation stagingBufferAllocation;
+
+	VkBufferCreateInfo bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.size = bufferSize;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo allocCreateInfo = {};
+	allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create staging buffer!");
+
+	void* data;
+	vmaMapMemory(allocator, stagingBufferAllocation, &data);
+	memcpy(data, srcData, (size_t)bufferSize);
+	vmaUnmapMemory(allocator, stagingBufferAllocation);
+
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | bufferUsageFlags;
+	allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &buffer, &bufferAllocation, nullptr) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create vertex buffer!");
+
+	copyBuffer(device, queue, commandPool, stagingBuffer, buffer, bufferSize);
+
+	vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
+}
+
 extern VkImageView createImageView(const VkDevice& device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, uint32_t layerCount) {
 	VkImageViewCreateInfo viewInfo = {};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;

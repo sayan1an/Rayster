@@ -54,3 +54,4 @@ VkFormat findSupportedFormat(VkPhysicalDevice& physicalDevice, const std::vector
 VkFormat findDepthFormat(VkPhysicalDevice& physicalDevice);
 SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
 QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
+void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, const void* srcData, VkBufferUsageFlags bufferUsageFlags);

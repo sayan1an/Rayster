@@ -246,19 +246,18 @@ void TopLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, cons
 	VkBufferMemoryBarrier bufferMemoryBarrier = {};
 	bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
 	bufferMemoryBarrier.buffer = instanceBuffer;
-	bufferMemoryBarrier.srcAccessMask = 0;// VK_ACCESS_TRANSFER_WRITE_BIT;
-	bufferMemoryBarrier.dstAccessMask = 0;// VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV;
+	bufferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	bufferMemoryBarrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV;
 
-	// Cobmine this barrier with the next
 	vkCmdPipelineBarrier(
 		cmdBuf,
-		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_TRANSFER_BIT,
+		VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV,
 		0,
 		0, nullptr,
 		1, &bufferMemoryBarrier,
 		0, nullptr);
-
+	
 	// Build the actual bottom-level acceleration structure
 	VkAccelerationStructureInfoNV buildInfo = {};
 	buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
