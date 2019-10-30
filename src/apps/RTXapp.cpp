@@ -497,7 +497,7 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-
+/*
 int main() {
 	{	
 		std::vector<const char*> deviceExtensions = { VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME};
@@ -517,3 +517,4 @@ int main() {
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
+*/

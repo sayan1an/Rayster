@@ -449,7 +449,7 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-/*
+
 int main() {
 	{
 		GBufferApplication app;
@@ -466,7 +466,7 @@ int main() {
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}*/
+}
 
 
 
