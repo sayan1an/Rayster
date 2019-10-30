@@ -24,12 +24,14 @@ extern VkPhysicalDeviceFeatures checkSupportedDeviceFeatures(const VkPhysicalDev
 	VkPhysicalDeviceFeatures vk_requiredFeatures = {};
 
 	vkGetPhysicalDeviceFeatures(physicalDevice, &supportedFeatures);
-
+	
 	for (const auto requiredFeature : requiredFeatures) {
 		if (std::strcmp(requiredFeature, "samplerAnisotropy") == 0 && supportedFeatures.samplerAnisotropy)
 			vk_requiredFeatures.samplerAnisotropy = VK_TRUE;
 		else if (std::strcmp(requiredFeature, "multiDrawIndirect") == 0 && supportedFeatures.multiDrawIndirect)
 			vk_requiredFeatures.multiDrawIndirect = VK_TRUE;
+		else if (std::strcmp(requiredFeature, "drawIndirectFirstInstance") == 0 && supportedFeatures.drawIndirectFirstInstance)
+			vk_requiredFeatures.drawIndirectFirstInstance = VK_TRUE;
 		else
 			throw std::runtime_error(std::string("physical device feature '") + requiredFeature + "' not found or unsupported!");
 	}

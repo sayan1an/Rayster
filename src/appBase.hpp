@@ -187,6 +187,7 @@ public:
 		requiredDeviceFeatures = _requiredDeviceFeatures;
 		requiredDeviceFeatures.push_back("samplerAnisotropy");
 		requiredDeviceFeatures.push_back("multiDrawIndirect");
+		requiredDeviceFeatures.push_back("drawIndirectFirstInstance");
 	}
 
 	~Application() {

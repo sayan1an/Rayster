@@ -133,12 +133,13 @@ public:
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
 	// set of instances for this type of mesh
-	std::vector<InstanceData_static> instanceData_static;
-	std::vector<InstanceData_dynamic> instanceData_dynamic;
-	
+	//std::vector<InstanceData_static> instanceData_static;
+	//std::vector<InstanceData_dynamic> instanceData_dynamic;
+	uint32_t instanceCount = 0;
+
 	BottomLevelAccelerationStructure as_bottomLevel;
 
-	Mesh(const char *meshPath, int textureId, float trans) 
+	Mesh(const char *meshPath) 
 	{
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
@@ -188,13 +189,6 @@ public:
 		}
 
 		normailze(0.7f, glm::vec3(0, 0, 0));
-		instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
-		instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
-		//instanceData_static.push_back({ glm::vec3(textureId, 0, 0) });
-				
-		instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(trans, 0, 0)) });
-		instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(0, trans, 0)) });
-		//instanceData_dynamic.push_back({ glm::translate(glm::identity<glm::mat4>(),  glm::vec3(0, 0, trans)) });
 	}
 
 	void initBLAS(const VkDevice& device, const VkCommandBuffer &cmdBuf, const VmaAllocator& allocator, const VkBuffer &vertexBuffer, const VkDeviceSize vertexBufferOffset, const VkBuffer &indexBuffer, const VkDeviceSize indexBufferOffset) 
@@ -267,18 +261,107 @@ public:
 	Model()
 	{
 		for (const auto& texturePath : TEXTURE_PATHS)
-			textureCache.push_back(Image2d(texturePath));
-		fixTextureCache();
+			addTexture(Image2d(texturePath));
+		
+		addMesh(new Mesh(MODEL_PATHS[2].c_str()));
+		addMesh(new Mesh(MODEL_PATHS[0].c_str()));
+		addMesh(new Mesh(MODEL_PATHS[1].c_str()));
 
-		int ctr = -1;
-		int textureId = 0;
-		//for (const auto& modelPath : MODEL_PATHS) {
-			//meshes.push_back(Mesh(modelPath.c_str(), textureId % textureCache.size(), (float)2 * ctr++));
-			//textureId++;
-		//}
-		meshes.push_back(Mesh(MODEL_PATHS[0].c_str(), 0, -2.0));
-		meshes.push_back(Mesh(MODEL_PATHS[1].c_str(), 1, 2.0));
-		updateGlobalBuffers();
+		glm::mat4 tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 0, 2));
+		addInstance(2, 0, tf);
+
+		tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, -2, 0));
+		addInstance(0, 1, tf);
+
+		tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(2, 0, 0));
+		addInstance(1, 1, tf);
+		
+		tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 2, 0));
+		addInstance(0, 0, tf);
+
+		tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 0, -2));
+		addInstance(2, 1, tf);
+
+		tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(-2, 0, 0));
+		addInstance(1, 0, tf);
+	}
+
+	~Model()
+	{
+		for (auto mesh : meshes)
+			delete mesh;
+	}
+
+	size_t addMesh(Mesh* mesh) 
+	{	
+		size_t indexOffset = 0;
+		size_t meshVertexOffset = 0;
+
+		for (auto& mesh : meshes) {
+			indexOffset += mesh->indices.size();
+			meshVertexOffset += mesh->vertices.size();
+		}
+		
+		vertices.insert(vertices.end(), mesh->vertices.begin(), mesh->vertices.end());
+		indices.insert(indices.end(), mesh->indices.begin(), mesh->indices.end());
+		indicesRtx.insert(indicesRtx.end(), mesh->indices.begin(), mesh->indices.end());
+		
+		for (size_t i = indexOffset; i < indices.size(); i++)
+			indices[i] += static_cast<uint32_t>(meshVertexOffset);
+
+		VkDrawIndexedIndirectCommand indirectCmd = {};
+		indirectCmd.firstInstance = 0; // Tells Vulkan which index of the instanceData (Static and Dynamic) to look at, this must be updated after adding each instance
+		indirectCmd.instanceCount = mesh->instanceCount; // also update after adding each insatnce
+		indirectCmd.firstIndex = static_cast<uint32_t>(indexOffset);
+		indirectCmd.indexCount = static_cast<uint32_t>(mesh->indices.size());
+
+		indirectCommands.push_back(indirectCmd);
+		
+		meshes.push_back(mesh);
+		return meshes.size();
+	}
+
+	size_t addTexture(Image2d texture)
+	{
+		textureCache.push_back(texture);
+		fixTextureCache();
+	}
+	
+	void addInstance(uint32_t meshIdx, uint32_t textureIdx, glm::mat4 &transform)
+	{
+		if (meshIdx >= meshes.size())
+			throw std::runtime_error("This mesh does not exsist");
+
+		if (textureIdx >= textureCache.size())
+			throw std::runtime_error("This texture does not exsist");
+
+		// assumes instances have meshIdx in groups i.e. aaa-bbbbb-ccccc-dddddd. 
+		uint32_t firstInstance = 0;
+		while (firstInstance < meshPointers.size() && meshPointers[firstInstance] != meshIdx)
+			firstInstance++;
+
+		if (meshPointers.size() < 2 || firstInstance >= meshPointers.size() - 1) {
+			instanceData_static.push_back({ glm::vec3(textureIdx, 0, 0) });
+			instanceData_dynamic.push_back({ transform });
+			meshPointers.push_back(meshIdx);
+		}
+		else {
+			instanceData_static.insert(instanceData_static.begin() + firstInstance + 1, 1, { glm::vec3(textureIdx, 0, 0) });
+			instanceData_dynamic.insert(instanceData_dynamic.begin() + firstInstance + 1, 1, { transform });
+			meshPointers.insert(meshPointers.begin() + firstInstance + 1, 1, meshIdx);
+		}
+		
+		meshes[meshIdx]->instanceCount++;
+
+		for (uint32_t meshIdx = 0; meshIdx < meshes.size(); meshIdx++) {
+			firstInstance = 0;
+			while (firstInstance < meshPointers.size() && meshPointers[firstInstance] != meshIdx)
+				firstInstance++;
+
+			indirectCommands[meshIdx].firstInstance = firstInstance;
+			indirectCommands[meshIdx].instanceCount = meshes[meshIdx]->instanceCount;
+
+		}
 	}
 
 	static std::vector<VkVertexInputBindingDescription> getBindingDescription() 
@@ -357,7 +440,7 @@ public:
 	void updateMeshData() 
 	{
 		for (auto& instance : instanceData_dynamic)
-			instance.model = glm::rotate<float>(instance.model, 0.001, glm::vec3(0, 1, 0));
+			instance.model = glm::rotate<float>(instance.model, 0.001f, glm::vec3(0, 1, 0));
 
 		memcpy(mappedDynamicInstancePtr, instanceData_dynamic.data(), sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size());
 	}
@@ -419,9 +502,9 @@ public:
 		createBuffer(device, allocator, queue, commandPool, indexBufferRtx, indexBufferRtxAllocation, sizeof(indicesRtx[0]) * indicesRtx.size(), indicesRtx.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		VkCommandBuffer cmdBuf = beginSingleTimeCommands(device, commandPool);
 		for (auto &mesh : meshes) {
-			mesh.initBLAS(device, cmdBuf, allocator, vertexBuffer, vertexOffsetInBytes, indexBufferRtx, indexOffsetInBytes);
-			vertexOffsetInBytes += static_cast<VkDeviceSize>(mesh.vertices.size() * sizeof(Vertex));
-			indexOffsetInBytes += static_cast<VkDeviceSize>(mesh.indices.size() * sizeof(uint32_t));
+			mesh->initBLAS(device, cmdBuf, allocator, vertexBuffer, vertexOffsetInBytes, indexBufferRtx, indexOffsetInBytes);
+			vertexOffsetInBytes += static_cast<VkDeviceSize>(mesh->vertices.size() * sizeof(Vertex));
+			indexOffsetInBytes += static_cast<VkDeviceSize>(mesh->indices.size() * sizeof(uint32_t));
 		}
 
 		as_topLevel.create(device, allocator, static_cast<uint32_t>(instanceData_dynamic.size()));
@@ -448,7 +531,7 @@ public:
 			data.mask = 0xff;
 			data.instanceOffset = 0; // Since this is used to determine hit group index compuation, this may change
 			data.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
-			data.blasHandle = meshes[meshPointers[globalInstanceId]].as_bottomLevel.handle;
+			data.blasHandle = meshes[meshPointers[globalInstanceId]]->as_bottomLevel.handle;
 			tlas_instanceData.push_back(data);
 			globalInstanceId++;
 		}
@@ -478,7 +561,7 @@ public:
 	void cleanUpRtx(const VkDevice& device, const VmaAllocator& allocator) 
 	{
 		for (auto& mesh : meshes)
-			mesh.as_bottomLevel.cleanUp(device, allocator);
+			mesh->as_bottomLevel.cleanUp(device, allocator);
 
 		as_topLevel.cleanUp(device, allocator);
 		vmaDestroyBuffer(allocator, indexBufferRtx, indexBufferAllocation);
@@ -489,7 +572,7 @@ public:
 		return as_topLevel.getDescriptorTlasInfo();
 	}
 private:
-	std::vector<Mesh> meshes; // ideally store unique meshes
+	std::vector<Mesh *> meshes; // ideally store unique meshes
 	std::vector<Vertex> vertices; // concatenate vertices from all meshes
 	std::vector<uint32_t> indices;  // indeces into the above global vertices
 	std::vector<InstanceData_static> instanceData_static; // concatenate instances from all meshes. Note each mesh can have multiple instances. 
@@ -523,43 +606,6 @@ private:
 	VkBuffer indexBufferRtx = VK_NULL_HANDLE;
 	VmaAllocation indexBufferRtxAllocation = VK_NULL_HANDLE;
 	std::vector<uint32_t> indicesRtx;
-
-	void updateGlobalBuffers() 
-	{
-		indirectCommands.clear();
-
-		size_t meshVertexOffset = 0;
-		size_t indexOffset = 0;
-		size_t instanceOffset = 0;
-		uint32_t meshPtr = 0;
-		for (const auto &mesh : meshes) {
-			// Update global buffer from individual meshes
-			vertices.insert(vertices.end(), mesh.vertices.begin(), mesh.vertices.end());
-			indices.insert(indices.end(), mesh.indices.begin(), mesh.indices.end());
-			indicesRtx.insert(indicesRtx.end(), mesh.indices.begin(), mesh.indices.end());
-			instanceData_static.insert(instanceData_static.end(), mesh.instanceData_static.begin(), mesh.instanceData_static.end());
-			instanceData_dynamic.insert(instanceData_dynamic.end(), mesh.instanceData_dynamic.begin(), mesh.instanceData_dynamic.end());
-			meshPointers.insert(meshPointers.end(), mesh.instanceData_dynamic.size(), meshPtr++);
-			for (size_t i = indexOffset; i < indices.size(); i++)
-				indices[i] += static_cast<uint32_t>(meshVertexOffset);
-
-			// Create on indirect command for each mesh in the scene
-			VkDrawIndexedIndirectCommand indirectCmd = {};
-			indirectCmd.firstInstance = static_cast<uint32_t>(instanceOffset); // Tells Vulkan which index of the instanceData (Static and Dynamic) to look at
-			indirectCmd.instanceCount = static_cast<uint32_t>(mesh.instanceData_static.size());
-			indirectCmd.firstIndex = static_cast<uint32_t>(indexOffset);
-			indirectCmd.indexCount = static_cast<uint32_t>(mesh.indices.size());
-
-			indirectCommands.push_back(indirectCmd);
-
-			indexOffset += mesh.indices.size();
-			meshVertexOffset += mesh.vertices.size();
-			instanceOffset += mesh.instanceData_static.size(); // get number of instances per mesh
-
-			if (mesh.instanceData_static.size() != mesh.instanceData_dynamic.size())
-				throw std::runtime_error("Cannot determine instance count");
-		}
-	}
 
 	void fixTextureCache() 
 	{
