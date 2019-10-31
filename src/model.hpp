@@ -5,6 +5,9 @@
 #include <array>
 
 #include "vulkan/vulkan.h"
+#include "stb_image.h"
+#include "tiny_obj_loader.h"
+
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -23,9 +26,6 @@
  * In our implementation we will simply associate one BLAS for each mesh. Thus we assume each mesh is already a combination of several other meshes as explained above.
  * Also we simply use graphics queues and buffers for constructing the accelaration structure.
  */
-
-static const std::vector<std::string> MODEL_PATHS = {  ROOT + "/models/chalet.obj", ROOT + "/models/deer.obj", ROOT + "/models/cat.obj" };
-static const std::vector<std::string> TEXTURE_PATHS = { ROOT + "/textures/chalet.jpg", ROOT + "/textures/ubiLogo.jpg" };
 
 #define VERTEX_BINDING_ID	0
 #define STATIC_INSTANCE_BINDING_ID	1
@@ -132,64 +132,10 @@ public:
 	// define a single mesh
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
-	// set of instances for this type of mesh
-	//std::vector<InstanceData_static> instanceData_static;
-	//std::vector<InstanceData_dynamic> instanceData_dynamic;
+	// set of instance count for this type of mesh
 	uint32_t instanceCount = 0;
 
 	BottomLevelAccelerationStructure as_bottomLevel;
-
-	Mesh(const char *meshPath) 
-	{
-		tinyobj::attrib_t attrib;
-		std::vector<tinyobj::shape_t> shapes;
-		std::vector<tinyobj::material_t> materials;
-		std::string warn, err;
-
-		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, meshPath)) {
-			throw std::runtime_error(warn + err);
-		}
-
-		std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
-
-		for (const auto& shape : shapes) {
-			for (const auto& index : shape.mesh.indices) {
-				Vertex vertex = {};
-
-				vertex.pos = {
-					attrib.vertices[3 * (int)index.vertex_index + 0],
-					attrib.vertices[3 * (int)index.vertex_index + 1],
-					attrib.vertices[3 * (int)index.vertex_index + 2]
-				};
-				
-				/*
-				vertex.normal = {
-					attrib.normals[3 * (int)index.normal_index + 0],
-					attrib.normals[3 * (int)index.normal_index + 1],
-					attrib.normals[3 * (int)index.normal_index + 2]
-				};
-				*/
-
-				vertex.normal = { 0, 1, 0 };
-
-				vertex.texCoord = {
-					attrib.texcoords[2 * (int)index.texcoord_index + 0],
-					1.0f - attrib.texcoords[2 * (int)index.texcoord_index + 1]
-				};
-
-				vertex.color = { 1.0f, 1.0f, 1.0f };
-
-				if (uniqueVertices.count(vertex) == 0) {
-					uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
-					vertices.push_back(vertex);
-				}
-
-				indices.push_back(uniqueVertices[vertex]);
-			}
-		}
-
-		normailze(0.7f, glm::vec3(0, 0, 0));
-	}
 
 	void initBLAS(const VkDevice& device, const VkCommandBuffer &cmdBuf, const VmaAllocator& allocator, const VkBuffer &vertexBuffer, const VkDeviceSize vertexBufferOffset, const VkBuffer &indexBuffer, const VkDeviceSize indexBufferOffset) 
 	{
@@ -227,8 +173,8 @@ public:
 		as_bottomLevel.create(device, allocator, vGeometry);
 		as_bottomLevel.cmdBuild(cmdBuf, vGeometry);
 	}
-private:
-	void normailze(float scale, const glm::vec3 &shift) 
+
+	void normailze(float scale, const glm::vec3 &shift = glm::vec3(0.0f))
 	{
 		glm::vec3 centroid(0.0f);
 		for (const auto& vertex : vertices)
@@ -256,36 +202,8 @@ private:
 class Model {
 public:
 	VkImageView textureImageView;
-	VkSampler textureSampler;
+	VkSampler textureSampler = VK_NULL_HANDLE;
 	
-	Model()
-	{
-		for (const auto& texturePath : TEXTURE_PATHS)
-			addTexture(Image2d(texturePath));
-		
-		addMesh(new Mesh(MODEL_PATHS[2].c_str()));
-		addMesh(new Mesh(MODEL_PATHS[0].c_str()));
-		addMesh(new Mesh(MODEL_PATHS[1].c_str()));
-
-		glm::mat4 tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 0, 2));
-		addInstance(2, 0, tf);
-
-		tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, -2, 0));
-		addInstance(0, 1, tf);
-
-		tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(2, 0, 0));
-		addInstance(1, 1, tf);
-		
-		tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 2, 0));
-		addInstance(0, 0, tf);
-
-		tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 0, -2));
-		addInstance(2, 1, tf);
-
-		tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(-2, 0, 0));
-		addInstance(1, 0, tf);
-	}
-
 	~Model()
 	{
 		for (auto mesh : meshes)
@@ -440,7 +358,7 @@ public:
 	void updateMeshData() 
 	{
 		for (auto& instance : instanceData_dynamic)
-			instance.model = glm::rotate<float>(instance.model, 0.001f, glm::vec3(0, 1, 0));
+			instance.model = glm::translate<float>(instance.model,glm::vec3(0.0, 0.0, 0.0));
 
 		memcpy(mappedDynamicInstancePtr, instanceData_dynamic.data(), sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size());
 	}
@@ -489,7 +407,7 @@ public:
 		createBuffer(device, allocator, queue, commandPool, staticInstanceBuffer, staticInstanceBufferAllocation, sizeof(instanceData_static[0]) * instanceData_static.size(), instanceData_static.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		createDynamicInstanceBuffer(device, allocator, queue, commandPool);
 		createBuffer(device, allocator, queue, commandPool, indexBuffer, indexBufferAllocation, sizeof(indices[0]) * indices.size(), indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-		createBuffer(device, allocator, queue, commandPool, indirectCmdBuffer, indirectCmdBufferAllocation, sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size(), indirectCommands.data(), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+		createBuffer(device, allocator, queue, commandPool, indirectCmdBuffer, indirectCmdBufferAllocation, sizeof(VkDrawIndexedIndirectCommand) * meshes.size(), indirectCommands.data(), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
 		createTextureImage(physicalDevice, device, allocator, queue, commandPool);
 		createTextureImageView(device);
 		createTextureSampler(device);

@@ -16,24 +16,8 @@ struct ProjectionViewMat {
 
 class Camera {
 public:
-	glm::mat4 getViewMatrix(IO &io) {
-		glm::mat4 view(1.0f);
-		
-		switch (switchCamera(io)) {
-			case 0 : 
-				trackBallCamera(io);
-				break;
-			case 1:	
-				firstPersonCamera(io);
-				break;
-		}
-		
-		setView(view);
-
-		return view;
-	}
-
-	void createBuffers(const VmaAllocator &allocator) {
+	void createBuffers(const VmaAllocator &allocator) 
+	{
 		VkDeviceSize bufferSize = sizeof(ProjectionViewMat);
 		
 		VkBufferCreateInfo bufferCreateInfo = {};
@@ -54,7 +38,8 @@ public:
 		
 	}
 
-	VkDescriptorBufferInfo getDescriptorBufferInfo() const {
+	VkDescriptorBufferInfo getDescriptorBufferInfo() const 
+	{
 		if (uniformBuffer == VK_NULL_HANDLE)
 			throw std::runtime_error("Uniform buffer for projection and view matrix un-initialized");
 
@@ -62,38 +47,68 @@ public:
 		return info;
 	}
 
-	void cleanUp(const VmaAllocator &allocator) {
+	void cleanUp(const VmaAllocator &allocator) 
+	{
 		vmaDestroyBuffer(allocator, uniformBuffer, uniformBuffersAllocation);
 	}
 
-	void updateProjViewMat(IO &io, uint32_t screenWidth, uint32_t screenHeight) {
+	void updateProjViewMat(IO &io, uint32_t screenWidth, uint32_t screenHeight) 
+	{
 
 		projViewMat.view = getViewMatrix(io);
-		projViewMat.proj = glm::perspective(glm::radians(45.0f), screenWidth / (float)screenHeight, 0.1f, 10.0f);
+		projViewMat.proj = glm::perspective(glm::radians(fovy), screenWidth / (float)screenHeight, 0.1f, 10.0f);
 		projViewMat.proj[1][1] *= -1;
 
 		projViewMat.viewInv = glm::inverse(projViewMat.view);
 		projViewMat.projInv = glm::inverse(projViewMat.proj);
 
-		/*glm::vec4 camOrigin = projViewMat.viewInv * glm::vec4(0, 0, 0, 1);
-		glm::vec4 target = projViewMat.projInv * glm::vec4(0, 0, 1, 1);
-		glm::vec4 direction = projViewMat.viewInv * (glm::normalize(glm::vec4(target.x, target.y, target.z, 0)));
-		std::cout << direction.x << " " << direction.y << " " << direction.z << " c " << cameraFront.x << " " << cameraFront.y << " " << cameraFront.z << std::endl;*/
 		memcpy(uniformBuffersAllocationInfo.pMappedData, &projViewMat, sizeof(projViewMat));
 	}
 
-	Camera() {
-		//cameraPosition = glm::vec3(2.0f, 2.0f, 2.0f);
-		//cameraFocus = glm::vec3(0.0f, 0.0f, 0.0f);
-		//cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
-
+	Camera() 
+	{
 		cameraPosition = glm::vec3(0.0f, 5.0f, 0.0f);
 		cameraFocus = glm::vec3(0.0f, 0.0f, 0.0f);
 		cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
 
+		cPlane = chooseCameraPlane(cameraUp);
+
 		setCoordinateSystem();
 	}
+
+	void setCamera(const glm::vec3& cameraPosition, const glm::vec3& cameraFocus, const glm::vec3& cameraUp, float fovy = 45.0f)
+	{
+		this->cameraPosition = cameraPosition;
+		this->cameraFocus = cameraFocus;
+		this->cameraUp = cameraUp;
+
+		this->fovy = fovy;
+
+		cPlane = chooseCameraPlane(cameraUp);
+
+		setCoordinateSystem();
+	}
+
+	void setCamera(const std::array<float, 16> &viewMat, float focusDistance = 1.0f, float fovy = 45.0f)
+	{
+		this->cameraPosition = glm::vec3(viewMat[3], viewMat[7], viewMat[11]);
+		this->cameraFocus = this->cameraPosition + glm::vec3(focusDistance*viewMat[8], focusDistance*viewMat[9], focusDistance*viewMat[10]);
+		this->cameraUp = glm::vec3(viewMat[4], viewMat[5], viewMat[6]);
+		
+		this->fovy = fovy;
+
+		cPlane = chooseCameraPlane(cameraUp);
+
+		setCoordinateSystem();
+	}
+
 private:
+	enum MOUSE_DRAG { NO_DRAG = 0, DRAG_LEFT = 1, DRAG_DOWN = 2, DRAG_UP = 4, DRAG_RIGHT = 8 };
+	enum SCROLL_ZOOM { NO_ZOOM = 0, ZOOM_IN = 1, ZOOM_OUT = 2 };
+	enum MOVEMENT { NO_MOVEMENT = 0, MOVE_FORWARD = 1, MOVE_BACK = 2, MOVE_RIGHT = 4, MOVE_LEFT = 8 };
+
+	enum CAMERA_PLANE { XY = 0, XZ, ZY };
+
 	ProjectionViewMat projViewMat;
 
 	VkBuffer uniformBuffer = VK_NULL_HANDLE;
@@ -109,12 +124,29 @@ private:
 
 	uint32_t selectCamera = 0;
 
+	float fovy = 45.0f;
+
 	float angleIncrement = 0.001f;
 	float distanceIncrement = 0.001f;
 
-	enum MOUSE_DRAG {NO_DRAG = 0, DRAG_LEFT = 1, DRAG_DOWN = 2, DRAG_UP = 4, DRAG_RIGHT = 8};
-	enum SCROLL_ZOOM {NO_ZOOM = 0, ZOOM_IN = 1, ZOOM_OUT = 2};
-	enum MOVEMENT {NO_MOVEMENT = 0, MOVE_FORWARD = 1, MOVE_BACK = 2, MOVE_RIGHT = 4, MOVE_LEFT = 8};
+	CAMERA_PLANE cPlane = XY;
+	
+	glm::mat4 getViewMatrix(IO& io) {
+		glm::mat4 view(1.0f);
+
+		switch (switchCamera(io)) {
+		case 0:
+			trackBallCamera(io);
+			break;
+		case 1:
+			firstPersonCamera(io);
+			break;
+		}
+
+		setView(view);
+
+		return view;
+	}
 
 	void setView(glm::mat4 &view) {
 		view[0][0] = cameraRight.x;
@@ -192,20 +224,52 @@ private:
 		}
 	}
 
-	void setCoordinateSystem() {
+	static CAMERA_PLANE chooseCameraPlane(const glm::vec3 up)
+	{	
+		float x = abs(up.x);
+		float y = abs(up.y);
+		float z = abs(up.z);
+
+		if (x > y && x > z)
+			return ZY;
+		else if (y > z)
+			return XZ;
+			
+		return XY;
+	}
+
+	void setCoordinateSystem() 
+	{
 		cameraFront = glm::normalize(cameraFocus - cameraPosition);
-		{ // restrict cameraRight to xy plane
+		
+		if (cPlane == XY) {
+			// restrict cameraRight to xy plane
 			cameraRight.x = -cameraFront.y;
 			cameraRight.y = cameraFront.x;
 			cameraRight.z = 0.0f;
-			cameraRight = glm::normalize(cameraRight);
-
-			cameraRight = glm::dot(glm::cross(cameraFront, cameraUp), cameraRight) > 0 ? cameraRight : -cameraRight;
 		}
+		else if (cPlane == XZ) {
+			// restrict cameraRight to xz plane
+			cameraRight.x = cameraFront.z;
+			cameraRight.y = 0.0f;
+			cameraRight.z = -cameraFront.x;
+		}
+		else {
+			// restrict cameraRight to yz plane
+			cameraRight.x = 0.0f;
+			cameraRight.y = cameraFront.z;
+			cameraRight.z = -cameraFront.y;
+		}
+
+		cameraRight = glm::normalize(cameraRight);
+
+		//cameraRight = glm::normalize(glm::cross(cameraFront, cameraUp));
+		cameraRight = glm::dot(glm::cross(cameraFront, cameraUp), cameraRight) > 0 ? cameraRight : -cameraRight;
 		cameraUp = glm::normalize(glm::cross(cameraRight, cameraFront));
 	}
 
-	uint32_t switchCamera(const IO &io) {
+	uint32_t switchCamera(const IO &io) 
+	{
 		int key, action;
 		io.getKeyboardInput(key, action);
 		static int lastAction = 0;
@@ -216,7 +280,8 @@ private:
 		return selectCamera % 2;
 	}
 
-	uint32_t mouseDrag(const IO &io) {
+	uint32_t mouseDrag(const IO &io) 
+	{
 		int key, action;
 		io.getMouseInput(key, action);
 		static double lastPosY, lastPosX;
@@ -244,14 +309,16 @@ private:
 		return NO_DRAG;
 	}
 
-	uint32_t mouseZoom(IO &io) {
+	uint32_t mouseZoom(IO &io) 
+	{
 		double scrollOffset;
 		io.getMouseScrollOffset(scrollOffset);
 
 		return scrollOffset > 0 ? ZOOM_OUT : scrollOffset < 0 ? ZOOM_IN : NO_ZOOM;
 	}
 
-	uint32_t keyboardMovement(const IO &io) {
+	uint32_t keyboardMovement(const IO &io) 
+	{
 		uint32_t movement = NO_MOVEMENT;
 		int key, action;
 		io.getKeyboardInput(key, action);

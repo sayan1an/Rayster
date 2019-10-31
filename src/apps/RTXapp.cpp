@@ -18,6 +18,7 @@
 #include "tiny_obj_loader.h"
 #include "vk_mem_alloc.h"
 
+#include "../sceneManager.h"
 #include "../model.hpp"
 #include "../io.hpp"
 #include "../camera.hpp"
@@ -161,6 +162,7 @@ private:
 	PFN_vkCmdTraceRaysNV vkCmdTraceRaysNV = nullptr;
 	void init() {
 		getRtxProperties();
+		loadScene(model, cam);
 		
 		vkCmdTraceRaysNV = reinterpret_cast<PFN_vkCmdTraceRaysNV>(vkGetDeviceProcAddr(device, "vkCmdTraceRaysNV"));
 		subpass1.createSubpassDescription(device);
@@ -497,6 +499,7 @@ private:
 		frameEnd(imageIndex);
 	}
 };
+
 /*
 int main() {
 	{	

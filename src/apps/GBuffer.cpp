@@ -18,6 +18,7 @@
 #include "tiny_obj_loader.h"
 #include "vk_mem_alloc.h"
 
+#include "../sceneManager.h"
 #include "../model.hpp"
 #include "../io.hpp"
 #include "../camera.hpp"
@@ -147,7 +148,9 @@ private:
 
 	std::vector<VkCommandBuffer> commandBuffers;
 
-	void init() {
+	void init() 
+	{
+		loadScene(model, cam, "spaceship");
 		subpass1.createSubpassDescription(device);
 		subpass2.createSubpassDescription(device);
 		createRenderPass();
@@ -449,6 +452,7 @@ private:
 		frameEnd(imageIndex);
 	}
 };
+
 
 int main() {
 	{

@@ -18,6 +18,7 @@
 #include "tiny_obj_loader.h"
 #include "vk_mem_alloc.h"
 
+#include "../sceneManager.h"
 #include "../model.hpp"
 #include "../io.hpp"
 #include "../camera.hpp"
@@ -196,6 +197,8 @@ private:
 	VkFence computeShaderFence;
 
 	void init() {
+		loadScene(model, cam);
+
 		subpass1.createSubpassDescription(device);
 		subpass2.createSubpassDescription(device);
 		createRenderPass();
@@ -684,7 +687,7 @@ int main() {
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}
-*/
+}*/
+
 
 
