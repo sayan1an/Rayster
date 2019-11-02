@@ -6,7 +6,6 @@
 
 #include "vulkan/vulkan.h"
 #include "stb_image.h"
-#include "tiny_obj_loader.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
@@ -91,7 +90,7 @@ struct Image2d
 	}
 
 	uint32_t mipLevels() 
-	{
+	{	
 		return static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
 	}
 
@@ -114,13 +113,26 @@ struct Image2d
 		stbi_image_free(pixels);
 	}
 
-	Image2d()
+	Image2d(uint32_t width = 1, uint32_t height = 1, glm::vec4 color = glm::vec4(1.0f))
 	{
 		// creates a default white texture
-		width = height = 512;
+		this->width = width;
+		this->height = height;
 		format = VK_FORMAT_R8G8B8A8_UNORM;
-		pixels = new unsigned char[width * height * 4];
-		memset(pixels, 1, size());
+		pixels = new unsigned char[(size_t)width * height * 4];
+		
+		auto floatToUint8 = [](float a)
+		{
+			return static_cast<unsigned char>(static_cast<uint32_t>(a * 255) & 0xff);
+		};
+
+		for (size_t i = 0; i < width * height * 4; i += 4) {
+			((unsigned char *)pixels)[i] = floatToUint8(color.x);
+			((unsigned char *)pixels)[i + 1] = floatToUint8(color.y);
+			((unsigned char *)pixels)[i + 2] = floatToUint8(color.z);
+			((unsigned char *)pixels)[i + 3] = floatToUint8(color.w);
+		}
+				
 		path = "";
 	}
 };
@@ -659,7 +671,12 @@ private:
 
 	void generateMipmaps(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,
 		VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, uint32_t layerCount) 
-	{
+	{	
+		if (mipLevels == 1) {
+			transitionImageLayout(device, queue, commandPool, textureImage, textureCache[0].format,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mipLevels, static_cast<uint32_t>(textureCache.size()));
+			return;
+		}
 		// Check if image format supports linear blitting
 		VkFormatProperties formatProperties;
 		vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);

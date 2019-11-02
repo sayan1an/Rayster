@@ -161,7 +161,7 @@ private:
 
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		subpass1.createSubpass(device, swapChainExtent, renderPass, cam, model.textureImageView, model.textureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, depthImageView, colorImageView);
+		subpass2.createSubpass(device, swapChainExtent, renderPass, colorImageView, depthImageView);
 		createCommandBuffers();
 	}
 
@@ -200,7 +200,7 @@ private:
 		createFramebuffers();
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass, cam, model.textureImageView, model.textureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, depthImageView, colorImageView);
+		subpass2.createSubpass(device, swapChainExtent, renderPass, colorImageView, depthImageView);
 		createCommandBuffers();
 	}
 
