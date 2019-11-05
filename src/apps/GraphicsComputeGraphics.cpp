@@ -208,7 +208,7 @@ private:
 		createFramebuffers();
 		
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.textureImageView, model.textureSampler);
+		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, computeShaderOutImageView);
 		computePipeline.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
@@ -261,7 +261,7 @@ private:
 		createDepthResources();
 		createFramebuffers();
 
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.textureImageView, model.textureSampler);
+		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, computeShaderOutImageView);
 		computePipeline.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();

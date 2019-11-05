@@ -52,10 +52,11 @@ public:
 		subpassDescription.pDepthStencilAttachment = &depthAttachmentRef;
 	}
 
-	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const Camera& cam, const VkImageView& textureImageView, const VkSampler& textureSampler)
+	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const Camera& cam, const VkImageView& ldrTextureImageView, const VkSampler& ldrTextureSampler, const VkImageView& hdrTextureImageView, const VkSampler& hdrTextureSampler)
 	{
 		descGen.bindBuffer({ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT }, cam.getDescriptorBufferInfo());
-		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { textureSampler,  textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { ldrTextureSampler,  ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { hdrTextureSampler,  hdrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -160,7 +161,7 @@ private:
 		createFramebuffers();
 
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
-		subpass1.createSubpass(device, swapChainExtent, renderPass, cam, model.textureImageView, model.textureSampler);
+		subpass1.createSubpass(device, swapChainExtent, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, colorImageView, depthImageView);
 		createCommandBuffers();
 	}
@@ -199,7 +200,7 @@ private:
 		createDepthResources();
 		createFramebuffers();
 
-		subpass1.createSubpass(device, swapChainExtent, renderPass, cam, model.textureImageView, model.textureSampler);
+		subpass1.createSubpass(device, swapChainExtent, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, colorImageView, depthImageView);
 		createCommandBuffers();
 	}

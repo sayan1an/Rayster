@@ -85,45 +85,50 @@ static void loadSpaceship(Model& model, Camera& cam)
 	}
 	
 	// color textures
-	model.addTexture(Image2d(1, 1, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f))); // default diffuse color , 0
-	model.addTexture(Image2d(1, 1, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f))); // default specular color, 1
-	model.addTexture(Image2d(1, 1, glm::vec4(0.578596f, 0.578596f, 0.578596f, 1.0f)));// 2
-	model.addTexture(Image2d(1, 1, glm::vec4(0.01f, 0.01f, 0.01f, 1.0f))); // 3
-	model.addTexture(Image2d(1, 1, glm::vec4(0.256f, 0.013f, 0.08f, 1.0f))); // 4
-	model.addTexture(Image2d(1, 1, glm::vec4(0.034f, 0.014f, 0.008f, 1.0f))); // 5
-	model.addTexture(Image2d(1, 1, glm::vec4(0.163f, 0.03f, 0.037f, 1.0f))); // 6
-	model.addTexture(Image2d(1, 1, glm::vec4(0.772f, 0.175f, 0.262f, 1.0f))); // 7
-	model.addTexture(Image2d(1, 1, glm::vec4(0.025f, 0.025f, 0.025f, 1.0f))); // 8
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f))); // default diffuse color , 0
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f))); // default specular color, 1
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.578596f, 0.578596f, 0.578596f, 1.0f)));// 2
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.01f, 0.01f, 0.01f, 1.0f))); // 3
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.256f, 0.013f, 0.08f, 1.0f))); // 4
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.034f, 0.014f, 0.008f, 1.0f))); // 5
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.163f, 0.03f, 0.037f, 1.0f))); // 6
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.772f, 0.175f, 0.262f, 1.0f))); // 7
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.025f, 0.025f, 0.025f, 1.0f))); // 8
 
-	// alpha, intIor, extIor
-	model.addTexture(Image2d(1, 1, glm::vec4(0.1f, 1.0f, 1.0f, 1.0f))); // 9
-	model.addTexture(Image2d(1, 1, glm::vec4(0.2f, 1.5f, 1.0f, 1.0f))); // 10
-	model.addTexture(Image2d(1, 1, glm::vec4(0.4f, 1.5f, 1.0f, 1.0f))); // 11
-	model.addTexture(Image2d(1, 1, glm::vec4(0.01f, 1.5f, 1.0f, 1.0f))); // 12
+	// alpha, intIor, extIor texture
+	//model.addHdrTexture(Image2d(1, 1, glm::vec4(0.1f, 1.0f, 1.0f, 1.0f), true)); // 0
+	//model.addHdrTexture(Image2d(1, 1, glm::vec4(0.2f, 1.5f, 1.0f, 1.0f), true)); // 1
+	//model.addHdrTexture(Image2d(1, 1, glm::vec4(0.4f, 1.5f, 1.0f, 1.0f), true)); // 2
+	//model.addHdrTexture(Image2d(1, 1, glm::vec4(0.01f, 1.5f, 1.0f, 1.0f), true)); // 3
+
+	model.addHdrTexture(Image2d(1, 1, glm::vec4(1.f, 0.f, 0.0f, 1.0f), true));
+	model.addHdrTexture(Image2d(1, 1, glm::vec4(1.f, 1.f, 0.0f, 1.0f), true));
+	model.addHdrTexture(Image2d(1, 1, glm::vec4(1.f, 0.f, 1.0f, 1.0f), true));
+	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.f, 0.f, 1.0f, 1.0f), true));
 
 	enum BRDF_TYPE { BECKMANN, GGX, DIELECTRIC };
 
 	std::vector<Material> materials;
-	Material m = { "RoughAluminium", 0, 2, 9, GGX };
+	Material m = { "RoughAluminium", 0, 2, 0, GGX };
 	materials.push_back(m);
-	m = { "RoughSteel", 0, 1, 9, GGX };
+	m = { "RoughSteel", 0, 1, 0, GGX };
 	materials.push_back(m);
-	m = { "DarkPlastic", 3, 1, 10, BECKMANN };
+	m = { "DarkPlastic", 3, 1, 1, BECKMANN };
 	materials.push_back(m);
-	m = { "PinkLeather", 4, 1, 11, BECKMANN };
+	m = { "PinkLeather", 4, 1, 2, BECKMANN };
 	materials.push_back(m);
-	m = { "Leather", 5, 1, 11, BECKMANN };
+	m = { "Leather", 5, 1, 2, BECKMANN };
 	materials.push_back(m);
-	m = { "BrightPinkLeather", 7, 1, 11, BECKMANN };
+	m = { "BrightPinkLeather", 7, 1, 2, BECKMANN };
 	materials.push_back(m);
-	m = { "Glass", 0, 1, 12, DIELECTRIC };
+	m = { "Glass", 0, 1, 3, DIELECTRIC };
 	materials.push_back(m);
-	m = { "DarkRubber", 8, 1, 11, GGX };
+	m = { "DarkRubber", 8, 1, 2, GGX };
 	materials.push_back(m);
 
 	for (int i = 0; i < 88; i++) {
 		glm::mat4 tf = glm::identity<glm::mat4>();
-		model.addInstance(i, i % 9, tf);
+		model.addInstance(i, i % 4, tf);
 	}
 }
 
