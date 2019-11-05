@@ -5,7 +5,6 @@
 #include <array>
 
 #include "vulkan/vulkan.h"
-#include "stb_image.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
@@ -13,6 +12,7 @@
 
 #include "helper.h"
 #include "accelerationStructure.h"
+#include "generator.h"
 
 /*
  * Mesh organisation - Think of each mesh having one or more instances. A model is composed of several such meshes and their instanaces. Simply put,
@@ -67,91 +67,6 @@ struct InstanceData_static
 // Per instance data, update at drawtime
 struct InstanceData_dynamic {
 	glm::mat4 model;
-};
-
-struct Image2d 
-{
-	void *pixels = nullptr;
-	uint32_t width = 0;
-	uint32_t height = 0;
-	VkFormat format = VK_FORMAT_UNDEFINED;
-	std::string path;
-
-	uint32_t size() const 
-	{
-		switch (format) {
-			case VK_FORMAT_R8G8B8A8_UNORM:
-				return height * width * 4 * sizeof(unsigned char);
-			case VK_FORMAT_R32G32B32A32_SFLOAT:
-				return height * width * 4 * sizeof(float);
-			default:
-				throw std::runtime_error("Unrecognised texture format.");
-		}
-
-		return 0;
-	}
-
-	uint32_t mipLevels() 
-	{	
-		if (format == VK_FORMAT_R32G32B32A32_SFLOAT)
-			return 1;
-
-		return static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
-	}
-
-	Image2d(const std::string texturePath) 
-	{
-		int texChannels, iWidth, iHeight;
-		pixels = stbi_load(texturePath.c_str(), &iWidth, &iHeight, &texChannels, STBI_rgb_alpha);
-		if (!pixels) {
-			throw std::runtime_error("failed to load texture image!");
-		}
-
-		width = static_cast<uint32_t> (iWidth);
-		height = static_cast<uint32_t> (iHeight);
-		format = VK_FORMAT_R8G8B8A8_UNORM;
-		path = texturePath;
-	}
-
-	void cleanUp() 
-	{
-		stbi_image_free(pixels);
-	}
-
-	Image2d(uint32_t width = 1, uint32_t height = 1, glm::vec4 color = glm::vec4(1.0f), boolean hdr = false)
-	{
-		this->width = width;
-		this->height = height;
-		if (hdr) {
-			format = VK_FORMAT_R32G32B32A32_SFLOAT;
-			pixels = new float[(size_t)width * height * 4];
-
-			for (size_t i = 0; i < width * height * 4; i += 4) {
-				((float *)pixels)[i] = color.x;
-				((float *)pixels)[i + 1] = color.y;
-				((float *)pixels)[i + 2] = color.z;
-				((float *)pixels)[i + 3] = color.w;
-			}
-		}
-		else {
-			format = VK_FORMAT_R8G8B8A8_UNORM;
-			pixels = new unsigned char[(size_t)width * height * 4];
-
-			auto floatToUint8 = [](float a)
-			{
-				return static_cast<unsigned char>(static_cast<uint32_t>(a * 255) & 0xff);
-			};
-
-			for (size_t i = 0; i < width * height * 4; i += 4) {
-				((unsigned char*)pixels)[i] = floatToUint8(color.x);
-				((unsigned char*)pixels)[i + 1] = floatToUint8(color.y);
-				((unsigned char*)pixels)[i + 2] = floatToUint8(color.z);
-				((unsigned char*)pixels)[i + 3] = floatToUint8(color.w);
-			}
-		}
-				
-		path = "";
-	}
 };
 
 // defines a single mesh and its instances
@@ -276,10 +191,7 @@ public:
 		if (texture.format != VK_FORMAT_R8G8B8A8_UNORM)
 			throw std::runtime_error("Ldr texture must be VK_FORMAT_R8G8B8A8_UNORM format type");
 
-		ldrTextureCache.push_back(texture);
-		fixTextureCache(ldrTextureCache);
-
-		return ldrTextureCache.size();
+		return ldrTexGen.addTexture(texture);
 	}
 
 	size_t addHdrTexture(Image2d texture)
@@ -287,10 +199,7 @@ public:
 		if (texture.format != VK_FORMAT_R32G32B32A32_SFLOAT)
 			throw std::runtime_error("Hdr texture must be VK_FORMAT_R32G32B32A32_SFLOAT format type");
 
-		hdrTextureCache.push_back(texture);
-		fixTextureCache(hdrTextureCache);
-
-		return hdrTextureCache.size();
+		return hdrTexGen.addTexture(texture);
 	}
 	
 	void addInstance(uint32_t meshIdx, uint32_t textureIdx, glm::mat4 &transform)
@@ -298,7 +207,7 @@ public:
 		if (meshIdx >= meshes.size())
 			throw std::runtime_error("This mesh does not exsist");
 
-		if (textureIdx >= ldrTextureCache.size())
+		if (textureIdx >= ldrTexGen.size())
 			throw std::runtime_error("This texture does not exsist");
 
 		// assumes instances have meshIdx in groups i.e. aaa-bbbbb-ccccc-dddddd. 
@@ -456,11 +365,8 @@ public:
 		createDynamicInstanceBuffer(device, allocator, queue, commandPool);
 		createBuffer(device, allocator, queue, commandPool, indexBuffer, indexBufferAllocation, sizeof(indices[0]) * indices.size(), indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 		createBuffer(device, allocator, queue, commandPool, indirectCmdBuffer, indirectCmdBufferAllocation, sizeof(VkDrawIndexedIndirectCommand) * meshes.size(), indirectCommands.data(), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
-		createTextureImage(physicalDevice, device, allocator, queue, commandPool);
-		createTextureImageHdr(physicalDevice, device, allocator, queue, commandPool);
-		createTextureImageView(device);
-		createTextureSampler(device, ldrTextureSampler, mipLevels);
-		createTextureSampler(device, hdrTextureSampler, 1);
+		ldrTexGen.createTexture(physicalDevice, device, allocator, queue, commandPool, ldrTextureImage, ldrTextureImageView, ldrTextureSampler, ldrTextureImageAllocation);
+		hdrTexGen.createTexture(physicalDevice, device, allocator, queue, commandPool, hdrTextureImage, hdrTextureImageView, hdrTextureSampler, hdrTextureImageAllocation);
 	}
 
 	void createRtxBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) 
@@ -554,9 +460,7 @@ private:
 	
 	void *mappedDynamicInstancePtr;
 	std::vector<VkDrawIndexedIndirectCommand> indirectCommands; // Its size is meshes.size().
-	std::vector<Image2d> ldrTextureCache; // ideally only store unique ldr textures.
-	std::vector<Image2d> hdrTextureCache; // ideally only store unique hdr textures.
-
+	
 	VkBuffer vertexBuffer = VK_NULL_HANDLE;
 	VmaAllocation vertexBufferAllocation = VK_NULL_HANDLE;
 	VkBuffer staticInstanceBuffer = VK_NULL_HANDLE;
@@ -570,10 +474,11 @@ private:
 	VkBuffer indirectCmdBuffer = VK_NULL_HANDLE;
 	VmaAllocation indirectCmdBufferAllocation = VK_NULL_HANDLE;
 
-	uint32_t mipLevels;
+	TextureGenerator ldrTexGen;
 	VkImage ldrTextureImage;
 	VmaAllocation ldrTextureImageAllocation;
 
+	TextureGenerator hdrTexGen;
 	VkImage hdrTextureImage;
 	VmaAllocation hdrTextureImageAllocation;
 
@@ -583,25 +488,6 @@ private:
 	VkBuffer indexBufferRtx = VK_NULL_HANDLE;
 	VmaAllocation indexBufferRtxAllocation = VK_NULL_HANDLE;
 	std::vector<uint32_t> indicesRtx;
-
-	void fixTextureCache(const std::vector<Image2d> &texCache) 
-	{
-		if (texCache.empty())
-			throw std::runtime_error("Provided texture cache is empty");
-		else {
-			// All images must have same image format and size. We can relax this restriction to having same aspect ratio and rescaling the
-			// images to the largest one.
-			
-			// for now let's just throw an error when size and format are not same.
-			// TODO : Check if the images have same aspect ratio and format. Upscale all images to the size of the largest one.
-			VkFormat desiredFormat = texCache[0].format;
-			uint32_t desiredWidth = texCache[0].width;
-			uint32_t desiredHeight = texCache[0].height;
-			for (const auto &image : texCache)
-				if (image.format != desiredFormat || image.width != desiredWidth || image.height != desiredHeight)
-					throw std::runtime_error("Size and format for all texture images must be same.");
-		}
-	}
 	
 	void createDynamicInstanceBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) 
 	{
@@ -626,306 +512,6 @@ private:
 
 		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &dynamicInstanceBuffer, &dynamicInstanceBufferAllocation, nullptr) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create vertex buffer!");
-	}
-
-	void createTextureImage(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) 
-	{
-		mipLevels = ldrTextureCache[0].mipLevels();
-		
-		uint32_t bufferSize = 0;
-		for (const auto &image : ldrTextureCache)
-			bufferSize += image.size();
-
-		VkBuffer stagingBuffer;
-		VmaAllocation stagingBufferAllocation;
-
-		VkBufferCreateInfo bufferCreateInfo = {};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = bufferSize;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create staging buffer for index buffer!");
-
-		void* data;
-		vmaMapMemory(allocator, stagingBufferAllocation, &data);
-		uint32_t bufferOffset = 0;
-		for (auto &image : ldrTextureCache) {
-			byte *start = static_cast<byte *>(data);
-			memcpy(&start[bufferOffset], image.pixels, static_cast<size_t>(image.size()));
-			bufferOffset += static_cast<size_t>(image.size());
-			image.cleanUp();
-		}
-		vmaUnmapMemory(allocator, stagingBufferAllocation);
-
-		std::vector<VkBufferImageCopy> bufferCopyRegions;
-		bufferOffset = 0;
-		for (uint32_t layer = 0; layer < ldrTextureCache.size(); layer++) {
-			VkBufferImageCopy bufferCopyRegion = {};
-			bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			bufferCopyRegion.imageSubresource.mipLevel = 0;
-			bufferCopyRegion.imageSubresource.baseArrayLayer = layer;
-			bufferCopyRegion.imageSubresource.layerCount = 1;
-			bufferCopyRegion.imageExtent.width = ldrTextureCache[0].width;
-			bufferCopyRegion.imageExtent.height = ldrTextureCache[0].height;
-			bufferCopyRegion.imageExtent.depth = 1;
-			bufferCopyRegion.bufferOffset = bufferOffset;
-
-			bufferCopyRegions.push_back(bufferCopyRegion);
-
-			// Increase offset into staging buffer for next level / face
-			bufferOffset += ldrTextureCache[layer].size();
-		}
-
-		VkImageCreateInfo imageCreateInfo = {};
-		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageCreateInfo.extent.width = ldrTextureCache[0].width;
-		imageCreateInfo.extent.height = ldrTextureCache[0].height;
-		imageCreateInfo.extent.depth = 1;
-		imageCreateInfo.mipLevels = mipLevels;
-		imageCreateInfo.arrayLayers = static_cast<uint32_t>(ldrTextureCache.size());
-		imageCreateInfo.format = ldrTextureCache[0].format;
-		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-		if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &ldrTextureImage, &ldrTextureImageAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create texture image!");
-
-		transitionImageLayout(device, queue, commandPool, ldrTextureImage, ldrTextureCache[0].format, 
-			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels, static_cast<uint32_t>(ldrTextureCache.size()));
-		VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
-
-		vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, ldrTextureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
-			static_cast<uint32_t>(bufferCopyRegions.size()), bufferCopyRegions.data());
-
-		endSingleTimeCommands(device, queue, commandPool, commandBuffer);
-		//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
-
-		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
-
-		generateMipmaps(physicalDevice, device, queue, commandPool, ldrTextureImage, 
-			ldrTextureCache[0].format, ldrTextureCache[0].width, ldrTextureCache[0].height, mipLevels, static_cast<uint32_t>(ldrTextureCache.size()));
-	}
-
-	void createTextureImageHdr(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool)
-	{
-		uint32_t bufferSize = 0;
-		for (const auto& image : hdrTextureCache)
-			bufferSize += image.size();
-
-		VkBuffer stagingBuffer;
-		VmaAllocation stagingBufferAllocation;
-
-		VkBufferCreateInfo bufferCreateInfo = {};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = bufferSize;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create staging buffer for index buffer!");
-
-		void* data;
-		vmaMapMemory(allocator, stagingBufferAllocation, &data);
-		uint32_t bufferOffset = 0;
-		for (auto& image : hdrTextureCache) {
-			byte* start = static_cast<byte*>(data);
-			memcpy(&start[bufferOffset], image.pixels, static_cast<size_t>(image.size()));
-			bufferOffset += static_cast<size_t>(image.size());
-			image.cleanUp();
-		}
-		vmaUnmapMemory(allocator, stagingBufferAllocation);
-
-		std::vector<VkBufferImageCopy> bufferCopyRegions;
-		bufferOffset = 0;
-		for (uint32_t layer = 0; layer < hdrTextureCache.size(); layer++) {
-			VkBufferImageCopy bufferCopyRegion = {};
-			bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			bufferCopyRegion.imageSubresource.mipLevel = 0;
-			bufferCopyRegion.imageSubresource.baseArrayLayer = layer;
-			bufferCopyRegion.imageSubresource.layerCount = 1;
-			bufferCopyRegion.imageExtent.width = hdrTextureCache[0].width;
-			bufferCopyRegion.imageExtent.height = hdrTextureCache[0].height;
-			bufferCopyRegion.imageExtent.depth = 1;
-			bufferCopyRegion.bufferOffset = bufferOffset;
-
-			bufferCopyRegions.push_back(bufferCopyRegion);
-
-			// Increase offset into staging buffer for next level / face
-			bufferOffset += hdrTextureCache[layer].size();
-		}
-
-		VkImageCreateInfo imageCreateInfo = {};
-		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageCreateInfo.extent.width = hdrTextureCache[0].width;
-		imageCreateInfo.extent.height = hdrTextureCache[0].height;
-		imageCreateInfo.extent.depth = 1;
-		imageCreateInfo.mipLevels = 1;
-		imageCreateInfo.arrayLayers = static_cast<uint32_t>(hdrTextureCache.size());
-		imageCreateInfo.format = hdrTextureCache[0].format;
-		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-		if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &hdrTextureImage, &hdrTextureImageAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create texture image!");
-
-		transitionImageLayout(device, queue, commandPool, hdrTextureImage, hdrTextureCache[0].format,
-			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, static_cast<uint32_t>(hdrTextureCache.size()));
-		VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
-
-		vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, hdrTextureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			static_cast<uint32_t>(bufferCopyRegions.size()), bufferCopyRegions.data());
-
-		endSingleTimeCommands(device, queue, commandPool, commandBuffer);
-		//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
-
-		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
-
-		generateMipmaps(physicalDevice, device, queue, commandPool, hdrTextureImage,
-			hdrTextureCache[0].format, hdrTextureCache[0].width, hdrTextureCache[0].height, 1, static_cast<uint32_t>(hdrTextureCache.size()));
-	}
-
-	void generateMipmaps(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,
-		VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, uint32_t layerCount) 
-	{	
-		if (mipLevels == 1) {
-			transitionImageLayout(device, queue, commandPool, image, imageFormat,
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mipLevels, layerCount);
-			return;
-		}
-
-		// Check if image format supports linear blitting
-		VkFormatProperties formatProperties;
-		vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
-
-		if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
-			throw std::runtime_error("texture image format does not support linear blitting!");
-		}
-
-		VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
-
-		VkImageMemoryBarrier barrier = {};
-		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		barrier.image = image;
-		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		barrier.subresourceRange.baseArrayLayer = 0;
-		barrier.subresourceRange.layerCount = layerCount;
-		barrier.subresourceRange.levelCount = 1;
-
-		int32_t mipWidth = texWidth;
-		int32_t mipHeight = texHeight;
-
-		for (uint32_t i = 1; i < mipLevels; i++) {
-			barrier.subresourceRange.baseMipLevel = i - 1;
-			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-			barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-			barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-
-			vkCmdPipelineBarrier(commandBuffer,
-				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
-				0, nullptr,
-				0, nullptr,
-				1, &barrier);
-
-			VkImageBlit blit = {};
-			blit.srcOffsets[0] = { 0, 0, 0 };
-			blit.srcOffsets[1] = { mipWidth, mipHeight, 1 };
-			blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			blit.srcSubresource.mipLevel = i - 1;
-			blit.srcSubresource.baseArrayLayer = 0;
-			blit.srcSubresource.layerCount = layerCount;
-			blit.dstOffsets[0] = { 0, 0, 0 };
-			blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 };
-			blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			blit.dstSubresource.mipLevel = i;
-			blit.dstSubresource.baseArrayLayer = 0;
-			blit.dstSubresource.layerCount = layerCount;
-
-			vkCmdBlitImage(commandBuffer,
-				image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				1, &blit,
-				VK_FILTER_LINEAR);
-
-			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-			vkCmdPipelineBarrier(commandBuffer,
-				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
-				0, nullptr,
-				0, nullptr,
-				1, &barrier);
-
-			if (mipWidth > 1) mipWidth /= 2;
-			if (mipHeight > 1) mipHeight /= 2;
-		}
-
-		barrier.subresourceRange.baseMipLevel = mipLevels - 1;
-		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		vkCmdPipelineBarrier(commandBuffer,
-			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
-			0, nullptr,
-			0, nullptr,
-			1, &barrier);
-
-		endSingleTimeCommands(device, queue, commandPool, commandBuffer);
-	}
-
-	void createTextureImageView(const VkDevice& device) 
-	{
-		ldrTextureImageView = createImageView(device, ldrTextureImage, ldrTextureCache[0].format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, static_cast<uint32_t>(ldrTextureCache.size()));
-		hdrTextureImageView = createImageView(device, hdrTextureImage, hdrTextureCache[0].format, VK_IMAGE_ASPECT_COLOR_BIT, 1, static_cast<uint32_t>(hdrTextureCache.size()));
-	}
-
-	void createTextureSampler(const VkDevice& device, VkSampler &sampler, uint32_t mipLevels) 
-	{
-		VkSamplerCreateInfo samplerInfo = {};
-		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		samplerInfo.magFilter = VK_FILTER_LINEAR;
-		samplerInfo.minFilter = VK_FILTER_LINEAR;
-		samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerInfo.anisotropyEnable = VK_TRUE;
-		samplerInfo.maxAnisotropy = 16;
-		samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-		samplerInfo.unnormalizedCoordinates = VK_FALSE;
-		samplerInfo.compareEnable = VK_FALSE;
-		samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		samplerInfo.minLod = 0;
-		samplerInfo.maxLod = static_cast<float>(mipLevels);
-		samplerInfo.mipLodBias = 0;
-
-		if (vkCreateSampler(device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create texture sampler!");
-		}
 	}
 };
 
