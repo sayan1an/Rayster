@@ -102,6 +102,16 @@ public:
 		setCoordinateSystem();
 	}
 
+	void setAngleIncrement(float value) 
+	{
+		angleIncrement = value;
+	}
+
+	void setDistanceIncrement(float value)
+	{
+		distanceIncrement = value;
+	}
+
 private:
 	enum MOUSE_DRAG { NO_DRAG = 0, DRAG_LEFT = 1, DRAG_DOWN = 2, DRAG_UP = 4, DRAG_RIGHT = 8 };
 	enum SCROLL_ZOOM { NO_ZOOM = 0, ZOOM_IN = 1, ZOOM_OUT = 2 };
@@ -187,7 +197,7 @@ private:
 		}
 
 		if (zoom != NO_ZOOM) {
-			float zoomVal = zoom & ZOOM_IN ? distanceIncrement : zoom & ZOOM_OUT ? -distanceIncrement : 0.0f;
+			float zoomVal = zoom & ZOOM_IN ? distanceIncrement * 10 : zoom & ZOOM_OUT ? -distanceIncrement * 10 : 0.0f;
 			cameraPosition = cameraPosition + cameraFront * zoomVal;
 		}
 	}

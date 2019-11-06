@@ -5,6 +5,7 @@ filename = "./spaceship/scene.xml"
 tree = ET.parse(filename)
 root = tree.getroot()
 
+# return the atrributes of a tag
 # default: search for first occurence of a tag 
 def searchTags(tagName, root, index=0):
     counter = 0
@@ -15,7 +16,7 @@ def searchTags(tagName, root, index=0):
     return {}
 
 for child in root:
-    if child.tag == 'shape':
+    if child.tag == 'shape' and child.attrib["type"] =='obj':
         stringAttrib = searchTags("string", child)
         refAtrib = searchTags("ref", child)
         try :
@@ -23,5 +24,4 @@ for child in root:
             materialId = refAtrib["id"]        
         except :
             continue
-            print ("")
-        print(meshName + " " + materialId)
+        print("addInstance(\"" + materialId + "\", " + str(int(meshName[11:-4])) + ");")
