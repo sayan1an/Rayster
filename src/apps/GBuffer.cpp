@@ -38,6 +38,9 @@ public:
 
 	void createSubpassDescription(const VkDevice& device, FboManager &fboMgr) {
 		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("diffuseColor", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("specularColor", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("normal", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("other", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 		depthAttachmentRef = fboMgr.getAttachmentReference("depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 			
 		subpassDescription = {};
@@ -62,6 +65,7 @@ public:
 		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/01_frag.spv");
 		gfxPipeGen.addVertexInputState(bindingDescription, attributeDescription);
 		gfxPipeGen.addViewportState(swapChainExtent);
+		gfxPipeGen.addColorBlendAttachmentState(4);
 
 		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 0, &pipeline, &pipelineLayout);
 	}
@@ -85,22 +89,31 @@ public:
 
 	void createSubpassDescription(const VkDevice& device, FboManager &fboMgr)
 	{
-		VkAttachmentReference colorAttachmentRef = fboMgr.getAttachmentReference("swapchain", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		colorAttachmentRef = fboMgr.getAttachmentReference("swapchain", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	
 		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("diffuseColor", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("specularColor", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("normal", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("other", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("depth", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpassDescription.colorAttachmentCount = 1;
 		subpassDescription.pColorAttachments = &colorAttachmentRef;
-		subpassDescription.inputAttachmentCount = 2;
+		subpassDescription.inputAttachmentCount = static_cast<uint32_t>(inputAttachmentRefs.size());
 		subpassDescription.pInputAttachments = inputAttachmentRefs.data();
 	}
 
-	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const VkImageView& inputImageView0, const VkImageView& inputImageView1) {
+	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, 
+			const VkImageView& inputImageView0, const VkImageView& inputImageView1, const VkImageView& inputImageView2, 
+			const VkImageView& inputImageView3, const VkImageView& inputImageView4) 
+	{
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView0,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView1,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView2,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView3,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView4,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -109,7 +122,7 @@ public:
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
 		gfxPipeGen.addDepthStencilState(VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
-
+		
 		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 1, &pipeline, &pipelineLayout);
 	}
 private:
@@ -138,9 +151,15 @@ private:
 	VmaAllocation specularColorImageAllocation;
 	VkImageView specularColorImageView;
 
+	// conatins normal + specular alpha
 	VkImage normalImage;
 	VmaAllocation normalImageAllocation;
 	VkImageView normalImageView;
+
+	// contains distance from camera, Int ior, Ext ior and material bsdf type
+	VkImage otherInfoImage;
+	VmaAllocation otherInfoImageAllocation;
+	VkImageView otherInfoImageView;
 
 	VkImage depthImage;
 	VmaAllocation depthImageAllocation;
@@ -155,6 +174,9 @@ private:
 	{
 		fboManager.addDepthAttachment("depth", findDepthFormat(physicalDevice), VK_SAMPLE_COUNT_1_BIT, &depthImageView);
 		fboManager.addColorAttachment("diffuseColor", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &diffuseColorImageView);
+		fboManager.addColorAttachment("specularColor", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &specularColorImageView);
+		fboManager.addColorAttachment("normal", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &normalImageView, 1, {0.0f, 0.0f, 0.0f, 0.0f});
+		fboManager.addColorAttachment("other", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &otherInfoImageView, 1, {-1.0f, 0.0f, 0.0f, -1.0f});
 		fboManager.addColorAttachment("swapchain", swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT, swapChainImageViews.data(), static_cast<uint32_t>(swapChainImageViews.size()));
 
 		loadScene(model, cam, "spaceship");
@@ -168,7 +190,7 @@ private:
 
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		subpass1.createSubpass(device, swapChainExtent, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, diffuseColorImageView, depthImageView);
+		subpass2.createSubpass(device, swapChainExtent, renderPass, diffuseColorImageView, specularColorImageView, normalImageView, otherInfoImageView, depthImageView);
 		createCommandBuffers();
 	}
 
@@ -184,6 +206,9 @@ private:
 
 		vkDestroyImageView(device, normalImageView, nullptr);
 		vmaDestroyImage(allocator, normalImage, normalImageAllocation);
+
+		vkDestroyImageView(device, otherInfoImageView, nullptr);
+		vmaDestroyImage(allocator, otherInfoImage, otherInfoImageAllocation);
 
 		for (auto framebuffer : swapChainFramebuffers) {
 			vkDestroyFramebuffer(device, framebuffer, nullptr);
@@ -213,7 +238,7 @@ private:
 		createFramebuffers();
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
-		subpass2.createSubpass(device, swapChainExtent, renderPass, diffuseColorImageView, depthImageView);
+		subpass2.createSubpass(device, swapChainExtent, renderPass, diffuseColorImageView, specularColorImageView, normalImageView, otherInfoImageView, depthImageView);
 		createCommandBuffers();
 	}
 
@@ -232,6 +257,9 @@ private:
 		attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		fboManager.updateAttachmentDescription("diffuseColor", attachment);
+		fboManager.updateAttachmentDescription("specularColor", attachment);
+		fboManager.updateAttachmentDescription("normal", attachment);
+		fboManager.updateAttachmentDescription("other", attachment);
 
 		attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -273,7 +301,7 @@ private:
 
 		std::vector<VkAttachmentDescription> attachments;
 		fboManager.getAttachmentDescriptions(attachments);
-
+		
 		VkRenderPassCreateInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 		renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
@@ -343,10 +371,9 @@ private:
 		};
 
 		makeColorImage(fboManager.getFormat("diffuseColor") , fboManager.getSampleCount("diffuseColor"), diffuseColorImage, diffuseColorImageView, diffuseColorImageAllocation);
-		makeColorImage(VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, specularColorImage, specularColorImageView, specularColorImageAllocation);
-		makeColorImage(VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, normalImage, normalImageView, normalImageAllocation);
-
-		
+		makeColorImage(fboManager.getFormat("specularColor"), fboManager.getSampleCount("specularColor"), specularColorImage, specularColorImageView, specularColorImageAllocation);
+		makeColorImage(fboManager.getFormat("normal"), fboManager.getSampleCount("normal"), normalImage, normalImageView, normalImageAllocation);
+		makeColorImage(fboManager.getFormat("other"), fboManager.getSampleCount("other"), otherInfoImage, otherInfoImageView, otherInfoImageAllocation);	
 	}
 
 	void createDepthResources() {
@@ -451,7 +478,6 @@ private:
 	}
 };
 
-/*
 int main() {
 	{
 		GBufferApplication app;
@@ -468,7 +494,7 @@ int main() {
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}*/
+}
 
 
 

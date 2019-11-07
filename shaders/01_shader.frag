@@ -10,6 +10,9 @@ layout(location = 2) in vec2 fragTexCoord;
 layout(location = 3) flat in uvec4 fragData; // there is no interpolation for flat type
 
 layout(location = 0) out vec4 outDiffuseColor;
+layout(location = 1) out vec4 outSpecularColor;
+layout(location = 2) out vec4 outNormal;
+layout(location = 3) out vec4 outDepthMatInfo;
 
 void main() 
 {
@@ -18,4 +21,8 @@ void main()
     uint alphaIorIdx = fragData.z;
     uint bsdfType = fragData.w;
     outDiffuseColor = texture(ldrTexSampler, vec3(fragTexCoord, diffuseTextureIdx)) * vec4(fragColor, 1.0f);
+    outSpecularColor = texture(ldrTexSampler, vec3(fragTexCoord, specularTextureIdx));
+    vec4 alphaIntExtIor = texture(hdrTexSampler, vec3(fragTexCoord, alphaIorIdx));
+    outNormal = vec4(fragNormal, alphaIntExtIor.x);
+    outDepthMatInfo = vec4(0, alphaIntExtIor.yz, bsdfType);
 }

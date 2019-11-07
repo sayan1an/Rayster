@@ -118,6 +118,7 @@ public:
 
 		for (const auto& attachment : attachments) {
 			uint32_t count = attachment.second.count;
+			
 			_attachmentImageViews[attachment.second.index] = attachment.second.view[index < count ? index : count - 1];
 		}
 
@@ -652,6 +653,20 @@ public:
 		depthStencilStateCI.depthWriteEnable = depthWriteEnable;
 	}
 
+	void addColorBlendAttachmentState(uint32_t attachmentCount = 1)
+	{
+		colorBlendAttachmentStateCI.attachmentCount = attachmentCount;
+		
+		VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
+		colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		colorBlendAttachmentState.blendEnable = VK_FALSE;
+
+		for (uint32_t i = 0; i < attachmentCount; i++)
+			colorBlendAttachmentStates.push_back(colorBlendAttachmentState);
+
+		colorBlendAttachmentStateCI.pAttachments = colorBlendAttachmentStates.data();
+	}
+
 	void createPipeline(const VkDevice& device, const VkDescriptorSetLayout& descriptorSetLayout, const VkRenderPass& renderPass, uint32_t subpassIdx, VkPipeline* pipeline, VkPipelineLayout* pipelineLayout)
 	{
 		createPipelineLayout(device, descriptorSetLayout, pipelineLayout);
@@ -711,19 +726,15 @@ public:
 		depthStencilStateCI.depthBoundsTestEnable = VK_FALSE;
 		depthStencilStateCI.stencilTestEnable = VK_FALSE;
 		addDepthStencilState();
-				
-		colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		colorBlendAttachmentState.blendEnable = VK_FALSE;
-
+		
 		colorBlendAttachmentStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 		colorBlendAttachmentStateCI.logicOpEnable = VK_FALSE;
 		colorBlendAttachmentStateCI.logicOp = VK_LOGIC_OP_COPY;
-		colorBlendAttachmentStateCI.attachmentCount = 1;
-		colorBlendAttachmentStateCI.pAttachments = &colorBlendAttachmentState;
 		colorBlendAttachmentStateCI.blendConstants[0] = 0.0f;
 		colorBlendAttachmentStateCI.blendConstants[1] = 0.0f;
 		colorBlendAttachmentStateCI.blendConstants[2] = 0.0f;
 		colorBlendAttachmentStateCI.blendConstants[3] = 0.0f;
+		addColorBlendAttachmentState();
 	}
 private:
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCI;
@@ -740,7 +751,7 @@ private:
 
 	VkPipelineDepthStencilStateCreateInfo depthStencilStateCI;
 
-	VkPipelineColorBlendAttachmentState colorBlendAttachmentState;
+	std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachmentStates;
 	VkPipelineColorBlendStateCreateInfo colorBlendAttachmentStateCI;
 };
 
