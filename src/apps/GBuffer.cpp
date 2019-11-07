@@ -314,7 +314,7 @@ private:
 	{	
 		auto makeColorImage = [&device = device, &graphicsQueue = graphicsQueue, 
 				&graphicsCommandPool = graphicsCommandPool, &allocator = allocator, 
-				&swapChainExtent = swapChainExtent](VkFormat colorFormat, VkImage &image, VkImageView &imageView, VmaAllocation &allocation)
+				&swapChainExtent = swapChainExtent](VkFormat colorFormat, VkSampleCountFlagBits samples, VkImage &image, VkImageView &imageView, VmaAllocation &allocation)
 		{
 			VkImageCreateInfo imageCreateInfo = {};
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -328,7 +328,7 @@ private:
 			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+			imageCreateInfo.samples = samples;
 			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 			VmaAllocationCreateInfo allocCreateInfo = {};
@@ -342,15 +342,15 @@ private:
 			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, image, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1, 1);
 		};
 
-		makeColorImage(VK_FORMAT_R8G8B8A8_UNORM, diffuseColorImage, diffuseColorImageView, diffuseColorImageAllocation);
-		makeColorImage(VK_FORMAT_R8G8B8A8_UNORM, specularColorImage, specularColorImageView, specularColorImageAllocation);
-		makeColorImage(VK_FORMAT_R32G32B32A32_SFLOAT, normalImage, normalImageView, normalImageAllocation);
+		makeColorImage(fboManager.getFormat("diffuseColor") , fboManager.getSampleCount("diffuseColor"), diffuseColorImage, diffuseColorImageView, diffuseColorImageAllocation);
+		makeColorImage(VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, specularColorImage, specularColorImageView, specularColorImageAllocation);
+		makeColorImage(VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, normalImage, normalImageView, normalImageAllocation);
 
 		
 	}
 
 	void createDepthResources() {
-		VkFormat depthFormat = findDepthFormat(physicalDevice);
+		VkFormat depthFormat = fboManager.getFormat("depth");
 
 		// change number of samples to msaaSamples
 		VkImageCreateInfo imageCreateInfo = {};
@@ -365,7 +365,7 @@ private:
 		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-		imageCreateInfo.samples = msaaSamples; // number of msaa samples
+		imageCreateInfo.samples = fboManager.getSampleCount("depth");
 		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 		VmaAllocationCreateInfo allocCreateInfo = {};
@@ -451,7 +451,7 @@ private:
 	}
 };
 
-
+/*
 int main() {
 	{
 		GBufferApplication app;
@@ -468,7 +468,7 @@ int main() {
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}
+}*/
 
 
 

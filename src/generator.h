@@ -23,35 +23,7 @@ OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -----------------------------------------------------------------------*/
 
-/*
-Contacts for feedback:
-- pgautron@nvidia.com (Pascal Gautron)
-- mlefrancois@nvidia.com (Martin-Karl Lefrancois)
-
-The raytracing pipeline combines the raytracing shaders into a state object,
-that can be thought of as an executable GPU program. For that, it requires the
-shaders compiled as DXIL libraries, where each library exports symbols in a way
-similar to DLLs. Those symbols are then used to refer to these shaders libraries
-when creating hit groups, associating the shaders to their root signatures and
-declaring the steps of the pipeline. All the calls to this helper class can be
-done in arbitrary order. Some basic sanity checks are also performed when
-compiling in debug mode.
-
-Simple usage of this class:
-
-pipeline.AddLibrary(m_rayGenLibrary.Get(), {L"RayGen"});
-pipeline.AddLibrary(m_missLibrary.Get(), {L"Miss"});
-pipeline.AddLibrary(m_hitLibrary.Get(), {L"ClosestHit"});
-
-pipeline.AddHitGroup(L"HitGroup", L"ClosestHit");
-
-
-
-pipeline.SetMaxRecursionDepth(1);
-
-rtStateObject = pipeline.Generate();
-
-*/
+// Copyright(c) 2019, Sayantan Datta @ sayantan.d.one@gmail.com.
 
 #pragma once
 #include "vulkan/vulkan.h"
@@ -84,7 +56,7 @@ public:
 	VkAttachmentReference getAttachmentReference(std::string name, VkImageLayout layout)
 	{	
 		if (attachments.find(name) == attachments.end())
-			throw std::runtime_error("Attachment not found");
+			throw std::runtime_error("Attachment name - " + name + " not found");
 
 		VkAttachmentReference ref = {};
 		const FboData data = attachments[name];
@@ -95,10 +67,26 @@ public:
 		return ref;
 	}
 
+	VkFormat getFormat(std::string name)
+	{
+		if (attachments.find(name) == attachments.end())
+			throw std::runtime_error("Attachment name - " + name + " not found");
+		
+		return attachments[name].format;
+	}
+
+	VkSampleCountFlagBits getSampleCount(std::string name)
+	{
+		if (attachments.find(name) == attachments.end())
+			throw std::runtime_error("Attachment name - " + name + " not found");
+
+		return attachments[name].samples;
+	}
+
 	void updateAttachmentDescription(std::string name, VkAttachmentDescription description)
 	{	
 		if (attachments.find(name) == attachments.end())
-			throw std::runtime_error("Attachment name not found");
+			throw std::runtime_error("Attachment name - " + name + " not found");
 		
 		FboData data = attachments[name];
 		description.format = data.format;
@@ -107,7 +95,7 @@ public:
 		auto iter = attachmentDescriptions.insert(std::make_pair(name, description));
 
 		if (iter.second == false)
-			throw std::runtime_error("Attachment Description already updated");
+			attachmentDescriptions[name] = description;
 	}
 
 	void getAttachmentDescriptions(std::vector<VkAttachmentDescription> &_attachmentDescriptions) 

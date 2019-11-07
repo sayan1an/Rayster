@@ -36,22 +36,16 @@ public:
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 
-	void createSubpassDescription(const VkDevice &device) {
+	void createSubpassDescription(const VkDevice &device, FboManager &fboMgr) {
 		// ref to multi-sample color buffer
-		colorAttachmentRef = {};
-		colorAttachmentRef.attachment = 0; // index to frame buffer
-		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
+		colorAttachmentRef = fboMgr.getAttachmentReference("diffuseColor", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		
 		// ref to multi-sample depth buffer
-		depthAttachmentRef = {};
-		depthAttachmentRef.attachment = 1;
-		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
+		depthAttachmentRef = fboMgr.getAttachmentReference("depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+		
 		// ref to color resolve image buffer
-		colorAttachmentResolveRef = {};
-		colorAttachmentResolveRef.attachment = 3;
-		colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
+		colorAttachmentResolveRef = fboMgr.getAttachmentReference("diffuseColorResolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpassDescription.colorAttachmentCount = 1;
@@ -100,14 +94,12 @@ public:
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 
-	void createSubpassDescription(const VkDevice& device)
+	void createSubpassDescription(const VkDevice& device, FboManager &fboMgr)
 	{
-		colorAttachmentRef = {};
-		colorAttachmentRef.attachment = 2; // index to framebuffer
-		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		inputAttachmentRefs.push_back({ 4, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		inputAttachmentRefs.push_back({ 4, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		colorAttachmentRef = fboMgr.getAttachmentReference("swapchain", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		
+		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("csout", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("csout", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -175,13 +167,13 @@ private:
 	Subpass2 subpass2;
 	ComputePipeline computePipeline;
 
-	VkImage colorImage;
-	VmaAllocation colorImageAllocation;
-	VkImageView colorImageView;
+	VkImage diffuseColorImage;
+	VmaAllocation diffuseColorImageAllocation;
+	VkImageView diffuseColorImageView;
 
-	VkImage colorResolveImage;
-	VmaAllocation colorResolveImageAllocation;
-	VkImageView colorResolveImageView;
+	VkImage diffuseColorResolveImage;
+	VmaAllocation diffuseColorResolveImageAllocation;
+	VkImageView diffuseColorResolveImageView;
 
 	VkImage computeShaderOutImage;
 	VmaAllocation computeShaderOutImageAllocation;
@@ -197,11 +189,19 @@ private:
 	VkCommandBuffer computeCommandBuffer;
 	VkFence computeShaderFence;
 
+	FboManager fboManager;
+
 	void init() {
+		fboManager.addColorAttachment("diffuseColor", VK_FORMAT_R8G8B8A8_UNORM, msaaSamples, &diffuseColorImageView);
+		fboManager.addDepthAttachment("depth", findDepthFormat(physicalDevice), msaaSamples, &depthImageView);
+		fboManager.addColorAttachment("diffuseColorResolve", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &diffuseColorResolveImageView);
+		fboManager.addColorAttachment("swapchain", swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT, swapChainImageViews.data(), static_cast<uint32_t>(swapChainImageViews.size()));
+		fboManager.addColorAttachment("csout", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &computeShaderOutImageView);
+
 		loadScene(model, cam);
 
-		subpass1.createSubpassDescription(device);
-		subpass2.createSubpassDescription(device);
+		subpass1.createSubpassDescription(device, fboManager);
+		subpass2.createSubpassDescription(device, fboManager);
 		createRenderPass();
 		
 		createColorResources();
@@ -211,7 +211,7 @@ private:
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, computeShaderOutImageView);
-		computePipeline.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
+		computePipeline.createPipeline(device, diffuseColorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
 		createComputeCommandBuffer();
 		createComputeSyncObject();
@@ -221,11 +221,11 @@ private:
 		vkDestroyImageView(device, depthImageView, nullptr);
 		vmaDestroyImage(allocator, depthImage, depthImageAllocation);
 
-		vkDestroyImageView(device, colorImageView, nullptr);
-		vmaDestroyImage(allocator, colorImage, colorImageAllocation);
+		vkDestroyImageView(device, diffuseColorImageView, nullptr);
+		vmaDestroyImage(allocator, diffuseColorImage, diffuseColorImageAllocation);
 
-		vkDestroyImageView(device, colorResolveImageView, nullptr);
-		vmaDestroyImage(allocator, colorResolveImage, colorResolveImageAllocation);
+		vkDestroyImageView(device, diffuseColorResolveImageView, nullptr);
+		vmaDestroyImage(allocator, diffuseColorResolveImage, diffuseColorResolveImageAllocation);
 
 		vkDestroyImageView(device, computeShaderOutImageView, nullptr);
 		vmaDestroyImage(allocator, computeShaderOutImage, computeShaderOutImageAllocation);
@@ -264,7 +264,7 @@ private:
 
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, computeShaderOutImageView);
-		computePipeline.createPipeline(device, colorResolveImageView, computeShaderOutImageView);
+		computePipeline.createPipeline(device, diffuseColorResolveImageView, computeShaderOutImageView);
 		createCommandBuffers();
 		createComputeCommandBuffer();
 	}
@@ -277,59 +277,36 @@ private:
 
 	void createRenderPass() {
 		// Overall idea: Vulkan will resolve/change multi-sample color image to regular swap chain comaptible/presentable image
-		// Hence we have to attach a colorAttachemnt (MSAA image) and colorAttachmentResolve(swap chain image).
+		// Hence we have to attach a colorAttachemnt (MSAA image) and colorAttachmentResolve.
 
-		// This corresponds to the multi-sampled color buffer
-		VkAttachmentDescription colorAttachment = {};
-		colorAttachment.format = swapChainImageFormat;
-		colorAttachment.samples = msaaSamples; // multiple samples
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // since we are not directly presenting the color attachment we use K_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL instead of VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+		// multi-sampled diffuse color buffer
+		VkAttachmentDescription attachment = {};
+		attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		fboManager.updateAttachmentDescription("diffuseColor", attachment);
 		
-		VkAttachmentDescription depthAttachment = {};
-		depthAttachment.format = findDepthFormat(physicalDevice);
-		depthAttachment.samples = msaaSamples; // multiple samples
-		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		// depth buffer
+		attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		fboManager.updateAttachmentDescription("depth", attachment);
 
-		// this corresponds to the swap chain images
-		VkAttachmentDescription swapChainAttachment = {};
-		swapChainAttachment.format = swapChainImageFormat;
-		swapChainAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-		swapChainAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		swapChainAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		swapChainAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		swapChainAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		swapChainAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		swapChainAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		// swap chain images
+		attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		fboManager.updateAttachmentDescription("swapchain", attachment);
 
-		VkAttachmentDescription colorAttachmentResolve = {};
-		colorAttachmentResolve.format = swapChainImageFormat;
-		colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
-		colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-		VkAttachmentDescription computeShaderOutputAttachment = {};
-		computeShaderOutputAttachment.format = swapChainImageFormat;
-		computeShaderOutputAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-		computeShaderOutputAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		computeShaderOutputAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		computeShaderOutputAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		computeShaderOutputAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		computeShaderOutputAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		computeShaderOutputAttachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
+		// diffuse resolve image
+		attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		attachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
+		fboManager.updateAttachmentDescription("diffuseColorResolve", attachment);
+		
+		fboManager.updateAttachmentDescription("csout", attachment);
 		
 		std::array<VkSubpassDescription, 2> subpassDesc = { subpass1.subpassDescription, subpass2.subpassDescription };
 				
@@ -360,7 +337,9 @@ private:
 		dependencies[2].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 		dependencies[2].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-		std::array<VkAttachmentDescription, 5> attachments = { colorAttachment, depthAttachment, swapChainAttachment, colorAttachmentResolve, computeShaderOutputAttachment }; 
+		std::vector<VkAttachmentDescription> attachments;
+		fboManager.getAttachmentDescriptions(attachments);
+
 		VkRenderPassCreateInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 		renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
@@ -379,13 +358,8 @@ private:
 		swapChainFramebuffers.resize(swapChainImageViews.size());
 
 		for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-			std::array<VkImageView, 5> attachments = {
-				colorImageView, // Multi sample color image
-				depthImageView, // Multi sample depth image
-				swapChainImageViews[i], // Singe sample swap chain image
-				colorResolveImageView, // single sample color resolve image
-				computeShaderOutImageView // compute shader output
-			};
+			std::vector<VkImageView> attachments;
+			fboManager.getAttachments(attachments, static_cast<uint32_t>(i));
 
 			VkFramebufferCreateInfo framebufferInfo = {};
 			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -404,7 +378,7 @@ private:
 
 	void createColorResources() {
 		{
-			VkFormat colorFormat = swapChainImageFormat;
+			VkFormat colorFormat = fboManager.getFormat("diffuseColor");
 
 			// change number of samples to msaaSamples
 			VkImageCreateInfo imageCreateInfo = {};
@@ -419,21 +393,21 @@ private:
 			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-			imageCreateInfo.samples = msaaSamples; // number of msaa samples
+			imageCreateInfo.samples = fboManager.getSampleCount("diffuseColor");
 			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 			VmaAllocationCreateInfo allocCreateInfo = {};
 			allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-			if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &colorImage, &colorImageAllocation, nullptr) != VK_SUCCESS)
+			if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &diffuseColorImage, &diffuseColorImageAllocation, nullptr) != VK_SUCCESS)
 				throw std::runtime_error("Failed to create color image!");
 
-			colorImageView = createImageView(device, colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
+			diffuseColorImageView = createImageView(device, diffuseColorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 
-			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, colorImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1, 1);
+			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, diffuseColorImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1, 1);
 		}
 		{
-			VkFormat colorFormat = swapChainImageFormat;
+			VkFormat colorFormat = fboManager.getFormat("diffuseColorResolve");
 
 			VkImageCreateInfo imageCreateInfo = {};
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -447,21 +421,21 @@ private:
 			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT; 
+			imageCreateInfo.samples = fboManager.getSampleCount("diffuseColorResolve");
 			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 			VmaAllocationCreateInfo allocCreateInfo = {};
 			allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-			if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &colorResolveImage, &colorResolveImageAllocation, nullptr) != VK_SUCCESS)
+			if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &diffuseColorResolveImage, &diffuseColorResolveImageAllocation, nullptr) != VK_SUCCESS)
 				throw std::runtime_error("Failed to create color image!");
 
-			colorResolveImageView = createImageView(device, colorResolveImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
+			diffuseColorResolveImageView = createImageView(device, diffuseColorResolveImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 
-			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, colorResolveImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
+			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, diffuseColorResolveImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
 		}
 		{
-			VkFormat colorFormat = swapChainImageFormat;
+			VkFormat colorFormat = fboManager.getFormat("csout");
 
 			VkImageCreateInfo imageCreateInfo = {};
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -475,7 +449,7 @@ private:
 			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			imageCreateInfo.usage = VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+			imageCreateInfo.samples = fboManager.getSampleCount("csout");
 			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 			VmaAllocationCreateInfo allocCreateInfo = {};
@@ -491,7 +465,7 @@ private:
 	}
 
 	void createDepthResources() {
-		VkFormat depthFormat = findDepthFormat(physicalDevice);
+		VkFormat depthFormat = fboManager.getFormat("depth");
 
 		// change number of samples to msaaSamples
 		VkImageCreateInfo imageCreateInfo = {};
@@ -506,7 +480,7 @@ private:
 		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		imageCreateInfo.samples = msaaSamples; // number of msaa samples
+		imageCreateInfo.samples = fboManager.getSampleCount("depth");
 		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 		VmaAllocationCreateInfo allocCreateInfo = {};
@@ -559,7 +533,7 @@ private:
 			imageMemoryBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 			imageMemoryBarriers[1].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
 			imageMemoryBarriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarriers[1].image = colorResolveImage;
+			imageMemoryBarriers[1].image = diffuseColorResolveImage;
 			imageMemoryBarriers[1].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 			imageMemoryBarriers[1].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
 			imageMemoryBarriers[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -581,10 +555,7 @@ private:
 			renderPassInfo.renderArea.offset = { 0, 0 };
 			renderPassInfo.renderArea.extent = swapChainExtent;
 
-			std::array<VkClearValue, 2> clearValues = {};
-			clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
-			clearValues[1].depthStencil = { 1.0f, 0 };
-
+			std::vector<VkClearValue> clearValues = fboManager.getClearValues();
 			renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 			renderPassInfo.pClearValues = clearValues.data();
 
@@ -671,7 +642,6 @@ private:
 	}
 };
 
-/*
 int main() {
 	{
 		GraphicsComputeApplication app;
@@ -688,7 +658,7 @@ int main() {
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}*/
+}
 
 
 
