@@ -202,13 +202,19 @@ public:
 		return hdrTexGen.addTexture(texture);
 	}
 	
-	void addInstance(uint32_t meshIdx, uint32_t textureIdx, glm::mat4 &transform)
+	void addInstance(uint32_t meshIdx, uint32_t diffuseTextureIdx, uint32_t specularTextureIdx, uint32_t alphaIorTextureIdx, uint32_t bsdfType, glm::mat4 &transform)
 	{
 		if (meshIdx >= meshes.size())
 			throw std::runtime_error("This mesh does not exsist");
 
-		if (textureIdx >= ldrTexGen.size())
-			throw std::runtime_error("This texture does not exsist");
+		if (diffuseTextureIdx >= ldrTexGen.size())
+			throw std::runtime_error("This ldr texture does not exsist");
+
+		if (specularTextureIdx >= ldrTexGen.size())
+			throw std::runtime_error("This ldr texture does not exsist");
+
+		if (alphaIorTextureIdx >= hdrTexGen.size())
+			throw std::runtime_error("This hdr texture does not exsist");
 
 		// assumes instances have meshIdx in groups i.e. aaa-bbbbb-ccccc-dddddd. 
 		uint32_t firstInstance = 0;
@@ -216,12 +222,14 @@ public:
 			firstInstance++;
 
 		if (meshPointers.size() < 2 || firstInstance >= meshPointers.size() - 1) {
-			instanceData_static.push_back({ glm::uvec4(textureIdx, 0, 0, 0) });
+			instanceData_static.push_back({ 
+				glm::uvec4(diffuseTextureIdx, specularTextureIdx, alphaIorTextureIdx, bsdfType) });
 			instanceData_dynamic.push_back({ transform });
 			meshPointers.push_back(meshIdx);
 		}
 		else {
-			instanceData_static.insert(instanceData_static.begin() + firstInstance + 1, 1, { glm::uvec4(textureIdx, 0, 0, 0) });
+			instanceData_static.insert(instanceData_static.begin() + firstInstance + 1, 1, { 
+				glm::uvec4(diffuseTextureIdx, specularTextureIdx, alphaIorTextureIdx, bsdfType) });
 			instanceData_dynamic.insert(instanceData_dynamic.begin() + firstInstance + 1, 1, { transform });
 			meshPointers.insert(meshPointers.begin() + firstInstance + 1, 1, meshIdx);
 		}

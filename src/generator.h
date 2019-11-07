@@ -58,6 +58,115 @@ rtStateObject = pipeline.Generate();
 #include "helper.h"
 #include <string>
 #include <vector>
+#include <map>
+
+class FboManager
+{
+public:
+	void addDepthAttachment(std::string name, VkFormat format, VkSampleCountFlagBits sample,
+		const VkImageView* view, uint32_t count = 1, VkClearDepthStencilValue clearDepth = { 1.0f, 0 })
+	{
+		VkClearValue v = {};
+		v.depthStencil = clearDepth;
+
+		addAttachment(name, format, sample, view, count, v);
+	}
+
+	void addColorAttachment(std::string name, VkFormat format, VkSampleCountFlagBits sample,
+		const VkImageView* view, uint32_t count = 1, VkClearColorValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f })
+	{
+		VkClearValue v = {};
+		v.color = clearColor;
+
+		addAttachment(name, format, sample, view, count, v);
+	}
+
+	VkAttachmentReference getAttachmentReference(std::string name, VkImageLayout layout)
+	{	
+		if (attachments.find(name) == attachments.end())
+			throw std::runtime_error("Attachment not found");
+
+		VkAttachmentReference ref = {};
+		const FboData data = attachments[name];
+		
+		ref.attachment = data.index;
+		ref.layout = layout;
+
+		return ref;
+	}
+
+	void updateAttachmentDescription(std::string name, VkAttachmentDescription description)
+	{	
+		if (attachments.find(name) == attachments.end())
+			throw std::runtime_error("Attachment name not found");
+		
+		FboData data = attachments[name];
+		description.format = data.format;
+		description.samples = data.samples;
+		
+		auto iter = attachmentDescriptions.insert(std::make_pair(name, description));
+
+		if (iter.second == false)
+			throw std::runtime_error("Attachment Description already updated");
+	}
+
+	void getAttachmentDescriptions(std::vector<VkAttachmentDescription> &_attachmentDescriptions) 
+	{
+		if (attachmentDescriptions.size() != attachments.size())
+			throw std::runtime_error("One or more of the attachment descriptions has not been updated");
+
+		_attachmentDescriptions.resize(attachments.size());
+		for (const auto& attachment : attachments) {
+			if (attachmentDescriptions.find(attachment.first) == attachmentDescriptions.end())
+				throw std::runtime_error("This should not be happening, something wrong with the logic; attchemnt name not found");
+
+			_attachmentDescriptions[attachment.second.index] = attachmentDescriptions[attachment.first];
+		}
+	}
+
+	void getAttachments(std::vector<VkImageView>& _attachmentImageViews, uint32_t index)
+	{
+		_attachmentImageViews.resize(attachments.size());
+
+		for (const auto& attachment : attachments) {
+			uint32_t count = attachment.second.count;
+			_attachmentImageViews[attachment.second.index] = attachment.second.view[index < count ? index : count - 1];
+		}
+
+	}
+
+	std::vector<VkClearValue>& getClearValues() {
+		return clearValues;
+	}
+
+private:
+	struct FboData
+	{	
+		uint32_t index;
+		VkFormat format;
+		VkSampleCountFlagBits samples;
+		const VkImageView *view;
+		uint32_t count;
+	};
+
+	std::vector<VkClearValue> clearValues;
+	std::map<std::string, VkAttachmentDescription> attachmentDescriptions;
+	std::map<std::string, FboData> attachments;
+
+	void addAttachment(std::string name, VkFormat format, VkSampleCountFlagBits sample, 
+		const VkImageView* view, uint32_t count, VkClearValue clear)
+	{
+		uint32_t index = static_cast<uint32_t>(attachments.size());
+
+		FboData data = { index, format, sample, view, count };
+		auto iter = attachments.insert(std::make_pair(name, data));
+
+		if (iter.second == false)
+			throw std::runtime_error("Attachment already exsists");
+
+		clearValues.push_back(clear);
+	}
+};
 
 class TextureGenerator 
 {

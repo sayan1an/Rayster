@@ -21,11 +21,15 @@ layout(location = 4) in uvec4 inData;
 layout(location = 5) in mat4 modelTransform;
 
 layout(location = 0) out vec3 fragColor;
-layout(location = 1) out vec3 fragTexCoord;
+layout(location = 1) out vec3 fragNormal;
+layout(location = 2) out vec2 fragTexCoord;
+layout(location = 3) out uvec4 fragData;
 
-void main() {
+void main() 
+{
     gl_Position = ubo.proj * ubo.view * modelTransform * vec4(inPosition, 1.0);
     fragColor = inColor;
-    float diffuseTextureIdx = inData.x;
-    fragTexCoord = vec3(inTexCoord, diffuseTextureIdx);
+    fragNormal = (transpose(modelTransform) * vec4(inNormal, 0)).xyz;
+    fragTexCoord = inTexCoord;
+    fragData = inData;
 }

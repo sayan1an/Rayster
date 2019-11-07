@@ -68,7 +68,10 @@ static Mesh* loadMeshTiny(const char* meshPath)
 
 static void loadSpaceship(Model& model, Camera& cam)
 {
-	cam.setCamera({ -0.99069f, 0.007035f, 0.135953f, -0.519664f, 9.40074e-010f, 0.998664f, -0.0516768f, 0.817007f, -0.136134f, -0.0511957f, -0.989367f, 3.82439f, 0, 0, 0, 1 }, 5, 60);
+	cam.setCamera({ -0.99069f, 0.007035f, 0.135953f, -0.519664f, 
+			9.40074e-010f, 0.998664f, -0.0516768f, 0.817007f, 
+			-0.136134f, -0.0511957f, -0.989367f, 3.82439f, 
+			0, 0, 0, 1 }, 5, 60);
 	cam.setAngleIncrement(0.01f);
 
 	auto changeTexCoord = [](Mesh* mesh)
@@ -78,7 +81,8 @@ static void loadSpaceship(Model& model, Camera& cam)
 	};
 
 	for (int i = 0; i < 88; i++) {
-		std::string meshFile = ROOT + "/models/spaceship/meshes/Mesh0" + std::string((i < 10) ? "0" : "") + std::to_string(i) + ".obj";
+		std::string meshFile = ROOT + "/models/spaceship/meshes/Mesh0" 
+			+ std::string((i < 10) ? "0" : "") + std::to_string(i) + ".obj";
 		Mesh* mesh = loadMeshTiny(meshFile.c_str());
 		changeTexCoord(mesh);
 		model.addMesh(mesh);
@@ -131,7 +135,9 @@ static void loadSpaceship(Model& model, Camera& cam)
 		for (const auto& material : materials) {
 			if (material.name.compare(matName) == 0) {
 				glm::mat4 tf = glm::identity<glm::mat4>();
-				model.addInstance(meshIdx, material.diffuseTextureIdx, tf);
+				model.addInstance(meshIdx, 
+					material.diffuseTextureIdx, material.specularTextureIdx, 
+					material.alphaIntExtIorTextureIdx, material.brdfType, tf);
 				break;
 			}
 		}
