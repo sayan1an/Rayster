@@ -38,20 +38,26 @@ public:
 
 	void createSubpassDescription(const VkDevice &device, FboManager &fboMgr) {
 		// ref to multi-sample color buffer
-		colorAttachmentRef = fboMgr.getAttachmentReference("diffuseColor", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("diffuseColor", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("specularColor", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("normal", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("other", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 		
 		// ref to multi-sample depth buffer
 		depthAttachmentRef = fboMgr.getAttachmentReference("depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 		
 		// ref to color resolve image buffer
-		colorAttachmentResolveRef = fboMgr.getAttachmentReference("diffuseColorResolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		colorAttachmentResolveRefs.push_back(fboMgr.getAttachmentReference("diffuseColorResolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+		colorAttachmentResolveRefs.push_back(fboMgr.getAttachmentReference("specularColorResolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+		colorAttachmentResolveRefs.push_back(fboMgr.getAttachmentReference("normalResolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+		colorAttachmentResolveRefs.push_back(fboMgr.getAttachmentReference("otherResolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 		
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpassDescription.colorAttachmentCount = 1;
-		subpassDescription.pColorAttachments = &colorAttachmentRef;
+		subpassDescription.colorAttachmentCount = static_cast<uint32_t>(colorAttachmentRefs.size());
+		subpassDescription.pColorAttachments = colorAttachmentRefs.data();
 		subpassDescription.pDepthStencilAttachment = &depthAttachmentRef;
-		subpassDescription.pResolveAttachments = &colorAttachmentResolveRef;
+		subpassDescription.pResolveAttachments = colorAttachmentResolveRefs.data();
 	}
 	
 	void createSubpass(const VkDevice &device, const VkExtent2D &swapChainExtent, const VkSampleCountFlagBits &msaaSamples, const VkRenderPass &renderPass,
@@ -71,13 +77,14 @@ public:
 		gfxPipeGen.addVertexInputState(bindingDescription, attributeDescription);
 		gfxPipeGen.addViewportState(swapChainExtent);
 		gfxPipeGen.addMsaaSate(msaaSamples);
+		gfxPipeGen.addColorBlendAttachmentState(4);
 
 		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 0, &pipeline, &pipelineLayout);
 	}
 private:
-	VkAttachmentReference colorAttachmentRef;
+	std::vector<VkAttachmentReference> colorAttachmentRefs;
 	VkAttachmentReference depthAttachmentRef;
-	VkAttachmentReference colorAttachmentResolveRef;
+	std::vector<VkAttachmentReference> colorAttachmentResolveRefs;
 
 	GraphicsPipelineGenerator gfxPipeGen;
 	DescriptorSetGenerator descGen;
@@ -100,6 +107,9 @@ public:
 		
 		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("csout", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("csout", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("csout", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("csout", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("csout", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -112,6 +122,10 @@ public:
 	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const VkImageView& inputImageView) {
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -167,14 +181,27 @@ private:
 	Subpass2 subpass2;
 	ComputePipeline computePipeline;
 
-	VkImage diffuseColorImage;
-	VmaAllocation diffuseColorImageAllocation;
-	VkImageView diffuseColorImageView;
+	struct MSAABuf 
+	{
+		VkImage image, imageResolve;
+		VmaAllocation allocation, allocationResolve;
+		VkImageView view, viewResolve;
 
-	VkImage diffuseColorResolveImage;
-	VmaAllocation diffuseColorResolveImageAllocation;
-	VkImageView diffuseColorResolveImageView;
+		void cleanUp(const VkDevice &device, const VmaAllocator allocator)
+		{
+			vkDestroyImageView(device, view, nullptr);
+			vmaDestroyImage(allocator, image, allocation);
 
+			vkDestroyImageView(device, viewResolve, nullptr);
+			vmaDestroyImage(allocator, imageResolve, allocationResolve);
+		}
+	};
+
+	MSAABuf diffuseColor;
+	MSAABuf specularColor;
+	MSAABuf normal;
+	MSAABuf otherInfo;
+	
 	VkImage computeShaderOutImage;
 	VmaAllocation computeShaderOutImageAllocation;
 	VkImageView computeShaderOutImageView;
@@ -191,10 +218,17 @@ private:
 
 	FboManager fboManager;
 
-	void init() {
-		fboManager.addColorAttachment("diffuseColor", VK_FORMAT_R8G8B8A8_UNORM, msaaSamples, &diffuseColorImageView);
+	void init() 
+	{
+		fboManager.addColorAttachment("diffuseColor", VK_FORMAT_R8G8B8A8_UNORM, msaaSamples, &diffuseColor.view);
+		fboManager.addColorAttachment("specularColor", VK_FORMAT_R8G8B8A8_UNORM, msaaSamples, &specularColor.view);
+		fboManager.addColorAttachment("normal", VK_FORMAT_R32G32B32A32_SFLOAT, msaaSamples, &normal.view, 1, { 0.0f, 0.0f, 0.0f, 0.0f });
+		fboManager.addColorAttachment("other", VK_FORMAT_R32G32B32A32_SFLOAT, msaaSamples, &otherInfo.view, 1, { -1.0f, 0.0f, 0.0f, -1.0f });
 		fboManager.addDepthAttachment("depth", findDepthFormat(physicalDevice), msaaSamples, &depthImageView);
-		fboManager.addColorAttachment("diffuseColorResolve", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &diffuseColorResolveImageView);
+		fboManager.addColorAttachment("diffuseColorResolve", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &diffuseColor.viewResolve);
+		fboManager.addColorAttachment("specularColorResolve", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &specularColor.viewResolve);
+		fboManager.addColorAttachment("normalResolve", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &normal.viewResolve);
+		fboManager.addColorAttachment("otherResolve", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &otherInfo.viewResolve);
 		fboManager.addColorAttachment("swapchain", swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT, swapChainImageViews.data(), static_cast<uint32_t>(swapChainImageViews.size()));
 		fboManager.addColorAttachment("csout", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &computeShaderOutImageView);
 
@@ -204,14 +238,13 @@ private:
 		subpass2.createSubpassDescription(device, fboManager);
 		createRenderPass();
 		
-		createColorResources();
-		createDepthResources();
+		createFboResources();
 		createFramebuffers();
 		
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, computeShaderOutImageView);
-		computePipeline.createPipeline(device, diffuseColorResolveImageView, computeShaderOutImageView);
+		computePipeline.createPipeline(device, diffuseColor.viewResolve, computeShaderOutImageView);
 		createCommandBuffers();
 		createComputeCommandBuffer();
 		createComputeSyncObject();
@@ -221,12 +254,11 @@ private:
 		vkDestroyImageView(device, depthImageView, nullptr);
 		vmaDestroyImage(allocator, depthImage, depthImageAllocation);
 
-		vkDestroyImageView(device, diffuseColorImageView, nullptr);
-		vmaDestroyImage(allocator, diffuseColorImage, diffuseColorImageAllocation);
-
-		vkDestroyImageView(device, diffuseColorResolveImageView, nullptr);
-		vmaDestroyImage(allocator, diffuseColorResolveImage, diffuseColorResolveImageAllocation);
-
+		diffuseColor.cleanUp(device, allocator);
+		specularColor.cleanUp(device, allocator);
+		normal.cleanUp(device, allocator);
+		otherInfo.cleanUp(device, allocator);
+		
 		vkDestroyImageView(device, computeShaderOutImageView, nullptr);
 		vmaDestroyImage(allocator, computeShaderOutImage, computeShaderOutImageAllocation);
 
@@ -258,13 +290,12 @@ private:
 
 	void recreateAfterSwapChainResize() {
 		createRenderPass();
-		createColorResources();
-		createDepthResources();
+		createFboResources();
 		createFramebuffers();
 
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, computeShaderOutImageView);
-		computePipeline.createPipeline(device, diffuseColorResolveImageView, computeShaderOutImageView);
+		computePipeline.createPipeline(device, diffuseColor.viewResolve, computeShaderOutImageView);
 		createCommandBuffers();
 		createComputeCommandBuffer();
 	}
@@ -288,6 +319,9 @@ private:
 		attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		fboManager.updateAttachmentDescription("diffuseColor", attachment);
+		fboManager.updateAttachmentDescription("specularColor", attachment);
+		fboManager.updateAttachmentDescription("normal", attachment);
+		fboManager.updateAttachmentDescription("other", attachment);
 		
 		// depth buffer
 		attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -305,6 +339,9 @@ private:
 		attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		attachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
 		fboManager.updateAttachmentDescription("diffuseColorResolve", attachment);
+		fboManager.updateAttachmentDescription("specularColorResolve", attachment);
+		fboManager.updateAttachmentDescription("normalResolve", attachment);
+		fboManager.updateAttachmentDescription("otherResolve", attachment);
 		
 		fboManager.updateAttachmentDescription("csout", attachment);
 		
@@ -376,11 +413,12 @@ private:
 		}
 	}
 
-	void createColorResources() {
+	void createFboResources() 
+	{
+		auto makeImage = [&device = device, &graphicsQueue = graphicsQueue,
+			&graphicsCommandPool = graphicsCommandPool, &allocator = allocator,
+			&swapChainExtent = swapChainExtent](VkFormat colorFormat, VkSampleCountFlagBits samples, VkImageUsageFlags usage, VkImageLayout layout, VkImage& image, VkImageView& imageView, VmaAllocation& allocation, boolean depthImage = false)
 		{
-			VkFormat colorFormat = fboManager.getFormat("diffuseColor");
-
-			// change number of samples to msaaSamples
 			VkImageCreateInfo imageCreateInfo = {};
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -392,108 +430,47 @@ private:
 			imageCreateInfo.format = colorFormat;
 			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-			imageCreateInfo.samples = fboManager.getSampleCount("diffuseColor");
+			imageCreateInfo.usage = usage;
+			imageCreateInfo.samples = samples;
 			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 			VmaAllocationCreateInfo allocCreateInfo = {};
 			allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-			if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &diffuseColorImage, &diffuseColorImageAllocation, nullptr) != VK_SUCCESS)
+			if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &image, &allocation, nullptr) != VK_SUCCESS)
 				throw std::runtime_error("Failed to create color image!");
 
-			diffuseColorImageView = createImageView(device, diffuseColorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
+			imageView = createImageView(device, image, colorFormat, depthImage ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 
-			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, diffuseColorImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1, 1);
-		}
-		{
-			VkFormat colorFormat = fboManager.getFormat("diffuseColorResolve");
+			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, image, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, layout, 1, 1);
+		};
 
-			VkImageCreateInfo imageCreateInfo = {};
-			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-			imageCreateInfo.extent.width = swapChainExtent.width;
-			imageCreateInfo.extent.height = swapChainExtent.width;
-			imageCreateInfo.extent.depth = 1;
-			imageCreateInfo.mipLevels = 1;
-			imageCreateInfo.arrayLayers = 1;
-			imageCreateInfo.format = colorFormat;
-			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-			imageCreateInfo.samples = fboManager.getSampleCount("diffuseColorResolve");
-			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		// MSAA buffers
+		makeImage(fboManager.getFormat("diffuseColor"), fboManager.getSampleCount("diffuseColor"), VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, diffuseColor.image, diffuseColor.view, diffuseColor.allocation);
+		makeImage(fboManager.getFormat("specularColor"), fboManager.getSampleCount("specularColor"), VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, specularColor.image, specularColor.view, specularColor.allocation);
+		makeImage(fboManager.getFormat("normal"), fboManager.getSampleCount("normal"), VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, normal.image, normal.view, normal.allocation);
+		makeImage(fboManager.getFormat("other"), fboManager.getSampleCount("other"), VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, otherInfo.image, otherInfo.view, otherInfo.allocation);
+		makeImage(fboManager.getFormat("depth"), fboManager.getSampleCount("depth"), VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+			VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, depthImage, depthImageView, depthImageAllocation, true);
 
-			VmaAllocationCreateInfo allocCreateInfo = {};
-			allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-			if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &diffuseColorResolveImage, &diffuseColorResolveImageAllocation, nullptr) != VK_SUCCESS)
-				throw std::runtime_error("Failed to create color image!");
-
-			diffuseColorResolveImageView = createImageView(device, diffuseColorResolveImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
-
-			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, diffuseColorResolveImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
-		}
-		{
-			VkFormat colorFormat = fboManager.getFormat("csout");
-
-			VkImageCreateInfo imageCreateInfo = {};
-			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-			imageCreateInfo.extent.width = swapChainExtent.width;
-			imageCreateInfo.extent.height = swapChainExtent.width;
-			imageCreateInfo.extent.depth = 1;
-			imageCreateInfo.mipLevels = 1;
-			imageCreateInfo.arrayLayers = 1;
-			imageCreateInfo.format = colorFormat;
-			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			imageCreateInfo.usage = VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-			imageCreateInfo.samples = fboManager.getSampleCount("csout");
-			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-			VmaAllocationCreateInfo allocCreateInfo = {};
-			allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-			if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &computeShaderOutImage, &computeShaderOutImageAllocation, nullptr) != VK_SUCCESS)
-				throw std::runtime_error("Failed to create color image!");
-
-			computeShaderOutImageView = createImageView(device, computeShaderOutImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
-
-			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, computeShaderOutImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
-		}
-	}
-
-	void createDepthResources() {
-		VkFormat depthFormat = fboManager.getFormat("depth");
-
-		// change number of samples to msaaSamples
-		VkImageCreateInfo imageCreateInfo = {};
-		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageCreateInfo.extent.width = swapChainExtent.width;
-		imageCreateInfo.extent.height = swapChainExtent.width;
-		imageCreateInfo.extent.depth = 1;
-		imageCreateInfo.mipLevels = 1;
-		imageCreateInfo.arrayLayers = 1;
-		imageCreateInfo.format = depthFormat;
-		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		imageCreateInfo.samples = fboManager.getSampleCount("depth");
-		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-		if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &depthImage, &depthImageAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create color image!");
+		// resolve buffers
+		makeImage(fboManager.getFormat("diffuseColorResolve"), fboManager.getSampleCount("diffuseColorResolve"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+			VK_IMAGE_LAYOUT_GENERAL, diffuseColor.imageResolve, diffuseColor.viewResolve, diffuseColor.allocationResolve);
+		makeImage(fboManager.getFormat("specularColorResolve"), fboManager.getSampleCount("specularColorResolve"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+			VK_IMAGE_LAYOUT_GENERAL, specularColor.imageResolve, specularColor.viewResolve, specularColor.allocationResolve);
+		makeImage(fboManager.getFormat("normalResolve"), fboManager.getSampleCount("normalResolve"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+			VK_IMAGE_LAYOUT_GENERAL, normal.imageResolve, normal.viewResolve, normal.allocationResolve);
+		makeImage(fboManager.getFormat("otherResolve"), fboManager.getSampleCount("otherResolve"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+			VK_IMAGE_LAYOUT_GENERAL, otherInfo.imageResolve, otherInfo.viewResolve, otherInfo.allocationResolve);
 		
-		depthImageView = createImageView(device, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1, 1);
-
-		transitionImageLayout(device, graphicsQueue, graphicsCommandPool, depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, 1);
+		makeImage(fboManager.getFormat("csout"), fboManager.getSampleCount("csout"), VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+			VK_IMAGE_LAYOUT_GENERAL, computeShaderOutImage, computeShaderOutImageView, computeShaderOutImageAllocation);
 	}
-
+	
 	void createCommandBuffers() {
 		commandBuffers.resize(swapChainFramebuffers.size());
 		
@@ -520,7 +497,7 @@ private:
 
 			// Image memory barrier to make sure that compute shader writes are finished before sampling from the texture
 			// Let the compute shader finish wrting before starting the second subpass
-			std::array<VkImageMemoryBarrier, 2> imageMemoryBarriers = {};
+			std::array<VkImageMemoryBarrier, 5> imageMemoryBarriers = {};
 			imageMemoryBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 			imageMemoryBarriers[0].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
 			imageMemoryBarriers[0].newLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -533,10 +510,34 @@ private:
 			imageMemoryBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 			imageMemoryBarriers[1].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
 			imageMemoryBarriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarriers[1].image = diffuseColorResolveImage;
+			imageMemoryBarriers[1].image = diffuseColor.imageResolve;
 			imageMemoryBarriers[1].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 			imageMemoryBarriers[1].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
 			imageMemoryBarriers[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+			imageMemoryBarriers[2].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			imageMemoryBarriers[2].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemoryBarriers[2].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemoryBarriers[2].image = specularColor.imageResolve;
+			imageMemoryBarriers[2].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+			imageMemoryBarriers[2].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			imageMemoryBarriers[2].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+			imageMemoryBarriers[3].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			imageMemoryBarriers[3].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemoryBarriers[3].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemoryBarriers[3].image = normal.imageResolve;
+			imageMemoryBarriers[3].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+			imageMemoryBarriers[3].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			imageMemoryBarriers[3].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+			imageMemoryBarriers[4].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			imageMemoryBarriers[4].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemoryBarriers[4].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemoryBarriers[4].image = otherInfo.imageResolve;
+			imageMemoryBarriers[4].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+			imageMemoryBarriers[4].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			imageMemoryBarriers[4].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 			
 			vkCmdPipelineBarrier(
 				commandBuffers[i],
@@ -641,7 +642,7 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-/*
+
 int main() {
 	{
 		GraphicsComputeApplication app;
@@ -659,6 +660,6 @@ int main() {
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-*/
+
 
 
