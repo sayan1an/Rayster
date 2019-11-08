@@ -19,6 +19,7 @@ layout(location = 4) in uvec4 inData;
 
 // per instance dynamic
 layout(location = 5) in mat4 modelTransform;
+layout(location = 9) in mat4 modelTransformIT;
 
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec3 fragNormal;
@@ -29,7 +30,7 @@ void main()
 {
     gl_Position = ubo.proj * ubo.view * modelTransform * vec4(inPosition, 1.0);
     fragColor = inColor;
-    fragNormal = (transpose(modelTransform) * vec4(inNormal, 0)).xyz;
+    fragNormal = (modelTransformIT * vec4(inNormal, 0)).xyz;
     fragTexCoord = inTexCoord;
     fragData = inData;
 }

@@ -643,6 +643,7 @@ private:
 	}
 };
 
+/*
 int main() {
 	{
 		GraphicsComputeApplication app;
@@ -660,6 +661,6 @@ int main() {
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-
+*/
 
 

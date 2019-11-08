@@ -376,7 +376,8 @@ private:
 		makeColorImage(fboManager.getFormat("other"), fboManager.getSampleCount("other"), otherInfoImage, otherInfoImageView, otherInfoImageAllocation);	
 	}
 
-	void createDepthResources() {
+	void createDepthResources() 
+	{
 		VkFormat depthFormat = fboManager.getFormat("depth");
 
 		// change number of samples to msaaSamples
@@ -406,7 +407,8 @@ private:
 		transitionImageLayout(device, graphicsQueue, graphicsCommandPool, depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, 1);
 	}
 
-	void createCommandBuffers() {
+	void createCommandBuffers() 
+	{
 		commandBuffers.resize(swapChainFramebuffers.size());
 
 		VkCommandBufferAllocateInfo allocInfo = {};
@@ -477,7 +479,7 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-/*
+
 int main() {
 	{
 		GBufferApplication app;
@@ -495,7 +497,7 @@ int main() {
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-*/
+
 
 
 

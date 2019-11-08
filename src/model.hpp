@@ -67,6 +67,7 @@ struct InstanceData_static
 // Per instance data, update at drawtime
 struct InstanceData_dynamic {
 	glm::mat4 model;
+	glm::mat4 modelIT; // inverse transpose for normal
 };
 
 // defines a single mesh and its instances
@@ -224,13 +225,13 @@ public:
 		if (meshPointers.size() < 2 || firstInstance >= meshPointers.size() - 1) {
 			instanceData_static.push_back({ 
 				glm::uvec4(diffuseTextureIdx, specularTextureIdx, alphaIorTextureIdx, bsdfType) });
-			instanceData_dynamic.push_back({ transform });
+			instanceData_dynamic.push_back({ transform, glm::transpose(glm::inverse(transform)) });
 			meshPointers.push_back(meshIdx);
 		}
 		else {
 			instanceData_static.insert(instanceData_static.begin() + firstInstance + 1, 1, { 
 				glm::uvec4(diffuseTextureIdx, specularTextureIdx, alphaIorTextureIdx, bsdfType) });
-			instanceData_dynamic.insert(instanceData_dynamic.begin() + firstInstance + 1, 1, { transform });
+			instanceData_dynamic.insert(instanceData_dynamic.begin() + firstInstance + 1, 1, { transform, glm::transpose(glm::inverse(transform)) });
 			meshPointers.insert(meshPointers.begin() + firstInstance + 1, 1, meshIdx);
 		}
 		
@@ -267,64 +268,113 @@ public:
 
 	static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() 
 	{
-		std::array<VkVertexInputAttributeDescription, 9> attributeDescriptions = {};
+		std::array<VkVertexInputAttributeDescription, 13> attributeDescriptions = {};
+		uint32_t location = 0;
 		// per vertex
-		attributeDescriptions[0].binding = VERTEX_BINDING_ID;
-		attributeDescriptions[0].location = 0;
-		attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[0].offset = offsetof(Vertex, pos);
+		attributeDescriptions[location].binding = VERTEX_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(Vertex, pos);
 
-		attributeDescriptions[1].binding = VERTEX_BINDING_ID;
-		attributeDescriptions[1].location = 1;
-		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[1].offset = offsetof(Vertex, color);
+		location++;
 
-		attributeDescriptions[2].binding = VERTEX_BINDING_ID;
-		attributeDescriptions[2].location = 2;
-		attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[2].offset = offsetof(Vertex, normal);
+		attributeDescriptions[location].binding = VERTEX_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(Vertex, color);
 
-		attributeDescriptions[3].binding = VERTEX_BINDING_ID;
-		attributeDescriptions[3].location = 3;
-		attributeDescriptions[3].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescriptions[3].offset = offsetof(Vertex, texCoord);
+		location++;
+
+		attributeDescriptions[location].binding = VERTEX_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(Vertex, normal);
+
+		location++;
+
+		attributeDescriptions[location].binding = VERTEX_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(Vertex, texCoord);
+
+		location++;
 
 		// per instance static
-		attributeDescriptions[4].binding = STATIC_INSTANCE_BINDING_ID;
-		attributeDescriptions[4].location = 4;
-		attributeDescriptions[4].format = VK_FORMAT_R32G32B32A32_UINT;
-		attributeDescriptions[4].offset = offsetof(InstanceData_static, data);
+		attributeDescriptions[location].binding = STATIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32A32_UINT;
+		attributeDescriptions[location].offset = offsetof(InstanceData_static, data);
+
+		location++;
 
 		// per instance dynamic
 		// We use next four locations for mat4 or 4 x vec4
-		attributeDescriptions[5].binding = DYNAMIC_INSTANCE_BINDING_ID;
-		attributeDescriptions[5].location = 5;
-		attributeDescriptions[5].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[5].offset = offsetof(InstanceData_dynamic, model);
+		attributeDescriptions[location].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(InstanceData_dynamic, model);
 
-		attributeDescriptions[6].binding = DYNAMIC_INSTANCE_BINDING_ID;
-		attributeDescriptions[6].location = 6;
-		attributeDescriptions[6].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[6].offset = offsetof(InstanceData_dynamic, model) + 16;
+		location++;
 
-		attributeDescriptions[7].binding = DYNAMIC_INSTANCE_BINDING_ID;
-		attributeDescriptions[7].location = 7;
-		attributeDescriptions[7].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[7].offset = offsetof(InstanceData_dynamic, model) + 32;
+		attributeDescriptions[location].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(InstanceData_dynamic, model) + 16;
 
-		attributeDescriptions[8].binding = DYNAMIC_INSTANCE_BINDING_ID;
-		attributeDescriptions[8].location = 8;
-		attributeDescriptions[8].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[8].offset = offsetof(InstanceData_dynamic, model) + 48;
+		location++;
+
+		attributeDescriptions[location].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(InstanceData_dynamic, model) + 32;
+
+		location++;
+
+		attributeDescriptions[location].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(InstanceData_dynamic, model) + 48;
+
+		location++;
+
+		attributeDescriptions[location].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(InstanceData_dynamic, modelIT);
+
+		location++;
+
+		attributeDescriptions[location].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(InstanceData_dynamic, modelIT) + 16;
+
+		location++;
+
+		attributeDescriptions[location].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(InstanceData_dynamic, modelIT) + 32;
+
+		location++;
+
+		attributeDescriptions[location].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(InstanceData_dynamic, modelIT) + 48;
+
+		location++;
 
 		return std::vector<VkVertexInputAttributeDescription>(attributeDescriptions.begin(), attributeDescriptions.end());
 	}
 
 	void updateMeshData() 
 	{
-		for (auto& instance : instanceData_dynamic)
-			instance.model = glm::translate<float>(instance.model,glm::vec3(0.0, 0.0, 0.0));
-
+		for (auto& instance : instanceData_dynamic) {
+			instance.model = glm::translate<float>(instance.model, glm::vec3(0.0, 0.0, 0.0));
+			//instance.model = glm::rotate<float>(instance.model, 0.001f, glm::vec3(0, 1, 0));
+			instance.modelIT = glm::transpose(glm::inverse(instance.model));
+		}
 		memcpy(mappedDynamicInstancePtr, instanceData_dynamic.data(), sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size());
 	}
 

@@ -13,7 +13,7 @@ void main()
 	// Apply brightness and contrast filer to color input
 	if (true) {
 		// Read color from previous color input attachment
-		outColor.rgb = subpassLoad(inDiffuseColor).rgb;
+		outColor.rgb = normalize(abs(subpassLoad(inNormal).rgb));
 	}
 
 	// Visualize depth input range
