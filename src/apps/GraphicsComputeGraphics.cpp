@@ -63,7 +63,7 @@ public:
 	void createSubpass(const VkDevice &device, const VkExtent2D &swapChainExtent, const VkSampleCountFlagBits &msaaSamples, const VkRenderPass &renderPass,
 		const Camera &cam, const VkImageView& ldrTextureImageView, const VkSampler& ldrTextureSampler, const VkImageView& hdrTextureImageView, const VkSampler& hdrTextureSampler) {
 		
-		descGen.bindBuffer({ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT }, cam.getDescriptorBufferInfo());
+		descGen.bindBuffer({ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT }, cam.getDescriptorBufferInfo());
 		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { ldrTextureSampler,  ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { hdrTextureSampler,  hdrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 
@@ -643,7 +643,7 @@ private:
 	}
 };
 
-/*
+
 int main() {
 	{
 		GraphicsComputeApplication app;
@@ -661,6 +661,6 @@ int main() {
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-*/
+
 
 

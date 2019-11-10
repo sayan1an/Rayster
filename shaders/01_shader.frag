@@ -1,6 +1,13 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
+layout(binding = 0) uniform UniformBufferObject {
+    mat4 view;
+    mat4 proj;
+    mat4 viewInv;
+    mat4 projInv;
+} ubo;
+
 layout(binding = 1) uniform sampler2DArray ldrTexSampler;
 layout(binding = 2) uniform sampler2DArray hdrTexSampler;
 
@@ -14,6 +21,7 @@ layout(location = 1) out vec4 outSpecularColor;
 layout(location = 2) out vec4 outNormal;
 layout(location = 3) out vec4 outDepthMatInfo;
 
+
 void main() 
 {
     uint diffuseTextureIdx = fragData.x;
@@ -24,5 +32,7 @@ void main()
     outSpecularColor = texture(ldrTexSampler, vec3(fragTexCoord, specularTextureIdx));
     vec4 alphaIntExtIor = texture(hdrTexSampler, vec3(fragTexCoord, alphaIorIdx));
     outNormal = vec4(fragNormal, alphaIntExtIor.x);
-    outDepthMatInfo = vec4(0, alphaIntExtIor.yz, bsdfType);
+    vec4 depth = ubo.projInv * vec4(0, 0, gl_FragCoord.z, 1);
+    // Depth is the distance of hit point from camera origin.
+    outDepthMatInfo = vec4(abs(depth.z  / depth.w), alphaIntExtIor.yz, bsdfType);
 }

@@ -13,7 +13,7 @@ void main()
 	// Apply brightness and contrast filer to color input
 	if (true) {
 		// Read color from previous color input attachment
-		outColor.rgb = normalize(abs(subpassLoad(inNormal).rgb));
+		outColor.rgb = vec3(subpassLoad(inDepthMatInfo).r / 10);
 	}
 
 	// Visualize depth input range

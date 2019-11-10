@@ -23,6 +23,10 @@ static const bool enableValidationLayers = true;
 #define ROUND_UP(v, powerOf2Alignment) (((v) + (powerOf2Alignment)-1) & ~((powerOf2Alignment)-1))
 #endif
 
+#ifndef PRINT_VECTOR
+#define PRINT_VECTOR(v) (std::cout << "(" << (v).x << ", " << (v).y << ", " << (v).z << ", " << (v).w << ")" << std::endl)
+#endif 
+
 
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphicsFamily;
