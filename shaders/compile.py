@@ -15,6 +15,9 @@ compileList.append(("./RTXApp/01_raygen.rgen", "./RTXApp/01_raygen.spv"))
 compileList.append(("./RTXApp/01_miss.rmiss", "./RTXApp/01_miss.spv"))
 compileList.append(("./RTXApp/01_close.rchit", "./RTXApp/01_close.spv"))
 
-for shader in compileList:
-    output = subprocess.Popen([glslangValidator, "-V", shader[0], "-o", shader[1] ], stdout=subprocess.PIPE).communicate()[0]
-    print(output.decode('utf-8'))
+try:
+    for shader in compileList:
+        output = subprocess.Popen([glslangValidator, "-V", shader[0], "-o", shader[1] ], stdout=subprocess.PIPE).communicate()[0]
+        print(output.decode('utf-8'))
+except FileNotFoundError:
+    print("Path to glslangValidator is invalid!")
