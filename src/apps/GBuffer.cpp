@@ -61,8 +61,8 @@ public:
 		auto bindingDescription = Model::getBindingDescription();
 		auto attributeDescription = Model::getAttributeDescriptions();
 
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/01_vert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/01_frag.spv");
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GBuffer/gBufVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GBuffer/gBufFrag.spv");
 		gfxPipeGen.addVertexInputState(bindingDescription, attributeDescription);
 		gfxPipeGen.addViewportState(swapChainExtent);
 		gfxPipeGen.addColorBlendAttachmentState(4);
@@ -117,8 +117,8 @@ public:
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/02_vert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/02_frag.spv");
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GBufferShow/gShowVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GBufferShow/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
 		gfxPipeGen.addDepthStencilState(VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
@@ -479,7 +479,6 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-
 /*
 int main() {
 	{
@@ -499,6 +498,4 @@ int main() {
 	return EXIT_SUCCESS;
 }
 */
-
-
 

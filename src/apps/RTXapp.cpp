@@ -45,11 +45,11 @@ public:
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RTXApp/01_rgen.spv");
-		uint32_t missShaderId = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RTXApp/01_rmiss.spv");
+		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RTXApp/01_raygen.spv");
+		uint32_t missShaderId = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RTXApp/01_miss.spv");
 		uint32_t hitGroupId = rtxPipeGen.startHitGroup();
 
-		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RTXApp/01_rchit.spv");
+		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RTXApp/01_close.spv");
 		rtxPipeGen.endHitGroup();
 		rtxPipeGen.setMaxRecursionDepth(1);
 
@@ -116,8 +116,8 @@ public:
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 		
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/02_vert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/02_frag.spv");
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GBufferShow/gShowVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GBufferShow/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
 		gfxPipeGen.addDepthStencilState(VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
@@ -500,7 +500,6 @@ private:
 	}
 };
 
-/*
 int main() {
 	{	
 		std::vector<const char*> deviceExtensions = { VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME};
@@ -520,4 +519,3 @@ int main() {
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-*/

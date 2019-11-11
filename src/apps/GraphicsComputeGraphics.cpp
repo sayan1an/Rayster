@@ -72,8 +72,8 @@ public:
 		auto bindingDescription = Model::getBindingDescription();
 		auto attributeDescription = Model::getAttributeDescriptions();
 
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/01_vert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/01_frag.spv");
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GBuffer/gBufVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GBuffer/gBufFrag.spv");
 		gfxPipeGen.addVertexInputState(bindingDescription, attributeDescription);
 		gfxPipeGen.addViewportState(swapChainExtent);
 		gfxPipeGen.addMsaaSate(msaaSamples);
@@ -129,8 +129,8 @@ public:
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/02_vert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/02_frag.spv");
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GBufferShow/gShowVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GBufferShow/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
 		gfxPipeGen.addDepthStencilState(VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
@@ -160,7 +160,7 @@ public:
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		compPipeGen.addComputeShaderStage(device, ROOT + "/shaders/03_comp.spv");
+		compPipeGen.addComputeShaderStage(device, ROOT + "/shaders/GraphicsComputeGraphicsApp/edgeDetectComp.spv");
 		compPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
 	}
 private:
@@ -643,7 +643,7 @@ private:
 	}
 };
 
-
+/*
 int main() {
 	{
 		GraphicsComputeApplication app;
@@ -661,6 +661,7 @@ int main() {
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
+*/
 
 
 
