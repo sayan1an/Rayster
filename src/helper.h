@@ -9,6 +9,7 @@
 #include "vulkan/vulkan.h"
 #include "vk_mem_alloc.h"
 #include "stb_image.h"
+#include "imgui.h"
 #include <glm/glm.hpp>
 
 #define ROOT std::string("D:/projects/VkExperiment")
@@ -55,19 +56,22 @@ struct Image2d
 	uint32_t size() const
 	{
 		switch (format) {
-		case VK_FORMAT_R8G8B8A8_UNORM:
-			return height * width * 4 * sizeof(unsigned char);
-		case VK_FORMAT_R32G32B32A32_SFLOAT:
-			return height * width * 4 * sizeof(float);
-		default:
-			throw std::runtime_error("Unrecognised texture format.");
+			case VK_FORMAT_R8G8B8A8_UNORM:
+				return height * width * 4 * sizeof(unsigned char);
+			case VK_FORMAT_R32G32B32A32_SFLOAT:
+				return height * width * 4 * sizeof(float);
+			default:
+				throw std::runtime_error("Unrecognised texture format.");
 		}
 
 		return 0;
 	}
 
 	uint32_t mipLevels() const
-	{
+	{	
+		if (forceMipLevelToOne)
+			return 1;
+
 		if (format == VK_FORMAT_R32G32B32A32_SFLOAT)
 			return 1;
 
@@ -127,6 +131,31 @@ struct Image2d
 
 		path = "";
 	}
+
+	// This is specific to ImGui fonts
+	Image2d(bool forceMipLevelToOne)
+	{	
+		if (ImGui::GetCurrentContext() == NULL)
+			throw std::runtime_error("ImGui context is null, cannot create font image.");
+
+		ImGuiIO& io = ImGui::GetIO();
+		unsigned char* fontData;
+		int textWidth;
+		int textHeight;
+		io.Fonts->GetTexDataAsRGBA32(&fontData, &textWidth, &textHeight);
+
+		pixels = static_cast<void*>(fontData);
+		width = static_cast<uint32_t>(textWidth);
+		height = static_cast<uint32_t>(textHeight);
+		format = VK_FORMAT_R8G8B8A8_UNORM;
+
+		this->forceMipLevelToOne = forceMipLevelToOne;
+
+		path = "";
+	}
+private:
+	
+	bool forceMipLevelToOne = false;
 };
 
 

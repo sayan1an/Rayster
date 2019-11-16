@@ -541,11 +541,14 @@ protected:
 	std::vector<VkPipelineShaderStageCreateInfo> shaderStageCIs;
 	std::vector<VkShaderModule> shaderModules;
 
-	void createPipelineLayout(const VkDevice& device, const VkDescriptorSetLayout& descriptorSetLayout, VkPipelineLayout *pipelineLayout) {
+	void createPipelineLayout(const VkDevice& device, const VkDescriptorSetLayout& descriptorSetLayout, VkPipelineLayout *pipelineLayout, const std::vector<VkPushConstantRange> &pushConstantRanges = std::vector<VkPushConstantRange>()) 
+	{
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = 1;
 		pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+		pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
+		pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
 
 		if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, pipelineLayout) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create pipeline layout!");
@@ -648,18 +651,31 @@ public:
 		msaaStateCI.rasterizationSamples = msaaSamples;
 	}
 
-	void addDepthStencilState(VkBool32 depthWriteEnable = VK_TRUE)
-	{
+	void addDepthStencilState(VkBool32 depthTestEnable = VK_TRUE, VkBool32 depthWriteEnable = VK_TRUE)
+	{	
+		depthStencilStateCI.depthTestEnable = depthTestEnable;
 		depthStencilStateCI.depthWriteEnable = depthWriteEnable;
 	}
 
-	void addColorBlendAttachmentState(uint32_t attachmentCount = 1)
+	void addColorBlendAttachmentState(uint32_t attachmentCount = 1, bool blendEnable = false)
 	{
 		colorBlendAttachmentStateCI.attachmentCount = attachmentCount;
 		
 		VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
 		colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		colorBlendAttachmentState.blendEnable = VK_FALSE;
+		
+		if (blendEnable) {
+			colorBlendAttachmentState.blendEnable = VK_TRUE;
+			colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+			colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+			colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+
+		}
+		else
+			colorBlendAttachmentState.blendEnable = VK_FALSE;
 
 		for (uint32_t i = 0; i < attachmentCount; i++)
 			colorBlendAttachmentStates.push_back(colorBlendAttachmentState);
@@ -667,9 +683,15 @@ public:
 		colorBlendAttachmentStateCI.pAttachments = colorBlendAttachmentStates.data();
 	}
 
-	void createPipeline(const VkDevice& device, const VkDescriptorSetLayout& descriptorSetLayout, const VkRenderPass& renderPass, uint32_t subpassIdx, VkPipeline* pipeline, VkPipelineLayout* pipelineLayout)
+	void addDynamicStates(const std::vector<VkDynamicState>& dynamicStates = std::vector<VkDynamicState>())
 	{
-		createPipelineLayout(device, descriptorSetLayout, pipelineLayout);
+		dynamicStateCI.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+		dynamicStateCI.pDynamicStates = dynamicStates.data();
+	}
+
+	void createPipeline(const VkDevice& device, const VkDescriptorSetLayout& descriptorSetLayout, const VkRenderPass& renderPass, uint32_t subpassIdx, VkPipeline* pipeline, VkPipelineLayout* pipelineLayout, const std::vector<VkPushConstantRange>& pushConstantRanges = std::vector<VkPushConstantRange>())
+	{
+		createPipelineLayout(device, descriptorSetLayout, pipelineLayout, pushConstantRanges);
 
 		VkGraphicsPipelineCreateInfo pipelineInfo = {};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -682,6 +704,7 @@ public:
 		pipelineInfo.pMultisampleState = &msaaStateCI;
 		pipelineInfo.pDepthStencilState = &depthStencilStateCI;
 		pipelineInfo.pColorBlendState = &colorBlendAttachmentStateCI;
+		pipelineInfo.pDynamicState = &dynamicStateCI;
 		pipelineInfo.layout = *pipelineLayout;
 		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 		pipelineInfo.renderPass = renderPass;
@@ -695,18 +718,24 @@ public:
 	}
 
 	void reset() {
+		vertexInputStateCI = {};
 		vertexInputStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 		
+		inputAssemblyStateCI = {};
 		inputAssemblyStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		addInputAssemblyState();
 
+		viewport = {};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
+		scissor = {};
 		scissor.offset = { 0, 0 };
+		viewportStateCI = {};
 		viewportStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 		viewportStateCI.viewportCount = 1;
 		viewportStateCI.scissorCount = 1;
 		
+		rasterizationStateCI = {};
 		rasterizationStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterizationStateCI.depthClampEnable = VK_FALSE;
 		rasterizationStateCI.rasterizerDiscardEnable = VK_FALSE;
@@ -716,17 +745,19 @@ public:
 		rasterizationStateCI.depthBiasEnable = VK_FALSE;
 		addRasterizationState();
 
+		msaaStateCI = {};
 		msaaStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 		msaaStateCI.sampleShadingEnable = VK_FALSE;
 		addMsaaSate();
 
+		depthStencilStateCI = {};
 		depthStencilStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		depthStencilStateCI.depthTestEnable = VK_TRUE;
 		depthStencilStateCI.depthCompareOp = VK_COMPARE_OP_LESS;
 		depthStencilStateCI.depthBoundsTestEnable = VK_FALSE;
 		depthStencilStateCI.stencilTestEnable = VK_FALSE;
 		addDepthStencilState();
 		
+		colorBlendAttachmentStateCI = {};
 		colorBlendAttachmentStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 		colorBlendAttachmentStateCI.logicOpEnable = VK_FALSE;
 		colorBlendAttachmentStateCI.logicOp = VK_LOGIC_OP_COPY;
@@ -735,6 +766,10 @@ public:
 		colorBlendAttachmentStateCI.blendConstants[2] = 0.0f;
 		colorBlendAttachmentStateCI.blendConstants[3] = 0.0f;
 		addColorBlendAttachmentState();
+
+		dynamicStateCI = {};
+		dynamicStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		addDynamicStates();
 	}
 private:
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCI;
@@ -750,6 +785,8 @@ private:
 	VkPipelineMultisampleStateCreateInfo msaaStateCI;
 
 	VkPipelineDepthStencilStateCreateInfo depthStencilStateCI;
+
+	VkPipelineDynamicStateCreateInfo dynamicStateCI;
 
 	std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachmentStates;
 	VkPipelineColorBlendStateCreateInfo colorBlendAttachmentStateCI;

@@ -120,7 +120,7 @@ public:
 		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GBufferShow/gShowVert.spv");
 		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GBufferShow/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
-		gfxPipeGen.addDepthStencilState(VK_FALSE);
+		gfxPipeGen.addDepthStencilState(VK_FALSE, VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
 		
 		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 1, &pipeline, &pipelineLayout);
@@ -348,7 +348,7 @@ private:
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 			imageCreateInfo.extent.width = swapChainExtent.width;
-			imageCreateInfo.extent.height = swapChainExtent.width;
+			imageCreateInfo.extent.height = swapChainExtent.height;
 			imageCreateInfo.extent.depth = 1;
 			imageCreateInfo.mipLevels = 1;
 			imageCreateInfo.arrayLayers = 1;
@@ -385,7 +385,7 @@ private:
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 		imageCreateInfo.extent.width = swapChainExtent.width;
-		imageCreateInfo.extent.height = swapChainExtent.width;
+		imageCreateInfo.extent.height = swapChainExtent.height;
 		imageCreateInfo.extent.depth = 1;
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.arrayLayers = 1;
@@ -479,8 +479,9 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-/*
-int main() {
+
+int main() 
+{
 	{
 		GBufferApplication app;
 
@@ -497,5 +498,5 @@ int main() {
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-*/
+
 

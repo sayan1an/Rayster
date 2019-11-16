@@ -119,7 +119,7 @@ public:
 		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GBufferShow/gShowVert.spv");
 		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GBufferShow/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
-		gfxPipeGen.addDepthStencilState(VK_FALSE);
+		gfxPipeGen.addDepthStencilState(VK_FALSE, VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
 
 		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 0, &pipeline, &pipelineLayout);
@@ -131,9 +131,8 @@ private:
 	GraphicsPipelineGenerator gfxPipeGen;
 };
 
-
-
-class RTXApplication : public WindowApplication {
+class RTXApplication : public WindowApplication 
+{
 public:
 	RTXApplication(const std::vector<const char*>& _instanceExtensions, const std::vector<const char*>& _deviceExtensions) : 
 		WindowApplication(std::vector<const char*>(), _instanceExtensions, _deviceExtensions, std::vector<const char*>()) {}
@@ -500,7 +499,9 @@ private:
 	}
 };
 
-int main() {
+/*
+int main() 
+{
 	{	
 		std::vector<const char*> deviceExtensions = { VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME};
 		std::vector<const char*> instanceExtensions = { VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
@@ -519,3 +520,4 @@ int main() {
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
+*/

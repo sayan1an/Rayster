@@ -75,12 +75,12 @@ uint32_t RayTracingPipelineGenerator::startHitGroup()
 // VK_SHADER_STAGE_INTERSECTION_BIT_NV
 uint32_t RayTracingPipelineGenerator::addAnyHitShaderStage(const VkDevice& device, const std::string& filename)
 {
-	if(!m_isHitGroupOpen)
+	if (!m_isHitGroupOpen)
 		throw std::logic_error("Cannot add hit stage in when no hit group open");
   
 	auto& group = m_shaderGroups[m_currentGroupIndex];
 
-	if(group.anyHitShader != VK_SHADER_UNUSED_NV)
+	if (group.anyHitShader != VK_SHADER_UNUSED_NV)
 		throw std::logic_error("Any hit shader already specified for current hit group");
       
 	createShaderStage(device, filename, VK_SHADER_STAGE_ANY_HIT_BIT_NV);

@@ -6,7 +6,8 @@
 
 class IO {
 public:
-	static std::vector<const char*> getRequiredExtensions() {
+	static std::vector<const char*> getRequiredExtensions() 
+	{
 		if (!glfwInitialized)
 			throw std::runtime_error("failed to initialize glfw!");
 
@@ -48,44 +49,53 @@ public:
 		}
 	}
 
-	inline bool isFramebufferResized(bool reset) {
+	inline bool isFramebufferResized(bool reset) 
+	{
 		bool retVal = framebufferResized;
 		framebufferResized = reset ? false : framebufferResized;
 		return retVal;
 	}
     
-	inline void getKeyboardInput(int &key, int &action) const {
+	inline void getKeyboardInput(int &key, int &action) const
+	{
 		key = kbKey;
 		action = kbAction;
 	}
 
-	inline void getMouseInput(int &key, int &action) const {
+	inline void getMouseInput(int &key, int &action) const 
+	{
 		key = muKey;
 		action = muAction;
 	}
 
-	inline void getMouseCursorPos(double &xpos, double &ypos) const {
+	inline void getMouseCursorPos(double &xpos, double &ypos) const 
+	{
 		glfwGetCursorPos(window, &xpos, &ypos);
 	}
 
-	inline void getMouseScrollOffset(double &scrollOffset) {
+	inline void getMouseScrollOffset(double &scrollOffset) 
+	{
 		scrollOffset = muScrollOffset;
 		muScrollOffset = 0.0;
 	}
 
-	inline int getLastKeyState(int key) const {
+	inline int getLastKeyState(int key) const 
+	{
 		return glfwGetKey(window, key);
 	}
 
-	inline int windowShouldClose() {
+	inline int windowShouldClose() 
+	{
 		return glfwWindowShouldClose(window);
 	}
 
-	inline void pollEvents() {
+	inline void pollEvents() 
+	{
 		glfwPollEvents();
 	}
 
-	void terminate() {
+	void terminate() 
+	{
 		glfwDestroyWindow(window);
 		glfwTerminate();
 	}
@@ -103,24 +113,28 @@ private:
 
 	double muScrollOffset = 0;
 	
-	static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+	static void framebufferResizeCallback(GLFWwindow* window, int width, int height) 
+	{
 		auto app = reinterpret_cast<IO *>(glfwGetWindowUserPointer(window));
 		app->framebufferResized = true;
 	}
 
-	static void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	static void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mods) 
+	{
 		auto app = reinterpret_cast<IO *>(glfwGetWindowUserPointer(window));
 		app->kbKey = key;
 		app->kbAction = action;
 	}
 
-	static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+	static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) 
+	{
 		auto app = reinterpret_cast<IO *>(glfwGetWindowUserPointer(window));
 		app->muKey = button;
 		app->muAction = action;
 	}
 
-	static void mouseScrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+	static void mouseScrollCallback(GLFWwindow* window, double xoffset, double yoffset) 
+	{
 		auto app = reinterpret_cast<IO *>(glfwGetWindowUserPointer(window));
 		app->muScrollOffset = yoffset;
 	}

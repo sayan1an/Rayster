@@ -9,6 +9,9 @@ compileList.append(("./GBuffer/gBuf.frag", "./GBuffer/gBufFrag.spv"))
 compileList.append(("./GBufferShow/gShow.vert", "./GBufferShow/gShowVert.spv"))
 compileList.append(("./GBufferShow/gShow.frag", "./GBufferShow/gShowFrag.spv"))
 
+compileList.append(("./ImGui/ui.vert", "./ImGui/uiVert.spv"))
+compileList.append(("./ImGui/ui.frag", "./ImGui/uiFrag.spv"))
+
 compileList.append(("./GraphicsComputeGraphicsApp/edgeDetect.comp", "./GraphicsComputeGraphicsApp/edgeDetectComp.spv"))
 
 compileList.append(("./RTXApp/01_raygen.rgen", "./RTXApp/01_raygen.spv"))
