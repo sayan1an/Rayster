@@ -124,7 +124,8 @@ public:
 
 	}
 
-	std::vector<VkClearValue>& getClearValues() {
+	std::vector<VkClearValue>& getClearValues() 
+	{
 		return clearValues;
 	}
 
@@ -226,6 +227,7 @@ private:
 		void* data;
 		vmaMapMemory(allocator, stagingBufferAllocation, &data);
 		uint32_t bufferOffset = 0;
+		
 		for (auto& image : textureCache) {
 			byte* start = static_cast<byte*>(data);
 			memcpy(&start[bufferOffset], image.pixels, static_cast<size_t>(image.size()));
@@ -385,6 +387,7 @@ private:
 
 	void createTextureSampler(const VkDevice& device, VkSampler& sampler, uint32_t mipLevels)
 	{
+		
 		VkSamplerCreateInfo samplerInfo = {};
 		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 		samplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -402,7 +405,7 @@ private:
 		samplerInfo.minLod = 0;
 		samplerInfo.maxLod = static_cast<float>(mipLevels);
 		samplerInfo.mipLodBias = 0;
-
+						
 		if (vkCreateSampler(device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create texture sampler!");
 		}
@@ -412,14 +415,16 @@ private:
 
 class DescriptorSetGenerator {
 public:
-	void bindBuffer(VkDescriptorSetLayoutBinding layout, VkDescriptorBufferInfo bufferInfo) {
+	void bindBuffer(VkDescriptorSetLayoutBinding layout, VkDescriptorBufferInfo bufferInfo) 
+	{
 		VkDescriptorImageInfo imageInfo = {};
 		VkWriteDescriptorSetAccelerationStructureNV tlasInfo = {};
 		bindings.push_back(layout);
 		descriptorTypeInfo.push_back({ bufferInfo, imageInfo, tlasInfo, TYPE_BUFFER });
 	}
 
-	void bindImage(VkDescriptorSetLayoutBinding layout, VkDescriptorImageInfo imageInfo) {
+	void bindImage(VkDescriptorSetLayoutBinding layout, VkDescriptorImageInfo imageInfo) 
+	{
 		VkDescriptorBufferInfo bufferInfo = {};
 		VkWriteDescriptorSetAccelerationStructureNV tlasInfo = {};
 		bindings.push_back(layout);
@@ -433,7 +438,8 @@ public:
 		descriptorTypeInfo.push_back({ bufferInfo, imageInfo, tlasInfo, TYPE_TLAS });
 	}
 
-	void generateDescriptorSet(const VkDevice &device, VkDescriptorSetLayout* layout, VkDescriptorPool* descriptorPool, VkDescriptorSet* descriptorSets, uint32_t maxSets = 1) {
+	void generateDescriptorSet(const VkDevice &device, VkDescriptorSetLayout* layout, VkDescriptorPool* descriptorPool, VkDescriptorSet* descriptorSets, uint32_t maxSets = 1) 
+	{
 		if (descriptorTypeInfo.size() == 0)
 			throw std::runtime_error("Descriptor bindings are un-initialized");
 
@@ -660,7 +666,8 @@ public:
 	void addColorBlendAttachmentState(uint32_t attachmentCount = 1, bool blendEnable = false)
 	{
 		colorBlendAttachmentStateCI.attachmentCount = attachmentCount;
-		
+		colorBlendAttachmentStates.clear();
+
 		VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
 		colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 		
@@ -672,7 +679,6 @@ public:
 			colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 			colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 			colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-
 		}
 		else
 			colorBlendAttachmentState.blendEnable = VK_FALSE;
@@ -709,7 +715,7 @@ public:
 		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 		pipelineInfo.renderPass = renderPass;
 		pipelineInfo.subpass = subpassIdx;
-
+		
 		if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, pipeline) != VK_SUCCESS)
 			throw std::runtime_error("failed to create graphics pipeline!");
 		

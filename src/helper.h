@@ -9,6 +9,7 @@
 #include "vulkan/vulkan.h"
 #include "vk_mem_alloc.h"
 #include "stb_image.h"
+#include "stb_image_write.h"
 #include "imgui.h"
 #include <glm/glm.hpp>
 
@@ -139,16 +140,24 @@ struct Image2d
 			throw std::runtime_error("ImGui context is null, cannot create font image.");
 
 		ImGuiIO& io = ImGui::GetIO();
+		
 		unsigned char* fontData;
 		int textWidth;
 		int textHeight;
 		io.Fonts->GetTexDataAsRGBA32(&fontData, &textWidth, &textHeight);
-
+		
 		pixels = static_cast<void*>(fontData);
 		width = static_cast<uint32_t>(textWidth);
 		height = static_cast<uint32_t>(textHeight);
 		format = VK_FORMAT_R8G8B8A8_UNORM;
 
+		//for (int i = 0; i < textHeight * textWidth; i++) {
+			//fontData[4 * i] = fontData[4 * i + 3];
+			//fontData[4 * i + 1] = fontData[4 * i + 3];
+			//fontData[4 * i + 2] = fontData[4 * i + 3];
+			//std::cout << (uint32_t)fontData[4 * i] << " " << (uint32_t)fontData[4 * i + 1] << " " << (uint32_t)fontData[4 * i + 2] << " " << (uint32_t)fontData[4 * i + 3] << std::endl;
+		//}
+		//stbi_write_png("font.png", textWidth, textHeight, 4, pixels, 4);
 		this->forceMipLevelToOne = forceMipLevelToOne;
 
 		path = "";

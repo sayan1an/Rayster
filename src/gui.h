@@ -4,8 +4,9 @@
 #include "vk_mem_alloc.h"
 #include "generator.h"
 
-class GUI
+class Gui
 {	
+public:
 	TextureGenerator fontTexGen;
 	VkImage fontTexImage;
 	VkImageView fontTexImageView;
@@ -48,7 +49,25 @@ class GUI
 
 	void guiSetup()
 	{
+		ImGui::NewFrame();
 
+		// Init imGui windows and elements
+
+		ImVec4 clear_color = ImColor(114, 144, 154);
+		static float f = 0.0f;
+		ImGui::Text("Camera");
+		ImGui::TextUnformatted("This is statement 2");
+
+		//ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
+		bool hello;
+		ImGui::Begin("Example settings");
+		ImGui::Checkbox("Render models", &hello);
+		ImGui::End();
+		//ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
+		//ImGui::ShowDemoWindow();
+
+		// Render to generate draw buffers
+		ImGui::Render();
 	}
 
 	void updateData(const VmaAllocator& allocator)
@@ -122,7 +141,7 @@ class GUI
 
 		VkViewport viewport = {};
 		viewport.width = io.DisplaySize.x;
-		viewport.width = io.DisplaySize.y;
+		viewport.height = io.DisplaySize.y;
 		viewport.maxDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 		vkCmdSetViewport(cmdBuf, 0, 1, &viewport);
@@ -163,11 +182,11 @@ class GUI
 		}
 	}
 
-	void initResources(const VkPhysicalDevice &physicalDevice, const VkDevice &device, const VmaAllocator &allocator, const VkQueue &queue, const VkCommandPool &cmdPool, const VkRenderPass &renderPass)
+	void createResources(const VkPhysicalDevice &physicalDevice, const VkDevice &device, const VmaAllocator &allocator, const VkQueue &queue, const VkCommandPool &cmdPool, const VkRenderPass &renderPass)
 	{	
 		fontTexGen.addTexture(Image2d(true));
 		fontTexGen.createTexture(physicalDevice, device, allocator, queue, cmdPool, fontTexImage, fontTexImageView, fontTexSampler, fontTexAllocation);
-
+		
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { fontTexSampler, fontTexImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -185,11 +204,32 @@ class GUI
 		gfxPipeGen.addDynamicStates(dynamicStates);
 
 		vertexBindingDescriptions.push_back({ VERTEX_BINDING_ID, sizeof(ImDrawVert), VK_VERTEX_INPUT_RATE_VERTEX });
-		vertexAttributeDescriptions.push_back({ VERTEX_BINDING_ID, 0,  VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, pos) });
-		vertexAttributeDescriptions.push_back({ VERTEX_BINDING_ID, 1,  VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, uv) });
-		vertexAttributeDescriptions.push_back({ VERTEX_BINDING_ID, 2,  VK_FORMAT_R8G8B8A8_UNORM, offsetof(ImDrawVert, col) });
+		vertexAttributeDescriptions.push_back({ 0, VERTEX_BINDING_ID, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, pos) });
+		vertexAttributeDescriptions.push_back({ 1, VERTEX_BINDING_ID,  VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, uv) });
+		vertexAttributeDescriptions.push_back({ 2, VERTEX_BINDING_ID,  VK_FORMAT_R8G8B8A8_UNORM, offsetof(ImDrawVert, col) });
 		gfxPipeGen.addVertexInputState(vertexBindingDescriptions, vertexAttributeDescriptions);
 
-		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 0, &pipeline, &pipelineLayout, pushConstatRanges);
+		std::cout << "Create gui pipe" << std::endl;
+		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 1, &pipeline, &pipelineLayout, pushConstatRanges);
+		std::cout << "Done gui pipe" << std::endl;
+	}
+
+	Gui()
+	{
+		ImGui::CreateContext();
+	}
+
+	void setup()
+	{
+		ImGuiStyle& style = ImGui::GetStyle();
+		style.Colors[ImGuiCol_TitleBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.2f);
+		style.Colors[ImGuiCol_TitleBgActive] = ImVec4(1.0f, 0.0f, 0.0f, 0.2f);
+		style.Colors[ImGuiCol_MenuBarBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.2f);
+		style.Colors[ImGuiCol_Header] = ImVec4(1.0f, 0.0f, 0.0f, 0.2f);
+		style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 0.2f);
+		// Dimensions
+		ImGuiIO& io = ImGui::GetIO();
+		io.DisplaySize = ImVec2(400, 400);
+		io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 	}
 };

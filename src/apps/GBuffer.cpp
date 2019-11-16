@@ -24,6 +24,7 @@
 #include "../camera.hpp"
 #include "../appBase.hpp"
 #include "../generator.h"
+#include "../gui.h"
 
 class Subpass1 {
 public:
@@ -170,6 +171,9 @@ private:
 	std::vector<VkCommandBuffer> commandBuffers;
 
 	FboManager fboManager;
+
+	Gui gui;
+
 	void init() 
 	{
 		fboManager.addDepthAttachment("depth", findDepthFormat(physicalDevice), VK_SAMPLE_COUNT_1_BIT, &depthImageView);
@@ -188,6 +192,8 @@ private:
 		createDepthResources();
 		createFramebuffers();
 
+		gui.setup();
+		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		subpass1.createSubpass(device, swapChainExtent, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, diffuseColorImageView, specularColorImageView, normalImageView, otherInfoImageView, depthImageView);
@@ -421,6 +427,9 @@ private:
 			throw std::runtime_error("failed to allocate command buffers!");
 		}
 
+		gui.guiSetup();
+		gui.updateData(allocator);
+
 		for (size_t i = 0; i < commandBuffers.size(); i++) {
 			VkCommandBufferBeginInfo beginInfo = {};
 			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -453,16 +462,17 @@ private:
 			model.cmdDraw(commandBuffers[i]);
 
 			vkCmdNextSubpass(commandBuffers[i], VK_SUBPASS_CONTENTS_INLINE);
-
+			
 			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipeline);
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipelineLayout, 0, 1, &subpass2.descriptorSet, 0, nullptr);
 			vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+			
+			gui.cmdDraw(commandBuffers[i]);
 
 			vkCmdEndRenderPass(commandBuffers[i]);
 
-			if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
+			if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS)
 				throw std::runtime_error("failed to record command buffer!");
-			}
 		}
 	}
 
