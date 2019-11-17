@@ -192,8 +192,8 @@ private:
 		createDepthResources();
 		createFramebuffers();
 
-		gui.setup();
-		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass);
+		gui.setStyle();
+		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass, 1);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		subpass1.createSubpass(device, swapChainExtent, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, diffuseColorImageView, specularColorImageView, normalImageView, otherInfoImageView, depthImageView);
@@ -479,7 +479,7 @@ private:
 		if (imageIndex == 0xffffffff)
 			return;
 
-		gui.guiSetup(io);
+		gui.buildGui(io);
 		gui.updateData(device, allocator);
 		model.updateMeshData();
 		cam.updateProjViewMat(io, swapChainExtent.width, swapChainExtent.height);

@@ -6,71 +6,20 @@
 #include "io.hpp"
 
 class Gui
-{	
+{
 public:
-	TextureGenerator fontTexGen;
-	VkImage fontTexImage;
-	VkImageView fontTexImageView;
-	VkSampler fontTexSampler;
-	VmaAllocation fontTexAllocation;
-
-	DescriptorSetGenerator descGen;
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkDescriptorPool descriptorPool;
-	VkDescriptorSet descriptorSet;
-
-	GraphicsPipelineGenerator gfxPipeGen;
-
-	struct PushConstBlock {
-		glm::vec2 scale;
-		glm::vec2 translate;
-	} pushConstBlock;
-	std::vector<VkPushConstantRange> pushConstatRanges;
-
-	std::vector<VkDynamicState> dynamicStates;
-
-	const uint32_t VERTEX_BINDING_ID = 0;
-	std::vector<VkVertexInputBindingDescription> vertexBindingDescriptions;
-	std::vector<VkVertexInputAttributeDescription> vertexAttributeDescriptions;
-
-	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
-
-	VkBuffer vertexBuffer = VK_NULL_HANDLE;
-	VmaAllocation vertexBufferAllocation = VK_NULL_HANDLE;
-	void* vertexBufferPtr = nullptr;
-	int vertexCount = 0;
-
-	VkBuffer indexBuffer = VK_NULL_HANDLE;
-	VmaAllocation indexBufferAllocation = VK_NULL_HANDLE;
-	void* indexBufferPtr = nullptr;
-	int indexCount = 0;
-
-	const int bufferAllocMultiplier = 5; 
-
-	void guiSetup(IO &io)
-	{	
+	void buildGui(IO& io)
+	{
 		ioSetup(io);
 		ImGui::NewFrame();
-
-		// Init imGui windows and elements
-
-		//ImVec4 clear_color = ImColor(114, 144, 154);
-		//static float f = 0.0f;
-		//ImGui::Text("Camera");
-		//ImGui::TextUnformatted("This is statement 2");
-
-		//ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
-		//ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
-		//bool hello;
-		//ImGui::Begin("Example settings");
-		//ImGui::Checkbox("Render models", &hello);
-		//ImGui::End();
-		
-		ImGui::ShowDemoWindow();
-
+		guiSetup();
 		// Render to generate draw buffers
 		ImGui::Render();
+	}
+	
+	virtual void guiSetup()
+	{	
+		ImGui::ShowDemoWindow();
 	}
 
 	void updateData(const VkDevice &device, const VmaAllocator& allocator)
@@ -187,7 +136,7 @@ public:
 		}
 	}
 
-	void createResources(const VkPhysicalDevice &physicalDevice, const VkDevice &device, const VmaAllocator &allocator, const VkQueue &queue, const VkCommandPool &cmdPool, const VkRenderPass &renderPass)
+	void createResources(const VkPhysicalDevice &physicalDevice, const VkDevice &device, const VmaAllocator &allocator, const VkQueue &queue, const VkCommandPool &cmdPool, const VkRenderPass &renderPass, uint32_t subpassIdx)
 	{	
 		fontTexGen.addTexture(Image2d(true));
 		fontTexGen.createTexture(physicalDevice, device, allocator, queue, cmdPool, fontTexImage, fontTexImageView, fontTexSampler, fontTexAllocation);
@@ -214,12 +163,17 @@ public:
 		vertexAttributeDescriptions.push_back({ 2, VERTEX_BINDING_ID,  VK_FORMAT_R8G8B8A8_UNORM, offsetof(ImDrawVert, col) });
 		gfxPipeGen.addVertexInputState(vertexBindingDescriptions, vertexAttributeDescriptions);
 				
-		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 1, &pipeline, &pipelineLayout, pushConstatRanges);
+		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, subpassIdx, &pipeline, &pipelineLayout, pushConstatRanges);
 	}
 
 	Gui()
 	{
 		ImGui::CreateContext();
+
+		// Dimensions
+		ImGuiIO& io = ImGui::GetIO();
+		io.DisplaySize = ImVec2(1280, 720);
+		io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 	}
 
 	void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
@@ -242,7 +196,7 @@ public:
 		vmaDestroyBuffer(allocator, vertexBuffer, vertexBufferAllocation);
 	}
 
-	void setup()
+	virtual void setStyle()
 	{
 		ImGuiStyle& style = ImGui::GetStyle();
 		style.Colors[ImGuiCol_TitleBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.2f);
@@ -250,18 +204,54 @@ public:
 		style.Colors[ImGuiCol_MenuBarBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.2f);
 		style.Colors[ImGuiCol_Header] = ImVec4(1.0f, 0.0f, 0.0f, 0.2f);
 		style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 0.2f);
-		// Dimensions
-		ImGuiIO& io = ImGui::GetIO();
-		io.DisplaySize = ImVec2(1280, 720);
-		io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 	}
 	~Gui()
 	{
 		ImGui::DestroyContext();
 	}
+private:
+	TextureGenerator fontTexGen;
+	VkImage fontTexImage;
+	VkImageView fontTexImageView;
+	VkSampler fontTexSampler;
+	VmaAllocation fontTexAllocation;
+
+	DescriptorSetGenerator descGen;
+	VkDescriptorSetLayout descriptorSetLayout;
+	VkDescriptorPool descriptorPool;
+	VkDescriptorSet descriptorSet;
+
+	GraphicsPipelineGenerator gfxPipeGen;
+
+	struct PushConstBlock {
+		glm::vec2 scale;
+		glm::vec2 translate;
+	} pushConstBlock;
+	std::vector<VkPushConstantRange> pushConstatRanges;
+
+	std::vector<VkDynamicState> dynamicStates;
+
+	const uint32_t VERTEX_BINDING_ID = 0;
+	std::vector<VkVertexInputBindingDescription> vertexBindingDescriptions;
+	std::vector<VkVertexInputAttributeDescription> vertexAttributeDescriptions;
+
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+
+	VkBuffer vertexBuffer = VK_NULL_HANDLE;
+	VmaAllocation vertexBufferAllocation = VK_NULL_HANDLE;
+	void* vertexBufferPtr = nullptr;
+	int vertexCount = 0;
+
+	VkBuffer indexBuffer = VK_NULL_HANDLE;
+	VmaAllocation indexBufferAllocation = VK_NULL_HANDLE;
+	void* indexBufferPtr = nullptr;
+	int indexCount = 0;
+
+	const int bufferAllocMultiplier = 5;
 
 	void ioSetup(IO& io)
-	{	
+	{
 		ImGuiIO& imIO = ImGui::GetIO();
 		for (int i = 0; i < 3; i++)
 			imIO.MouseDown[i] = false;
@@ -271,6 +261,7 @@ public:
 
 		double mousex, mousey;
 		io.getMouseCursorPos(mousex, mousey);
+
 		imIO.MousePos = ImVec2((float)mousex, (float)mousey);
 
 		if (action == GLFW_PRESS && button >= 0 && button < 3)
@@ -280,7 +271,13 @@ public:
 		io.getMouseScrollOffset(scrollOffset);
 		imIO.MouseWheel += (float)scrollOffset;
 
+		int w, h;
+		io.getFramebufferSize(w, h);
+		imIO.DisplaySize = ImVec2(w, h);
+		imIO.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
+
 		if (imIO.WantCaptureMouse | imIO.WantCaptureKeyboard)
 			io.setIoCaptured();
 	}
+
 };
