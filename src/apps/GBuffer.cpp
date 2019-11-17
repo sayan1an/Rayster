@@ -249,7 +249,8 @@ private:
 	}
 
 	void cleanupFinal() 
-	{
+	{	
+		gui.cleanUp(device, allocator);
 		model.cleanUp(device, allocator);
 	}
 

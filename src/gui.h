@@ -208,15 +208,33 @@ public:
 		vertexAttributeDescriptions.push_back({ 1, VERTEX_BINDING_ID,  VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, uv) });
 		vertexAttributeDescriptions.push_back({ 2, VERTEX_BINDING_ID,  VK_FORMAT_R8G8B8A8_UNORM, offsetof(ImDrawVert, col) });
 		gfxPipeGen.addVertexInputState(vertexBindingDescriptions, vertexAttributeDescriptions);
-
-		std::cout << "Create gui pipe" << std::endl;
+				
 		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 1, &pipeline, &pipelineLayout, pushConstatRanges);
-		std::cout << "Done gui pipe" << std::endl;
 	}
 
 	Gui()
 	{
 		ImGui::CreateContext();
+	}
+
+	void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
+	{
+		vkDestroyPipeline(device, pipeline, nullptr);
+		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+
+		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+
+		vkDestroyImageView(device, fontTexImageView, nullptr);
+		vmaDestroyImage(allocator, fontTexImage, fontTexAllocation);
+
+		vkDestroySampler(device, fontTexSampler, nullptr);
+
+		vmaUnmapMemory(allocator, indexBufferAllocation);
+		vmaDestroyBuffer(allocator, indexBuffer, indexBufferAllocation);
+
+		vmaUnmapMemory(allocator, vertexBufferAllocation);
+		vmaDestroyBuffer(allocator, vertexBuffer, vertexBufferAllocation);
 	}
 
 	void setup()
@@ -231,5 +249,9 @@ public:
 		ImGuiIO& io = ImGui::GetIO();
 		io.DisplaySize = ImVec2(400, 400);
 		io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
+	}
+	~Gui()
+	{
+		ImGui::DestroyContext();
 	}
 };

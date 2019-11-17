@@ -94,8 +94,9 @@ struct Image2d
 	}
 
 	void cleanUp()
-	{
-		stbi_image_free(pixels);
+	{	
+		if (!externalAlocation)
+			stbi_image_free(pixels);
 	}
 
 	Image2d(uint32_t width = 1, uint32_t height = 1, glm::vec4 color = glm::vec4(1.0f), boolean hdr = false)
@@ -159,11 +160,12 @@ struct Image2d
 		//}
 		//stbi_write_png("font.png", textWidth, textHeight, 4, pixels, 4);
 		this->forceMipLevelToOne = forceMipLevelToOne;
+		this->externalAlocation = true;
 
 		path = "";
 	}
 private:
-	
+	bool externalAlocation = false;
 	bool forceMipLevelToOne = false;
 };
 
