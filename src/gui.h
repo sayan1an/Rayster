@@ -3,6 +3,7 @@
 #include "vulkan/vulkan.h"
 #include "vk_mem_alloc.h"
 #include "generator.h"
+#include "io.hpp"
 
 class Gui
 {	
@@ -47,30 +48,32 @@ public:
 
 	const int bufferAllocMultiplier = 5; 
 
-	void guiSetup()
-	{
+	void guiSetup(IO &io)
+	{	
+		ioSetup(io);
 		ImGui::NewFrame();
 
 		// Init imGui windows and elements
 
-		ImVec4 clear_color = ImColor(114, 144, 154);
-		static float f = 0.0f;
-		ImGui::Text("Camera");
-		ImGui::TextUnformatted("This is statement 2");
+		//ImVec4 clear_color = ImColor(114, 144, 154);
+		//static float f = 0.0f;
+		//ImGui::Text("Camera");
+		//ImGui::TextUnformatted("This is statement 2");
 
 		//ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
-		bool hello;
-		ImGui::Begin("Example settings");
-		ImGui::Checkbox("Render models", &hello);
-		ImGui::End();
-		//ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
-		//ImGui::ShowDemoWindow();
+		//ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
+		//bool hello;
+		//ImGui::Begin("Example settings");
+		//ImGui::Checkbox("Render models", &hello);
+		//ImGui::End();
+		
+		ImGui::ShowDemoWindow();
 
 		// Render to generate draw buffers
 		ImGui::Render();
 	}
 
-	void updateData(const VmaAllocator& allocator)
+	void updateData(const VkDevice &device, const VmaAllocator& allocator)
 	{
 		ImDrawData* imDrawData = ImGui::GetDrawData();
 
@@ -102,6 +105,8 @@ public:
 		// We create a buffer of size larger than the required size to avoid buffer re-creation at runtime
 		if (imDrawData->TotalVtxCount > bufferAllocMultiplier * vertexCount) {
 			if (vertexCount != 0) {
+				// wait for the device to become idle before releasing the buffer.
+				vkDeviceWaitIdle(device);
 				vmaUnmapMemory(allocator, vertexBufferAllocation);
 				vmaDestroyBuffer(allocator, vertexBuffer, vertexBufferAllocation);
 			}
@@ -247,11 +252,35 @@ public:
 		style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 0.2f);
 		// Dimensions
 		ImGuiIO& io = ImGui::GetIO();
-		io.DisplaySize = ImVec2(400, 400);
+		io.DisplaySize = ImVec2(1280, 720);
 		io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 	}
 	~Gui()
 	{
 		ImGui::DestroyContext();
+	}
+
+	void ioSetup(IO& io)
+	{	
+		ImGuiIO& imIO = ImGui::GetIO();
+		for (int i = 0; i < 3; i++)
+			imIO.MouseDown[i] = false;
+
+		int button, action;
+		io.getMouseInput(button, action);
+
+		double mousex, mousey;
+		io.getMouseCursorPos(mousex, mousey);
+		imIO.MousePos = ImVec2((float)mousex, (float)mousey);
+
+		if (action == GLFW_PRESS && button >= 0 && button < 3)
+			imIO.MouseDown[button] = true;
+
+		double scrollOffset;
+		io.getMouseScrollOffset(scrollOffset);
+		imIO.MouseWheel += (float)scrollOffset;
+
+		if (imIO.WantCaptureMouse | imIO.WantCaptureKeyboard)
+			io.setIoCaptured();
 	}
 };

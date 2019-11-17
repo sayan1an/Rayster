@@ -84,6 +84,11 @@ public:
 		return glfwGetKey(window, key);
 	}
 
+	inline int getLastMouseBtnState(int key) const
+	{
+		return glfwGetMouseButton(window, key);
+	}
+
 	inline int windowShouldClose() 
 	{
 		return glfwWindowShouldClose(window);
@@ -92,6 +97,17 @@ public:
 	inline void pollEvents() 
 	{
 		glfwPollEvents();
+		ioCaptured = false;
+	}
+
+	inline void setIoCaptured()
+	{
+		ioCaptured = true;
+	}
+
+	inline bool isIoCaptured() const
+	{
+		return ioCaptured;
 	}
 
 	void terminate() 
@@ -112,6 +128,8 @@ private:
 	int muAction = 0;
 
 	double muScrollOffset = 0;
+
+	bool ioCaptured = false;
 	
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height) 
 	{

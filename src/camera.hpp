@@ -54,6 +54,8 @@ public:
 
 	void updateProjViewMat(IO &io, uint32_t screenWidth, uint32_t screenHeight) 
 	{
+		if (io.isIoCaptured())
+			return;
 
 		projViewMat.view = getViewMatrix(io);
 		projViewMat.proj = glm::perspective(glm::radians(fovy), screenWidth / (float)screenHeight, 0.1f, 10.0f);
