@@ -26,6 +26,17 @@
 #include "../generator.h"
 #include "../gui.h"
 
+class NewGui : public Gui
+{	
+public:
+	const IO* io;
+private:
+	void guiSetup()
+	{
+		io->frameRateWidget();
+	}
+};
+
 class Subpass1 {
 public:
 	VkSubpassDescription subpassDescription;
@@ -172,7 +183,7 @@ private:
 
 	FboManager fboManager;
 
-	Gui gui;
+	NewGui gui;
 
 	void init() 
 	{
@@ -192,6 +203,7 @@ private:
 		createDepthResources();
 		createFramebuffers();
 
+		gui.io = &io;
 		gui.setStyle();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass, 1);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
@@ -480,7 +492,7 @@ private:
 			return;
 
 		gui.buildGui(io);
-		gui.updateData(device, allocator);
+		gui.uploadData(device, allocator);
 		model.updateMeshData();
 		cam.updateProjViewMat(io, swapChainExtent.width, swapChainExtent.height);
 
