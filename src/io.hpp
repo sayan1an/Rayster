@@ -37,6 +37,9 @@ public:
 		glfwSetMouseButtonCallback(window, mouseButtonCallback);
 		glfwSetScrollCallback(window, mouseScrollCallback);
 
+		for (size_t i = 0; i < frameTimes.size(); i++)
+			frameTimes[i] = 0;
+
 		glfwInitialized = true;
 	}
 
@@ -109,23 +112,22 @@ public:
 		glfwPollEvents();
 		ioCaptured = false;
 
-		avgFrameTime -= frameTimes.back();
+		avgFrameTime -= frameTimes[0];
 		std::rotate(frameTimes.begin(), frameTimes.begin() + 1, frameTimes.end());
 		using namespace std::chrono;
 		microseconds ms = duration_cast<microseconds>(system_clock::now().time_since_epoch());
 		uint64_t t = ms.count();
 		frameTimes.back() = static_cast<float>(t - time) / 1000.0f;
 		time = t;
-		avgFrameTime += frameTimes.back();
+		avgFrameTime += frameTimes[frameTimes.size() - 1];
 	}
 
-	void frameRateWidget(const float xPos = 0, const float yPos = 0) const
+	void frameRateWidget(const float xPos = 0, const float yPos = 0, const float max = 20) const
 	{			
-		float fps = static_cast<float>(frameTimes.size()) / avgFrameTime;
+		float fpms = static_cast<float>(frameTimes.size()) / static_cast<float>(avgFrameTime);
 		ImGui::SetCursorPos(ImVec2(5 + xPos, 30 + yPos));
-		ImGui::Text(("FPS: " + std::to_string(static_cast<uint32_t>(std::floor(fps * 1000)))).c_str());
+		ImGui::Text(("FPS: " + std::to_string(static_cast<uint32_t>(std::floor(fpms * 1000)))).c_str());
 
-		float max = 5 * std::ceil(1/fps);
 		ImGui::SetCursorPos(ImVec2(5 + xPos, 50 + yPos));
 		ImGui::Text(std::to_string(static_cast<uint32_t>(max)).c_str());
 		
@@ -135,7 +137,7 @@ public:
 
 	const float getAvgFrameTime() const
 	{
-		return avgFrameTime / static_cast<float>(frameTimes.size());
+		return static_cast<float>(avgFrameTime) / static_cast<float>(frameTimes.size());
 	}
 
 	const std::array<float, 50> & getFrameTimes() const
@@ -175,8 +177,8 @@ private:
 	bool ioCaptured = false;
 	
 	std::array<float, 50> frameTimes;
-	uint64_t time;
-	float avgFrameTime = 0;
+	uint64_t time = 0;
+	double avgFrameTime = 10;
 
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height) 
 	{
