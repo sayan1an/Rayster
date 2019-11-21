@@ -143,10 +143,13 @@ public:
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 	
-	void createPipeline(const VkDevice &device, const VkImageView &inView, const VkImageView &outView) 
+	void createPipeline(const VkDevice &device, const VkImageView &inView0, const VkImageView &inView1, const VkImageView &inView2, const VkImageView &inView3, const VkImageView &outView)
 	{
-		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inView,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outView,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inView0,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inView1,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inView2,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inView3,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outView,  VK_IMAGE_LAYOUT_GENERAL });
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -234,7 +237,7 @@ private:
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, computeShaderOutImageView);
-		computePipeline.createPipeline(device, diffuseColor.viewResolve, computeShaderOutImageView);
+		computePipeline.createPipeline(device, diffuseColor.viewResolve, specularColor.viewResolve, normal.viewResolve, otherInfo.viewResolve, computeShaderOutImageView);
 		createCommandBuffers();
 		createComputeCommandBuffer();
 		createComputeSyncObject();
@@ -285,7 +288,7 @@ private:
 
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, computeShaderOutImageView);
-		computePipeline.createPipeline(device, diffuseColor.viewResolve, computeShaderOutImageView);
+		computePipeline.createPipeline(device, diffuseColor.viewResolve, specularColor.viewResolve, normal.viewResolve, otherInfo.viewResolve, computeShaderOutImageView);
 		createCommandBuffers();
 		createComputeCommandBuffer();
 	}
