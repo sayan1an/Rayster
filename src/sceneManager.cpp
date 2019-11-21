@@ -1,5 +1,5 @@
 #include "sceneManager.h"
-#include <assimp/Importer.hpp> 
+//#include <assimp/Importer.hpp> 
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"

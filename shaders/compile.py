@@ -1,6 +1,6 @@
 import subprocess
 
-glslangValidator = "C:/VulkanSDK/1.1.106.0/Bin32/glslangValidator.exe"
+glslangValidator = "C:/VulkanSDK/1.1.101.0/Bin32/glslangValidator.exe"
 
 compileList =[]
 compileList.append(("./GBuffer/gBuf.vert", "./GBuffer/gBufVert.spv"))
@@ -15,6 +15,8 @@ compileList.append(("./ImGui/ui.vert", "./ImGui/uiVert.spv"))
 compileList.append(("./ImGui/ui.frag", "./ImGui/uiFrag.spv"))
 
 compileList.append(("./GraphicsComputeGraphicsApp/edgeDetect.comp", "./GraphicsComputeGraphicsApp/edgeDetectComp.spv"))
+compileList.append(("./GraphicsComputeGraphicsApp/gShow.vert", "./GraphicsComputeGraphicsApp/gShowVert.spv"))
+compileList.append(("./GraphicsComputeGraphicsApp/gShow.frag", "./GraphicsComputeGraphicsApp/gShowFrag.spv"))
 
 compileList.append(("./RTXApp/01_raygen.rgen", "./RTXApp/01_raygen.spv"))
 compileList.append(("./RTXApp/01_miss.rmiss", "./RTXApp/01_miss.spv"))

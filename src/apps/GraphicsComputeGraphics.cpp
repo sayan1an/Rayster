@@ -106,31 +106,21 @@ public:
 		colorAttachmentRef = fboMgr.getAttachmentReference("swapchain", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 		
 		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("csout", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("csout", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("csout", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("csout", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("csout", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-
+		
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpassDescription.colorAttachmentCount = 1;
 		subpassDescription.pColorAttachments = &colorAttachmentRef;
-		subpassDescription.inputAttachmentCount = 2;
+		subpassDescription.inputAttachmentCount = static_cast<uint32_t>(inputAttachmentRefs.size());
 		subpassDescription.pInputAttachments = inputAttachmentRefs.data();
 	}
 
 	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const VkImageView& inputImageView) {
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		
-
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GBufferShow/gShowVert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GBufferShow/gShowFrag.spv");
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GraphicsComputeGraphicsApp/gShowVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GraphicsComputeGraphicsApp/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
 		gfxPipeGen.addDepthStencilState(VK_FALSE, VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
@@ -642,7 +632,7 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-/*
+
 int main() 
 {
 	{
@@ -653,7 +643,7 @@ int main()
 		}
 		catch (const std::exception & e) {
 			std::cerr << e.what() << std::endl;
-			return EXIT_FAILURE;
+			//return EXIT_FAILURE;
 		}
 	}
 
@@ -661,7 +651,7 @@ int main()
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-*/
+
 
 
 
