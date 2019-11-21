@@ -129,10 +129,7 @@ public:
 		ImGui::Text(("FPS: " + std::to_string(static_cast<uint32_t>(std::floor(fpms * 1000)))).c_str());
 
 		ImGui::SetCursorPos(ImVec2(5 + xPos, 50 + yPos));
-		ImGui::Text(std::to_string(static_cast<uint32_t>(max)).c_str());
-		
-		ImGui::SetCursorPos(ImVec2(20 + xPos, 50 + yPos));
-		ImGui::PlotLines("", &frameTimes[0], static_cast<int>(frameTimes.size()), 0, "Frame Times (ms)", 0, max, ImVec2(0, 50));
+		ImGui::PlotLines(std::to_string(static_cast<uint32_t>(max)).c_str(), &frameTimes[0], static_cast<int>(frameTimes.size()), 0, "Frame Times (ms)", 0, max, ImVec2(0, 50));
 	}
 
 	const float getAvgFrameTime() const

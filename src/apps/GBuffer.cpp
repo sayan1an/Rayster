@@ -26,14 +26,48 @@
 #include "../generator.h"
 #include "../gui.h"
 
+struct PushConstantBlock
+{
+	uint32_t select = 0;
+	float scale = 1;
+};
+
 class NewGui : public Gui
 {	
 public:
 	const IO* io;
+	PushConstantBlock pcb;
 private:
+	
+	const char* items[9] = { "Diffuse Color", "Specular Color", "World-space Normal", "View-space depth", "Clip-space depth", "Internal IOR", "External IOR", "Specular roughness", "Material type" };
+	const char* currentItem = items[0];
+	float scaleCoarse = 1;
+	float scaleFine = 1;
+	
 	void guiSetup()
 	{
 		io->frameRateWidget();
+		ImGui::SetCursorPos(ImVec2(5, 110));
+
+		if (ImGui::BeginCombo("Select", currentItem)) // The second parameter is the label previewed before opening the combo.
+		{
+			for (int n = 0; n < IM_ARRAYSIZE(items); n++)
+			{
+				bool is_selected = (currentItem == items[n]); // You can store your selection however you want, outside or inside your objects
+				if (ImGui::Selectable(items[n], is_selected)) {
+					currentItem = items[n];
+					pcb.select = static_cast<uint32_t>(n);
+				}
+				if (is_selected)
+					ImGui::SetItemDefaultFocus();   // You may set the initial focus when opening the combo (scrolling + for keyboard navigation support)
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::SetCursorPos(ImVec2(5, 135));
+		ImGui::SliderFloat("Scale - Coarse", &scaleCoarse, 0.01f, 10.0f);
+		ImGui::SetCursorPos(ImVec2(5, 160));
+		ImGui::SliderFloat("Scale - Fine", &scaleFine, 0.01f, 1.0f);
+		pcb.scale = scaleCoarse * scaleFine;
 	}
 };
 
@@ -129,17 +163,21 @@ public:
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GBufferShow/gShowVert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GBufferShow/gShowFrag.spv");
+		pushConstatRanges.push_back({ VK_SHADER_STAGE_FRAGMENT_BIT , 0, sizeof(PushConstantBlock) });
+
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GBuffer/gShowVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GBuffer/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
 		gfxPipeGen.addDepthStencilState(VK_FALSE, VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
 		
-		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 1, &pipeline, &pipelineLayout);
+		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 1, &pipeline, &pipelineLayout, pushConstatRanges);
 	}
+
 private:
 	VkAttachmentReference colorAttachmentRef;
 	std::vector<VkAttachmentReference> inputAttachmentRefs;
+	std::vector<VkPushConstantRange> pushConstatRanges;
 	DescriptorSetGenerator descGen;
 	GraphicsPipelineGenerator gfxPipeGen;
 };
@@ -476,6 +514,7 @@ private:
 			
 		vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipeline);
 		vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipelineLayout, 0, 1, &subpass2.descriptorSet, 0, nullptr);
+		vkCmdPushConstants(commandBuffers[index], subpass2.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantBlock), &gui.pcb);
 		vkCmdDraw(commandBuffers[index], 3, 1, 0, 0);
 			
 		gui.cmdDraw(commandBuffers[index]);

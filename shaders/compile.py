@@ -5,6 +5,8 @@ glslangValidator = "C:/VulkanSDK/1.1.106.0/Bin32/glslangValidator.exe"
 compileList =[]
 compileList.append(("./GBuffer/gBuf.vert", "./GBuffer/gBufVert.spv"))
 compileList.append(("./GBuffer/gBuf.frag", "./GBuffer/gBufFrag.spv"))
+compileList.append(("./GBuffer/gShow.vert", "./GBuffer/gShowVert.spv"))
+compileList.append(("./GBuffer/gShow.frag", "./GBuffer/gShowFrag.spv"))
 
 compileList.append(("./GBufferShow/gShow.vert", "./GBufferShow/gShowVert.spv"))
 compileList.append(("./GBufferShow/gShow.frag", "./GBufferShow/gShowFrag.spv"))
