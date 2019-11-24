@@ -127,8 +127,7 @@ void Gui::createResources(const VkPhysicalDevice& physicalDevice, const VkDevice
 	gfxPipeGen.addVertexShaderStage(device, ROOT + +"/shaders/ImGui/uiVert.spv");
 	gfxPipeGen.addFragmentShaderStage(device, ROOT + +"/shaders/ImGui/uiFrag.spv");
 
-	pushConstatRanges.push_back({ VK_SHADER_STAGE_VERTEX_BIT , 0, sizeof(PushConstBlock) });
-
+	gfxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_VERTEX_BIT , 0, sizeof(PushConstBlock) });
 	gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
 	gfxPipeGen.addColorBlendAttachmentState(1, true); // enable alpha blending
 	gfxPipeGen.addDepthStencilState(VK_FALSE, VK_FALSE);
@@ -143,7 +142,7 @@ void Gui::createResources(const VkPhysicalDevice& physicalDevice, const VkDevice
 	vertexAttributeDescriptions.push_back({ 2, VERTEX_BINDING_ID,  VK_FORMAT_R8G8B8A8_UNORM, offsetof(ImDrawVert, col) });
 	gfxPipeGen.addVertexInputState(vertexBindingDescriptions, vertexAttributeDescriptions);
 
-	gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, subpassIdx, &pipeline, &pipelineLayout, pushConstatRanges);
+	gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, subpassIdx, &pipeline, &pipelineLayout);
 }
 
 void Gui::ioSetup(IO& io)

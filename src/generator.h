@@ -542,13 +542,20 @@ private:
 
 class PipelineGenerator
 {
+public:
+	void addPushConstantRange(const VkPushConstantRange pushConstant)
+	{	
+		pushConstantRanges.push_back(pushConstant);
+	}
+private:
+	std::vector<VkPushConstantRange> pushConstantRanges;
 protected:
 	/// Shader stages contained in the pipeline
 	std::vector<VkPipelineShaderStageCreateInfo> shaderStageCIs;
 	std::vector<VkShaderModule> shaderModules;
 
-	void createPipelineLayout(const VkDevice& device, const VkDescriptorSetLayout& descriptorSetLayout, VkPipelineLayout *pipelineLayout, const std::vector<VkPushConstantRange> &pushConstantRanges = std::vector<VkPushConstantRange>()) 
-	{
+	void createPipelineLayout(const VkDevice& device, const VkDescriptorSetLayout& descriptorSetLayout, VkPipelineLayout *pipelineLayout) 
+	{	
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = 1;
@@ -601,6 +608,7 @@ protected:
 
 		shaderModules.clear();
 		shaderStageCIs.clear();
+		pushConstantRanges.clear();
 	}
 };
 
@@ -695,9 +703,9 @@ public:
 		dynamicStateCI.pDynamicStates = dynamicStates.data();
 	}
 
-	void createPipeline(const VkDevice& device, const VkDescriptorSetLayout& descriptorSetLayout, const VkRenderPass& renderPass, uint32_t subpassIdx, VkPipeline* pipeline, VkPipelineLayout* pipelineLayout, const std::vector<VkPushConstantRange>& pushConstantRanges = std::vector<VkPushConstantRange>())
+	void createPipeline(const VkDevice& device, const VkDescriptorSetLayout& descriptorSetLayout, const VkRenderPass& renderPass, uint32_t subpassIdx, VkPipeline* pipeline, VkPipelineLayout* pipelineLayout)
 	{
-		createPipelineLayout(device, descriptorSetLayout, pipelineLayout, pushConstantRanges);
+		createPipelineLayout(device, descriptorSetLayout, pipelineLayout);
 
 		VkGraphicsPipelineCreateInfo pipelineInfo = {};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;

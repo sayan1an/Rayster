@@ -13,7 +13,7 @@
 #include "imgui.h"
 #include <glm/glm.hpp>
 
-#define ROOT std::string("D:/projects/vulkanexperiments")
+#define ROOT std::string("D:/projects/VkExperiment")
 
 #ifdef NDEBUG
 static const bool enableValidationLayers = false;

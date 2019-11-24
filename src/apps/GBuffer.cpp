@@ -112,7 +112,7 @@ public:
 		gfxPipeGen.addVertexInputState(bindingDescription, attributeDescription);
 		gfxPipeGen.addViewportState(swapChainExtent);
 		gfxPipeGen.addColorBlendAttachmentState(4);
-
+		
 		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 0, &pipeline, &pipelineLayout);
 	}
 private:
@@ -163,21 +163,19 @@ public:
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		pushConstatRanges.push_back({ VK_SHADER_STAGE_FRAGMENT_BIT , 0, sizeof(PushConstantBlock) });
-
+		gfxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_FRAGMENT_BIT , 0, sizeof(PushConstantBlock) });
 		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GBuffer/gShowVert.spv");
 		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GBuffer/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
 		gfxPipeGen.addDepthStencilState(VK_FALSE, VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
-		
-		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 1, &pipeline, &pipelineLayout, pushConstatRanges);
+	
+		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 1, &pipeline, &pipelineLayout);
 	}
 
 private:
 	VkAttachmentReference colorAttachmentRef;
 	std::vector<VkAttachmentReference> inputAttachmentRefs;
-	std::vector<VkPushConstantRange> pushConstatRanges;
 	DescriptorSetGenerator descGen;
 	GraphicsPipelineGenerator gfxPipeGen;
 };
@@ -541,7 +539,7 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-/*
+
 int main() 
 {
 	{
@@ -560,5 +558,5 @@ int main()
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-*/
+
 
