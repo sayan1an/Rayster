@@ -39,11 +39,34 @@ void main()
 	{   
 		for(int j=-1; j<2; ++j) 
 		{    
-			n++;    
-			vec3 rgb = imageLoad(inDiffuseColor, ivec2(gl_GlobalInvocationID.x + i, gl_GlobalInvocationID.y + j)).rgb;
-			imageData.r[n] = rgb.r;
-			imageData.g[n] = rgb.g;
-			imageData.b[n] = rgb.b;
+			n++;
+			ivec2 location = ivec2(gl_GlobalInvocationID.x + i, gl_GlobalInvocationID.y + j);
+			vec4 rgba;
+			if (pcb.select == 0)
+				rgba  = imageLoad(inDiffuseColor, location).rgba;
+			else if (pcb.select == 1)
+				rgba  = imageLoad(inSpecularColor, location).rgba;
+			else if (pcb.select == 2 || pcb.select == 6)
+				rgba  = imageLoad(inNormal, location).rgba;
+			else if (pcb.select == 3 || pcb.select == 4 || pcb.select == 5 || pcb.select == 7)
+				rgba  = imageLoad(inDepthMatInfo, location).rgba;
+			else
+				rgba = vec4(1.0f);
+			
+			rgba *= pcb.scale;
+
+			if (pcb.select == 6 || pcb.select == 7)
+				rgba.r = rgba.g = rgba.b = rgba.a; // for specular alpha and bsdf type
+			if (pcb.select == 3)
+				rgba.g = rgba.b = rgba.r; // for depth
+			if (pcb.select == 4)
+				rgba.r = rgba.b = rgba.g; // for int ior
+			if (pcb.select == 5)
+				rgba.r = rgba.g = rgba.b; // for ext ior
+
+			imageData.r[n] = rgba.r;
+			imageData.g[n] = rgba.g;
+			imageData.b[n] = rgba.b;
 		}
 	}
 
