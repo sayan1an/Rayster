@@ -24,6 +24,52 @@
 #include "../camera.hpp"
 #include "../appBase.hpp"
 #include "../generator.h"
+#include "../gui.h"
+
+struct PushConstantBlock
+{
+	uint32_t select = 0;
+	float scale = 1;
+};
+
+class NewGui : public Gui
+{
+public:
+	const IO* io;
+	PushConstantBlock pcb;
+private:
+
+	const char* items[8] = { "Diffuse Color", "Specular Color", "World-space Normal", "View-space depth", "Internal IOR", "External IOR", "Specular roughness", "Material type" };
+	const char* currentItem = items[0];
+	float scaleCoarse = 1;
+	float scaleFine = 1;
+
+	void guiSetup()
+	{
+		io->frameRateWidget();
+		ImGui::SetCursorPos(ImVec2(5, 110));
+
+		if (ImGui::BeginCombo("Select", currentItem)) // The second parameter is the label previewed before opening the combo.
+		{
+			for (int n = 0; n < IM_ARRAYSIZE(items); n++)
+			{
+				bool is_selected = (currentItem == items[n]); // You can store your selection however you want, outside or inside your objects
+				if (ImGui::Selectable(items[n], is_selected)) {
+					currentItem = items[n];
+					pcb.select = static_cast<uint32_t>(n);
+				}
+				if (is_selected)
+					ImGui::SetItemDefaultFocus();   // You may set the initial focus when opening the combo (scrolling + for keyboard navigation support)
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::SetCursorPos(ImVec2(5, 135));
+		ImGui::SliderFloat("Scale - Coarse", &scaleCoarse, 0.01f, 10.0f);
+		ImGui::SetCursorPos(ImVec2(5, 160));
+		ImGui::SliderFloat("Scale - Fine", &scaleFine, 0.01f, 1.0f);
+		pcb.scale = scaleCoarse * scaleFine;
+	}
+};
 
 class Subpass1 {
 public:
@@ -152,7 +198,8 @@ public:
 		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outView,  VK_IMAGE_LAYOUT_GENERAL });
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
-
+		
+		compPipeGen.addPushConstantRange({ VK_SHADER_STAGE_COMPUTE_BIT , 0, sizeof(PushConstantBlock) });
 		compPipeGen.addComputeShaderStage(device, ROOT + "/shaders/GraphicsComputeGraphicsApp/edgeDetectComp.spv");
 		compPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
 	}
@@ -211,6 +258,8 @@ private:
 
 	FboManager fboManager;
 
+	NewGui gui;
+
 	void init() 
 	{
 		fboManager.addColorAttachment("diffuseColor", VK_FORMAT_R8G8B8A8_UNORM, msaaSamples, &diffuseColor.view);
@@ -234,6 +283,9 @@ private:
 		createFboResources();
 		createFramebuffers();
 		
+		gui.io = &io;
+		gui.setStyle();
+		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass, 1);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, computeShaderOutImageView);
@@ -294,7 +346,8 @@ private:
 	}
 
 	void cleanupFinal() 
-	{
+	{	
+		gui.cleanUp(device, allocator);
 		model.cleanUp(device, allocator);
 		vkDestroyFence(device, computeShaderFence, nullptr);
 	}
@@ -478,106 +531,113 @@ private:
 		}
 
 		for (size_t i = 0; i < commandBuffers.size(); i++) {
-			VkCommandBufferBeginInfo beginInfo = {};
-			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-
-			if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
-				throw std::runtime_error("failed to begin recording command buffer!");
-			}
-
-			model.cmdTransferData(commandBuffers[i]);
-
-			// Image memory barrier to make sure that compute shader writes are finished before sampling from the texture
-			// Let the compute shader finish wrting before starting the second subpass
-			std::array<VkImageMemoryBarrier, 5> imageMemoryBarriers = {};
-			imageMemoryBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			imageMemoryBarriers[0].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarriers[0].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarriers[0].image = computeShaderOutImage;
-			imageMemoryBarriers[0].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-			imageMemoryBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-			imageMemoryBarriers[0].dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
-
-			// Let the compute shader finish reading before staring the first subpass
-			imageMemoryBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			imageMemoryBarriers[1].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarriers[1].image = diffuseColor.imageResolve;
-			imageMemoryBarriers[1].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-			imageMemoryBarriers[1].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			imageMemoryBarriers[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-			imageMemoryBarriers[2].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			imageMemoryBarriers[2].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarriers[2].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarriers[2].image = specularColor.imageResolve;
-			imageMemoryBarriers[2].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-			imageMemoryBarriers[2].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			imageMemoryBarriers[2].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-			imageMemoryBarriers[3].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			imageMemoryBarriers[3].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarriers[3].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarriers[3].image = normal.imageResolve;
-			imageMemoryBarriers[3].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-			imageMemoryBarriers[3].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			imageMemoryBarriers[3].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-			imageMemoryBarriers[4].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			imageMemoryBarriers[4].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarriers[4].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-			imageMemoryBarriers[4].image = otherInfo.imageResolve;
-			imageMemoryBarriers[4].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-			imageMemoryBarriers[4].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			imageMemoryBarriers[4].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 			
-			vkCmdPipelineBarrier(
-				commandBuffers[i],
-				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-				0,
-				0, nullptr,           
-				0, nullptr,
-				static_cast<uint32_t>(imageMemoryBarriers.size()),
-				imageMemoryBarriers.data());
-		
-			VkRenderPassBeginInfo renderPassInfo = {};
-			renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			renderPassInfo.renderPass = renderPass;
-			renderPassInfo.framebuffer = swapChainFramebuffers[i];
-			renderPassInfo.renderArea.offset = { 0, 0 };
-			renderPassInfo.renderArea.extent = swapChainExtent;
+		}
+	}
 
-			std::vector<VkClearValue> clearValues = fboManager.getClearValues();
-			renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-			renderPassInfo.pClearValues = clearValues.data();
+	void buildGraphicsCommandBuffer(size_t index)
+	{
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
-			vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		if (vkBeginCommandBuffer(commandBuffers[index], &beginInfo) != VK_SUCCESS) {
+			throw std::runtime_error("failed to begin recording command buffer!");
+		}
 
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipeline);
+		model.cmdTransferData(commandBuffers[index]);
 
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipelineLayout, 0, 1, &subpass1.descriptorSet, 0, nullptr);
+		// Image memory barrier to make sure that compute shader writes are finished before sampling from the texture
+		// Let the compute shader finish wrting before starting the second subpass
+		std::array<VkImageMemoryBarrier, 5> imageMemoryBarriers = {};
+		imageMemoryBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageMemoryBarriers[0].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarriers[0].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarriers[0].image = computeShaderOutImage;
+		imageMemoryBarriers[0].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+		imageMemoryBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		imageMemoryBarriers[0].dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
 
-			// put model draw
-			model.cmdDraw(commandBuffers[i]);
+		// Let the compute shader finish reading before staring the first subpass
+		imageMemoryBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageMemoryBarriers[1].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarriers[1].image = diffuseColor.imageResolve;
+		imageMemoryBarriers[1].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+		imageMemoryBarriers[1].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		imageMemoryBarriers[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-			vkCmdNextSubpass(commandBuffers[i], VK_SUBPASS_CONTENTS_INLINE);
+		imageMemoryBarriers[2].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageMemoryBarriers[2].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarriers[2].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarriers[2].image = specularColor.imageResolve;
+		imageMemoryBarriers[2].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+		imageMemoryBarriers[2].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		imageMemoryBarriers[2].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipeline);
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipelineLayout, 0, 1, &subpass2.descriptorSet, 0, nullptr);
-			vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+		imageMemoryBarriers[3].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageMemoryBarriers[3].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarriers[3].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarriers[3].image = normal.imageResolve;
+		imageMemoryBarriers[3].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+		imageMemoryBarriers[3].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		imageMemoryBarriers[3].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-			vkCmdEndRenderPass(commandBuffers[i]);
+		imageMemoryBarriers[4].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageMemoryBarriers[4].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarriers[4].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarriers[4].image = otherInfo.imageResolve;
+		imageMemoryBarriers[4].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+		imageMemoryBarriers[4].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		imageMemoryBarriers[4].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-			if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
-				throw std::runtime_error("failed to record command buffer!");
-			}
+		vkCmdPipelineBarrier(
+			commandBuffers[index],
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			0,
+			0, nullptr,
+			0, nullptr,
+			static_cast<uint32_t>(imageMemoryBarriers.size()),
+			imageMemoryBarriers.data());
+
+		VkRenderPassBeginInfo renderPassInfo = {};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassInfo.renderPass = renderPass;
+		renderPassInfo.framebuffer = swapChainFramebuffers[index];
+		renderPassInfo.renderArea.offset = { 0, 0 };
+		renderPassInfo.renderArea.extent = swapChainExtent;
+
+		std::vector<VkClearValue> clearValues = fboManager.getClearValues();
+		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+		renderPassInfo.pClearValues = clearValues.data();
+
+		vkCmdBeginRenderPass(commandBuffers[index], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipeline);
+
+		vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipelineLayout, 0, 1, &subpass1.descriptorSet, 0, nullptr);
+
+		// put model draw
+		model.cmdDraw(commandBuffers[index]);
+
+		vkCmdNextSubpass(commandBuffers[index], VK_SUBPASS_CONTENTS_INLINE);
+
+		vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipeline);
+		vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipelineLayout, 0, 1, &subpass2.descriptorSet, 0, nullptr);
+		vkCmdDraw(commandBuffers[index], 3, 1, 0, 0);
+
+		gui.cmdDraw(commandBuffers[index]);
+
+		vkCmdEndRenderPass(commandBuffers[index]);
+
+		if (vkEndCommandBuffer(commandBuffers[index]) != VK_SUCCESS) {
+			throw std::runtime_error("failed to record command buffer!");
 		}
 	}
 
 	void createComputeCommandBuffer()
-	{	
+	{
 		VkCommandBufferAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.commandPool = computeCommandPool;
@@ -588,8 +648,12 @@ private:
 			throw std::runtime_error("failed to allocate compute command buffers!");
 		}
 
+	}
+
+ void buildComputeCommandBuffer()
+	{
 		// Flush the queue if we're rebuilding the command buffer after a pipeline change to ensure it's not currently in use
-		vkQueueWaitIdle(computeQueue);
+		//vkQueueWaitIdle(computeQueue);
 
 		VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, 0, VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT };
 
@@ -599,7 +663,7 @@ private:
 		
 		vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline.pipeline);
 		vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline.pipelineLayout, 0, 1, &computePipeline.descriptorSet, 0, 0);
-
+		vkCmdPushConstants(computeCommandBuffer, computePipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstantBlock), &gui.pcb);
 		vkCmdDispatch(computeCommandBuffer, swapChainExtent.width / 16, swapChainExtent.height / 16, 1);
 
 		vkEndCommandBuffer(computeCommandBuffer);
@@ -620,22 +684,27 @@ private:
 		if (imageIndex == 0xffffffff)
 			return;
 
+		gui.buildGui(io);
+		gui.uploadData(device, allocator);
 		model.updateMeshData();
 		cam.updateProjViewMat(io, swapChainExtent.width, swapChainExtent.height);
 
+		buildGraphicsCommandBuffer(imageIndex);
 		submitRenderCmd(commandBuffers[imageIndex]);
 
+		vkWaitForFences(device, 1, &computeShaderFence, VK_TRUE, std::numeric_limits<uint64_t>::max());
+		buildComputeCommandBuffer();
 		VkSubmitInfo computeSubmitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
 		computeSubmitInfo.commandBufferCount = 1;
 		computeSubmitInfo.pCommandBuffers = &computeCommandBuffer;
-
-		if (vkQueueSubmit(computeQueue, 1, &computeSubmitInfo, nullptr) != VK_SUCCESS)
+		vkResetFences(device, 1, &computeShaderFence);
+		if (vkQueueSubmit(computeQueue, 1, &computeSubmitInfo, computeShaderFence) != VK_SUCCESS)
 			throw std::runtime_error("failed to submit compute command buffer!");
 
 		frameEnd(imageIndex);
 	}
 };
-/*
+
 int main() 
 {
 	{
@@ -654,7 +723,7 @@ int main()
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-*/
+
 
 
 
