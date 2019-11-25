@@ -153,7 +153,8 @@ public:
 		subpassDescription.pInputAttachments = inputAttachmentRefs.data();
 	}
 
-	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const VkImageView &inputImageView) {
+	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const VkImageView &inputImageView) 
+	{
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE , inputImageView,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 		
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
@@ -201,7 +202,8 @@ private:
 	std::vector<VkCommandBuffer> commandBuffers;
 	PFN_vkCmdTraceRaysNV vkCmdTraceRaysNV = nullptr;
 
-	void init() {
+	void init() 
+	{
 		fboManager.addColorAttachment("diffuseColor", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &colorImageView);
 		fboManager.addColorAttachment("swapchain", swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT, swapChainImageViews.data(), static_cast<uint32_t>(swapChainImageViews.size()));
 
@@ -244,7 +246,8 @@ private:
 	}
 	
 
-	void cleanUpAfterSwapChainResize() {
+	void cleanUpAfterSwapChainResize() 
+	{
 		vkDestroyImageView(device, colorImageView, nullptr);
 		vmaDestroyImage(allocator, colorImage, colorImageAllocation);
 
@@ -272,7 +275,8 @@ private:
 		vkDestroyDescriptorPool(device, subpass1.descriptorPool, nullptr);
 	}
 
-	void recreateAfterSwapChainResize() {
+	void recreateAfterSwapChainResize() 
+	{
 		createRenderPass();
 		createColorResources();
 		createFramebuffers();
@@ -289,8 +293,8 @@ private:
 		model.cleanUp(device, allocator);
 	}
 
-	void createRenderPass() {
-
+	void createRenderPass() 
+	{
 		// this corresponds to the input attachment image after RTX pass
 		VkAttachmentDescription attachment = {};
 		attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -343,7 +347,8 @@ private:
 		}
 	}
 
-	void createFramebuffers() {
+	void createFramebuffers() 
+	{
 		swapChainFramebuffers.resize(swapChainImageViews.size());
 
 		for (size_t i = 0; i < swapChainImageViews.size(); i++) {
@@ -417,7 +422,6 @@ private:
 
 	void buildCommandBuffer(uint32_t index)
 	{
-
 		VkCommandBufferBeginInfo beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
@@ -487,7 +491,8 @@ private:
 		
 	}
 
-	void drawFrame() {
+	void drawFrame() 
+	{
 		uint32_t imageIndex = frameBegin();
 		if (imageIndex == 0xffffffff)
 			return;
