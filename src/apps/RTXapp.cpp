@@ -24,6 +24,52 @@
 #include "../camera.hpp"
 #include "../appBase.hpp"
 #include "../generator.h"
+#include "../gui.h"
+
+struct PushConstantBlock
+{
+	uint32_t select = 0;
+	float scale = 1;
+};
+
+class NewGui : public Gui
+{
+public:
+	const IO* io;
+	PushConstantBlock pcb;
+private:
+
+	const char* items[9] = { "Diffuse Color", "Specular Color", "World-space Normal", "View-space depth", "Clip-space depth", "Internal IOR", "External IOR", "Specular roughness", "Material type" };
+	const char* currentItem = items[0];
+	float scaleCoarse = 1;
+	float scaleFine = 1;
+
+	void guiSetup()
+	{
+		io->frameRateWidget();
+		ImGui::SetCursorPos(ImVec2(5, 110));
+
+		if (ImGui::BeginCombo("Select", currentItem)) // The second parameter is the label previewed before opening the combo.
+		{
+			for (int n = 0; n < IM_ARRAYSIZE(items); n++)
+			{
+				bool is_selected = (currentItem == items[n]); // You can store your selection however you want, outside or inside your objects
+				if (ImGui::Selectable(items[n], is_selected)) {
+					currentItem = items[n];
+					pcb.select = static_cast<uint32_t>(n);
+				}
+				if (is_selected)
+					ImGui::SetItemDefaultFocus();   // You may set the initial focus when opening the combo (scrolling + for keyboard navigation support)
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::SetCursorPos(ImVec2(5, 135));
+		ImGui::SliderFloat("Scale - Coarse", &scaleCoarse, 0.01f, 10.0f);
+		ImGui::SetCursorPos(ImVec2(5, 160));
+		ImGui::SliderFloat("Scale - Fine", &scaleFine, 0.01f, 1.0f);
+		pcb.scale = scaleCoarse * scaleFine;
+	}
+};
 
 class RtxPass {
 public:
@@ -150,6 +196,8 @@ private:
 
 	FboManager fboManager;
 
+	NewGui gui;
+
 	std::vector<VkCommandBuffer> commandBuffers;
 	PFN_vkCmdTraceRaysNV vkCmdTraceRaysNV = nullptr;
 
@@ -166,6 +214,10 @@ private:
 
 		createColorResources();
 		createFramebuffers();
+
+		gui.io = &io;
+		gui.setStyle();
+		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass, 0);
 
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
@@ -230,7 +282,9 @@ private:
 		createCommandBuffers();
 	}
 
-	void cleanupFinal() {
+	void cleanupFinal() 
+	{
+		gui.cleanUp(device, allocator);
 		model.cleanUpRtx(device, allocator);
 		model.cleanUp(device, allocator);
 	}
@@ -346,7 +400,8 @@ private:
 		makeColorImage(fboManager.getFormat("diffuseColor"), fboManager.getSampleCount("diffuseColor"), colorImage, colorImageView, colorImageAllocation);	
 	}
 
-	void createCommandBuffers() {
+	void createCommandBuffers() 
+	{
 		commandBuffers.resize(swapChainFramebuffers.size());
 
 		VkCommandBufferAllocateInfo allocInfo = {};
@@ -358,73 +413,78 @@ private:
 		if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
 			throw std::runtime_error("failed to allocate command buffers!");
 		}
+	}
 
-		for (size_t i = 0; i < commandBuffers.size(); i++) {
-			VkCommandBufferBeginInfo beginInfo = {};
-			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+	void buildCommandBuffer(uint32_t index)
+	{
 
-			if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
-				throw std::runtime_error("failed to begin recording command buffer!");
-			}
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
-			model.cmdTransferData(commandBuffers[i]);
-			model.cmdUpdateTlas(commandBuffers[i]);
-
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipeline);
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipelineLayout, 0, 1, &rtxPass.descriptorSet, 0, nullptr);
-
-			// Calculate shader binding offsets, which is pretty straight forward in our example
-			VkDeviceSize rayGenOffset = rtxPass.sbtGen.getRayGenOffset();
-			VkDeviceSize missOffset = rtxPass.sbtGen.getMissOffset();
-			VkDeviceSize missStride = rtxPass.sbtGen.getMissEntrySize();
-			VkDeviceSize hitGroupOffset = rtxPass.sbtGen.getHitGroupOffset();
-			VkDeviceSize hitGroupStride = rtxPass.sbtGen.getHitGroupEntrySize();
-
-			vkCmdTraceRaysNV(commandBuffers[i], rtxPass.sbtBuffer, rayGenOffset,
-				rtxPass.sbtBuffer, missOffset, missStride,
-				rtxPass.sbtBuffer, hitGroupOffset, hitGroupStride,
-				VK_NULL_HANDLE, 0, 0, swapChainExtent.width,
-				swapChainExtent.height, 1);
-
-			/*
-			cmdTransitionImageLayout(commandBuffers[i], swapChainImages[i], swapChainImageFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, 1);
-			cmdTransitionImageLayout(commandBuffers[i], colorImage, swapChainImageFormat, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 1, 1);
-
-			VkImageCopy copyRegion{};
-			copyRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-			copyRegion.srcOffset = { 0, 0, 0 };
-			copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-			copyRegion.dstOffset = { 0, 0, 0 };
-			copyRegion.extent = { swapChainExtent.width, swapChainExtent.height, 1 };
-			vkCmdCopyImage(commandBuffers[i], colorImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-
-			// There is one potetial issue here: note that rtx pass output image format is usually rgba type while swapchain image is bgra8 type. This conversion needs to be done using 
-			// vkCmdBlitImage.
-
-			cmdTransitionImageLayout(commandBuffers[i], swapChainImages[i], swapChainImageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 1, 1);
-			cmdTransitionImageLayout(commandBuffers[i], colorImage, swapChainImageFormat, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
-			*/
-						
-			VkRenderPassBeginInfo renderPassInfo = {};
-			renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			renderPassInfo.renderPass = renderPass;
-			renderPassInfo.framebuffer = swapChainFramebuffers[i];
-			renderPassInfo.renderArea.offset = { 0, 0 };
-			renderPassInfo.renderArea.extent = swapChainExtent;
-						
-			vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipeline);
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipelineLayout, 0, 1, &subpass1.descriptorSet, 0, nullptr);
-			vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
-
-			vkCmdEndRenderPass(commandBuffers[i]);
-			
-			if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
-				throw std::runtime_error("failed to record command buffer!");
-			}
+		if (vkBeginCommandBuffer(commandBuffers[index], &beginInfo) != VK_SUCCESS) {
+			throw std::runtime_error("failed to begin recording command buffer!");
 		}
+
+		model.cmdTransferData(commandBuffers[index]);
+		model.cmdUpdateTlas(commandBuffers[index]);
+
+		vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipeline);
+		vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipelineLayout, 0, 1, &rtxPass.descriptorSet, 0, nullptr);
+
+		// Calculate shader binding offsets, which is pretty straight forward in our example
+		VkDeviceSize rayGenOffset = rtxPass.sbtGen.getRayGenOffset();
+		VkDeviceSize missOffset = rtxPass.sbtGen.getMissOffset();
+		VkDeviceSize missStride = rtxPass.sbtGen.getMissEntrySize();
+		VkDeviceSize hitGroupOffset = rtxPass.sbtGen.getHitGroupOffset();
+		VkDeviceSize hitGroupStride = rtxPass.sbtGen.getHitGroupEntrySize();
+
+		vkCmdTraceRaysNV(commandBuffers[index], rtxPass.sbtBuffer, rayGenOffset,
+			rtxPass.sbtBuffer, missOffset, missStride,
+			rtxPass.sbtBuffer, hitGroupOffset, hitGroupStride,
+			VK_NULL_HANDLE, 0, 0, swapChainExtent.width,
+			swapChainExtent.height, 1);
+
+		/*
+		cmdTransitionImageLayout(commandBuffers[i], swapChainImages[i], swapChainImageFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, 1);
+		cmdTransitionImageLayout(commandBuffers[i], colorImage, swapChainImageFormat, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 1, 1);
+		
+		VkImageCopy copyRegion{};
+		copyRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+		copyRegion.srcOffset = { 0, 0, 0 };
+		copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+		copyRegion.dstOffset = { 0, 0, 0 };
+		copyRegion.extent = { swapChainExtent.width, swapChainExtent.height, 1 };
+		vkCmdCopyImage(commandBuffers[i], colorImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+
+		// There is one potetial issue here: note that rtx pass output image format is usually rgba type while swapchain image is bgra8 type. This conversion needs to be done using 
+		// vkCmdBlitImage.
+		
+		cmdTransitionImageLayout(commandBuffers[i], swapChainImages[i], swapChainImageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 1, 1);
+		cmdTransitionImageLayout(commandBuffers[i], colorImage, swapChainImageFormat, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
+		*/
+						
+		VkRenderPassBeginInfo renderPassInfo = {};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassInfo.renderPass = renderPass;
+		renderPassInfo.framebuffer = swapChainFramebuffers[index];
+		renderPassInfo.renderArea.offset = { 0, 0 };
+		renderPassInfo.renderArea.extent = swapChainExtent;
+						
+		vkCmdBeginRenderPass(commandBuffers[index], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipeline);
+		vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipelineLayout, 0, 1, &subpass1.descriptorSet, 0, nullptr);
+		vkCmdDraw(commandBuffers[index], 3, 1, 0, 0);
+
+		gui.cmdDraw(commandBuffers[index]);
+
+		vkCmdEndRenderPass(commandBuffers[index]);
+			
+		if (vkEndCommandBuffer(commandBuffers[index]) != VK_SUCCESS) {
+			throw std::runtime_error("failed to record command buffer!");
+		}
+		
 	}
 
 	void drawFrame() {
@@ -432,10 +492,14 @@ private:
 		if (imageIndex == 0xffffffff)
 			return;
 
+		gui.buildGui(io);
+		gui.uploadData(device, allocator);
+
 		model.updateMeshData();
 		model.updateTlasData();
 		cam.updateProjViewMat(io, swapChainExtent.width, swapChainExtent.height);
 
+		buildCommandBuffer(imageIndex);
 		submitRenderCmd(commandBuffers[imageIndex]);
 
 		frameEnd(imageIndex);
