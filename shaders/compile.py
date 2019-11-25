@@ -21,6 +21,8 @@ compileList.append(("./GraphicsComputeGraphicsApp/gShow.frag", "./GraphicsComput
 compileList.append(("./RTXApp/01_raygen.rgen", "./RTXApp/01_raygen.spv"))
 compileList.append(("./RTXApp/01_miss.rmiss", "./RTXApp/01_miss.spv"))
 compileList.append(("./RTXApp/01_close.rchit", "./RTXApp/01_close.spv"))
+compileList.append(("./RTXApp/gShow.vert", "./RTXApp/gShowVert.spv"))
+compileList.append(("./RTXApp/gShow.frag", "./RTXApp/gShowFrag.spv"))
 
 try:
     for shader in compileList:
