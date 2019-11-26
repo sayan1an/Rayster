@@ -510,7 +510,6 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-
 /*
 int main() 
 {

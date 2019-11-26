@@ -11,7 +11,7 @@ layout(binding = 2, set = 0) uniform CameraProperties
     mat4 projInv;
 } cam;
 
-layout(location = 0) rayPayloadNV vec3 hitValue;
+layout(location = 0) rayPayloadNV vec4 hitValue;
 
 void main() 
 {
@@ -30,7 +30,7 @@ void main()
 
 	traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
 	
-	imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(hitValue, 0.0));
+	imageStore(image, ivec2(gl_LaunchIDNV.xy), hitValue);
 	
 	//imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(abs(d.x), abs(d.y), 0.0, 0.0));
 }
