@@ -18,11 +18,17 @@ compileList.append(("./GraphicsComputeGraphicsApp/edgeDetect.comp", "./GraphicsC
 compileList.append(("./GraphicsComputeGraphicsApp/gShow.vert", "./GraphicsComputeGraphicsApp/gShowVert.spv"))
 compileList.append(("./GraphicsComputeGraphicsApp/gShow.frag", "./GraphicsComputeGraphicsApp/gShowFrag.spv"))
 
-compileList.append(("./RTXApp/01_raygen.rgen", "./RTXApp/01_raygen.spv"))
-compileList.append(("./RTXApp/01_miss.rmiss", "./RTXApp/01_miss.spv"))
-compileList.append(("./RTXApp/01_close.rchit", "./RTXApp/01_close.spv"))
-compileList.append(("./RTXApp/gShow.vert", "./RTXApp/gShowVert.spv"))
-compileList.append(("./RTXApp/gShow.frag", "./RTXApp/gShowFrag.spv"))
+compileList.append(("./RtxBasicApp/01_raygen.rgen", "./RtxBasicApp/01_raygen.spv"))
+compileList.append(("./RtxBasicApp/01_miss.rmiss", "./RtxBasicApp/01_miss.spv"))
+compileList.append(("./RtxBasicApp/01_close.rchit", "./RtxBasicApp/01_close.spv"))
+compileList.append(("./RtxBasicApp/gShow.vert", "./RtxBasicApp/gShowVert.spv"))
+compileList.append(("./RtxBasicApp/gShow.frag", "./RtxBasicApp/gShowFrag.spv"))
+
+compileList.append(("./RtxGBuffer/01_raygen.rgen", "./RtxGBuffer/01_raygen.spv"))
+compileList.append(("./RtxGBuffer/01_miss.rmiss", "./RtxGBuffer/01_miss.spv"))
+compileList.append(("./RtxGBuffer/01_close.rchit", "./RtxGBuffer/01_close.spv"))
+compileList.append(("./RtxGBuffer/gShow.vert", "./RtxGBuffer/gShowVert.spv"))
+compileList.append(("./RtxGBuffer/gShow.frag", "./RtxGBuffer/gShowFrag.spv"))
 
 try:
     for shader in compileList:

@@ -91,11 +91,11 @@ public:
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RTXApp/01_raygen.spv");
-		uint32_t missShaderId = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RTXApp/01_miss.spv");
+		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RtxGBuffer/01_raygen.spv");
+		uint32_t missShaderId = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxGBuffer/01_miss.spv");
 		uint32_t hitGroupId = rtxPipeGen.startHitGroup();
 
-		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RTXApp/01_close.spv");
+		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RtxGBuffer/01_close.spv");
 		rtxPipeGen.endHitGroup();
 		rtxPipeGen.setMaxRecursionDepth(1);
 
@@ -159,8 +159,8 @@ public:
 		
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 		
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RTXApp/gShowVert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RTXApp/gShowFrag.spv");
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxGBuffer/gShowVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxGBuffer/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
 		gfxPipeGen.addDepthStencilState(VK_FALSE, VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
