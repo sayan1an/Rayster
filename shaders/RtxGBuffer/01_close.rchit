@@ -56,6 +56,10 @@ void main()
 
   vec3 color = v0.color * barycentricCoords.x + v1.color * barycentricCoords.y + v2.color * barycentricCoords.z;
   vec2 texCoord = v0.texCoord * barycentricCoords.x + v1.texCoord * barycentricCoords.y + v2.texCoord * barycentricCoords.z;
+  vec3 normal = v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z; // this is incorrect, multiply by modelIT mat
   
-  hitValue = texture(ldrTexSampler, vec3(texCoord, staticInstanceData.y)) * vec4(color, 1.0f); // diffuse texture
+  //hitValue = texture(ldrTexSampler, vec3(texCoord, staticInstanceData.x)) * vec4(color, 1.0f); // diffuse texture
+  //hitValue = texture(ldrTexSampler, vec3(texCoord, staticInstanceData.y)) * vec4(color, 1.0f); // specular texture
+
+  hitValue = vec4(abs(normal), 1.0f);
 }
