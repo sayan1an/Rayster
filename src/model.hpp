@@ -517,7 +517,7 @@ public:
 		vkDestroySampler(device, hdrTextureSampler, nullptr);
 		vkDestroyImageView(device, hdrTextureImageView, nullptr);
 
-		vmaDestroyImage(allocator, hdrTextureImage, ldrTextureImageAllocation);
+		vmaDestroyImage(allocator, hdrTextureImage, hdrTextureImageAllocation);
 
 		vmaDestroyBuffer(allocator, indexBuffer, indexBufferAllocation);
 		vmaDestroyBuffer(allocator, vertexBuffer, vertexBufferAllocation);

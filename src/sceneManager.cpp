@@ -4,9 +4,6 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
-static const std::vector<std::string> MODEL_PATHS = { ROOT + "/models/chalet.obj", ROOT + "/models/deer.obj", ROOT + "/models/cat.obj" };
-static const std::vector<std::string> TEXTURE_PATHS = { ROOT + "/textures/chalet.jpg", ROOT + "/textures/ubiLogo.jpg" };
-
 struct Material
 {
 	std::string name;
@@ -41,18 +38,31 @@ static Mesh* loadMeshTiny(const char* meshPath)
 				attrib.vertices[3 * index.vertex_index + 2]
 			};
 
-			vertex.normal = {
-				attrib.normals[3 * index.normal_index + 0],
-				attrib.normals[3 * index.normal_index + 1],
-				attrib.normals[3 * index.normal_index + 2]
+			if (!attrib.normals.empty() && index.normal_index >= 0)
+				vertex.normal = {
+					attrib.normals[3 * index.normal_index + 0],
+					attrib.normals[3 * index.normal_index + 1],
+					attrib.normals[3 * index.normal_index + 2]
 			};
-			
-			vertex.texCoord = {
-				attrib.texcoords[2 * index.texcoord_index + 0],
-				1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-			};
+			else
+				vertex.normal = { 0.0f, 1.0f, 0.0f };
 
-			vertex.color = { 1.0f, 1.0f, 1.0f };
+			if (!attrib.texcoords.empty() && index.texcoord_index >= 0)
+				vertex.texCoord = {
+					attrib.texcoords[2 * index.texcoord_index],
+					1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+				};
+			else 
+				vertex.texCoord = glm::vec2(0.5f);
+
+			if (!attrib.colors.empty())
+				vertex.color = { 
+					attrib.colors[3 * index.vertex_index + 0], 
+					attrib.colors[3 * index.vertex_index + 1],
+					attrib.colors[3 * index.vertex_index + 2] 
+				};
+			else
+				vertex.color = { 1.0f, 1.0f, 1.0f };
 
 			if (uniqueVertices.count(vertex) == 0) {
 				uniqueVertices[vertex] = static_cast<uint32_t>(mesh->vertices.size());
@@ -60,6 +70,26 @@ static Mesh* loadMeshTiny(const char* meshPath)
 			}
 
 			mesh->indices.push_back(uniqueVertices[vertex]);
+		}
+
+		// Compute normal when no normal were provided.
+		if (attrib.normals.empty()) {
+			for (auto& v : mesh->vertices)
+				v.normal = { 0, 0, 0 };
+
+			for (size_t i = 0; i < mesh->indices.size(); i += 3) {
+				Vertex& v0 = mesh->vertices[mesh->indices[i + 0]];
+				Vertex& v1 = mesh->vertices[mesh->indices[i + 1]];
+				Vertex& v2 = mesh->vertices[mesh->indices[i + 2]];
+
+				glm::vec3 n = glm::normalize(glm::cross((v1.pos - v0.pos), (v2.pos - v0.pos)));
+				v0.normal += n;
+				v1.normal += n;
+				v2.normal += n;
+			}
+
+			for (auto& v : mesh->vertices)
+				v.normal = glm::normalize(v.normal); 
 		}
 	}
 
@@ -232,44 +262,51 @@ static void loadSpaceship(Model& model, Camera& cam)
 	addInstance("RedLeather", 22);
 }
 
-/*
-static void loadDefault(Model &model, Camera &cam)
-{
-	for (const auto& texturePath : TEXTURE_PATHS)
-		model.addTexture(Image2d(texturePath));
 
-	Mesh* mesh = loadMeshTiny(MODEL_PATHS[2].c_str());
+static void loadDefault(Model &model, Camera &cam)
+{	
+	const std::vector<std::string> MODEL_PATHS = { ROOT + "/models/default/meshes/chalet.obj", ROOT + "/models/default/meshes/deer.obj", ROOT + "/models/default/meshes/cat.obj" };
+	const std::vector<std::string> TEXTURE_PATHS = { ROOT + "/models/default/textures/chalet.jpg", ROOT + "/models/default/textures/ubiLogo.jpg" };
+	
+	for (const auto& texturePath : TEXTURE_PATHS)
+		model.addLdrTexture(Image2d(texturePath));
+
+	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.1f, 1.0f, 1.0f, 1.0f), true));
+	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.1f, 1.0f, 1.0f, 1.0f), true)); // Need at least two textures, otherwise validation layer may complaint
+
+	Mesh* mesh = loadMeshTiny(MODEL_PATHS[0].c_str());
 	mesh->normailze(0.7f);
 	model.addMesh(mesh);
-	mesh = loadMesh(MODEL_PATHS[0].c_str());
+	mesh = loadMeshTiny(MODEL_PATHS[1].c_str());
 	mesh->normailze(0.7f);
 	model.addMesh(mesh);
-	mesh = loadMesh(MODEL_PATHS[1].c_str());
+	mesh = loadMeshTiny(MODEL_PATHS[2].c_str());
 	mesh->normailze(0.7f);
 	model.addMesh(mesh);
 	
 	glm::mat4 tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 0, 2));
-	model.addInstance(2, 0, tf);
+	model.addInstance(2, 1, 1, 0, 0, tf);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, -2, 0));
-	model.addInstance(0, 1, tf);
+	model.addInstance(0, 0, 0, 0, 0, tf);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(2, 0, 0));
-	model.addInstance(1, 1, tf);
+	model.addInstance(1, 1, 1, 0, 0, tf);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 2, 0));
-	model.addInstance(0, 0, tf);
+	model.addInstance(0, 0, 0, 0, 0, tf);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 0, -2));
-	model.addInstance(2, 1, tf);
+	model.addInstance(2, 1, 1, 0, 0, tf);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(-2, 0, 0));
-	model.addInstance(1, 0, tf);
-}*/
+	model.addInstance(1, 1, 1, 0, 0, tf);
+}
 
 extern void loadScene(Model& model, Camera& cam, const std::string& name)
 {	
-	loadSpaceship(model, cam);
+	//loadSpaceship(model, cam);
+	loadDefault(model, cam);
 
 	/*if (name.compare("default") == 0)
 		loadDefault(model, cam);

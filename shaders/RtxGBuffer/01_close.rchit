@@ -8,7 +8,7 @@ hitAttributeNV vec3 attribs;
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
 layout(binding = 3, set = 0) buffer Vertices { vec4 v[]; } vertices;
 layout(binding = 4, set = 0) buffer Indices { uint i[]; } indices;
-layout(binding = 5, set = 0) buffer StaticInstances { uvec4 i[]; } staticInstances;
+layout(binding = 5, set = 0) buffer StaticInstanceData { uvec4 i[]; } staticInstanceData;
 layout(binding = 6, set = 0) uniform sampler2DArray ldrTexSampler;
 layout(binding = 7, set = 0) uniform sampler2DArray hdrTexSampler;
 
@@ -46,7 +46,7 @@ void main()
   ivec3 ind = ivec3(indices.i[3 * gl_PrimitiveID], indices.i[3 * gl_PrimitiveID + 1],
                     indices.i[3 * gl_PrimitiveID + 2]);
   
-  uvec4 staticInstanceData = staticInstances.i[gl_InstanceID];
+  uvec4 instanceData = staticInstanceData.i[gl_InstanceID];
   
   const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 
@@ -58,8 +58,8 @@ void main()
   vec2 texCoord = v0.texCoord * barycentricCoords.x + v1.texCoord * barycentricCoords.y + v2.texCoord * barycentricCoords.z;
   vec3 normal = v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z; // this is incorrect, multiply by modelIT mat
   
-  //hitValue = texture(ldrTexSampler, vec3(texCoord, staticInstanceData.x)) * vec4(color, 1.0f); // diffuse texture
-  //hitValue = texture(ldrTexSampler, vec3(texCoord, staticInstanceData.y)) * vec4(color, 1.0f); // specular texture
+  hitValue = texture(ldrTexSampler, vec3(texCoord, instanceData.x)) * vec4(color, 1.0f); // diffuse texture
+  //hitValue = texture(ldrTexSampler, vec3(texCoord, instanceData.y)) * vec4(color, 1.0f); // specular texture
 
-  hitValue = vec4(abs(normal), 1.0f);
+  //hitValue = vec4(abs(normal), 1.0f);
 }

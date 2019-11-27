@@ -539,6 +539,7 @@ private:
 		frameEnd(imageIndex);
 	}
 };
+
 /*
 int main() 
 {
@@ -559,4 +560,5 @@ int main()
 	return EXIT_SUCCESS;
 }
 */
+
 
