@@ -21,8 +21,17 @@ struct Vertex
 	float dummy;
 };
 
+struct InstanceData_static 
+{
+	uvec4 data;
+	uvec4 other;
+};
+
 // Number of vec4 values used to represent a vertex i.e. vertexSize * sizeof(vec4) == sizeof(Vertex)
 uint vertexSize = 3;
+
+// Number of vec4 values used to represent a instance static data i.e. staticSize * sizeof(vec4) == sizeof(InstanceData_static)
+uint staticSize = 2;
 
 Vertex unpackVertex(uint index)
 {
@@ -41,13 +50,23 @@ Vertex unpackVertex(uint index)
   return v;
 }
 
+InstanceData_static unpackDataStatic(uint index)
+{
+  InstanceData_static d;
+  
+  d.data = staticInstanceData.i[staticSize * index + 0];
+  d.other = staticInstanceData.i[staticSize * index + 1];
+
+  return d;
+}
+
 void main()
 { 
-  ivec3 ind = ivec3(indices.i[3 * gl_PrimitiveID], indices.i[3 * gl_PrimitiveID + 1],
-                    indices.i[3 * gl_PrimitiveID + 2]);
-  
-  uvec4 instanceData = staticInstanceData.i[gl_InstanceID];
-  
+  InstanceData_static instanceData = unpackDataStatic(gl_InstanceID);
+
+  ivec3 ind = ivec3(indices.i[3 * gl_PrimitiveID + instanceData.other.x], indices.i[3 * gl_PrimitiveID + instanceData.other.x + 1],
+                    indices.i[3 * gl_PrimitiveID + instanceData.other.x + 2]);
+    
   const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 
   Vertex v0 = unpackVertex(ind.x);
@@ -58,8 +77,8 @@ void main()
   vec2 texCoord = v0.texCoord * barycentricCoords.x + v1.texCoord * barycentricCoords.y + v2.texCoord * barycentricCoords.z;
   vec3 normal = v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z; // this is incorrect, multiply by modelIT mat
   
-  hitValue = texture(ldrTexSampler, vec3(texCoord, instanceData.x)) * vec4(color, 1.0f); // diffuse texture
-  //hitValue = texture(ldrTexSampler, vec3(texCoord, instanceData.y)) * vec4(color, 1.0f); // specular texture
+  hitValue = texture(ldrTexSampler, vec3(texCoord, instanceData.data.x)) * vec4(color, 1.0f); // diffuse texture
+  //hitValue = texture(ldrTexSampler, vec3(texCoord, instanceData.data.y)) * vec4(color, 1.0f); // specular texture
 
   //hitValue = vec4(abs(normal), 1.0f);
 }

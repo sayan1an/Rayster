@@ -62,6 +62,7 @@ namespace std
 struct InstanceData_static 
 {
 	glm::uvec4 data; // diffuse texture index, specular texture index, alpha_intIor_extIor texture index, Material brdf type
+	glm::uvec4 other; // This field has not been added to vertexDescription, for now only required for rtx. other.x is indexOffset for the instance.
 };
 
 // Per instance data, update at drawtime
@@ -217,20 +218,26 @@ public:
 		if (alphaIorTextureIdx >= hdrTexGen.size())
 			throw std::runtime_error("This hdr texture does not exsist");
 
+		uint32_t indexOffset = 0;
+		for (uint32_t i = 0; i < meshIdx; i++)
+			indexOffset += static_cast<uint32_t>(meshes[i]->indices.size());
+		
+		InstanceData_static instanceDataStatic;
+		instanceDataStatic.data = glm::uvec4(diffuseTextureIdx, specularTextureIdx, alphaIorTextureIdx, bsdfType);
+		instanceDataStatic.other = glm::uvec4(indexOffset, 0, 0, 0);
+
 		// assumes instances have meshIdx in groups i.e. aaa-bbbbb-ccccc-dddddd. 
 		uint32_t firstInstance = 0;
 		while (firstInstance < meshPointers.size() && meshPointers[firstInstance] != meshIdx)
 			firstInstance++;
 
 		if (meshPointers.size() < 2 || firstInstance >= meshPointers.size() - 1) {
-			instanceData_static.push_back({ 
-				glm::uvec4(diffuseTextureIdx, specularTextureIdx, alphaIorTextureIdx, bsdfType) });
+			instanceData_static.push_back(instanceDataStatic);
 			instanceData_dynamic.push_back({ transform, glm::transpose(glm::inverse(transform)) });
 			meshPointers.push_back(meshIdx);
 		}
 		else {
-			instanceData_static.insert(instanceData_static.begin() + firstInstance + 1, 1, { 
-				glm::uvec4(diffuseTextureIdx, specularTextureIdx, alphaIorTextureIdx, bsdfType) });
+			instanceData_static.insert(instanceData_static.begin() + firstInstance + 1, 1, instanceDataStatic);
 			instanceData_dynamic.insert(instanceData_dynamic.begin() + firstInstance + 1, 1, { transform, glm::transpose(glm::inverse(transform)) });
 			meshPointers.insert(meshPointers.begin() + firstInstance + 1, 1, meshIdx);
 		}
