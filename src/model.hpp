@@ -17,13 +17,14 @@
 /*
  * Mesh organisation philosphy - Think of each mesh having one or more instances. A model is composed of several such meshes and their instanaces. Simply put,
  * a mesh is the largest set of vertices that can be represented by a transformation matrix. For example - A car can have several meshes - body, windshield, doors, wheels etc. Ideally,
- * one should combine the body, windshield into a single mesh, since the combination only require one transformation matrix. We should have seperate mesh for wheels and doors as the each 
- * require one transform matrix.
+ * one should combine the body, windshield into a single mesh, since the combination only require one transformation matrix. We should have seperate mesh for the wheel and door and create 
+ * multiple instances with differnt transforms.
 
- * Material loading philosphy - Refering back to the car example, let's consider the body and windshield as a single mesh. Then the problem is body and windshield has obviously different 
- * materials but same transform. To solve this problem we use per vertex material and is currently the default.
- * As alternative, we can also specify per instance material. This is useful in case when per vertex material is too complicated or unnecessary. Specifying per insatnce material overrides
- * the per vertex material values if any.
+ * Material loading philosphy - Refering back to the car example, let's consider the body and windshield as a single mesh. Then the problem is body and windshield has different 
+ * materials, although they share same rigid transform. To solve this problem, we specify per vertex material. This is currently the default route.
+ * As alternative, we can also specify per instance material. Consider the case when you want to have a glass ball and a steel ball. Although they share same geometric mesh, they are 
+ * different in terms of material. It would be super-wasteful to have two seperate mesh just to have different materials. Specifying per insatnce material overrides the per vertex 
+ * material values if any.
 
  * Accelaration Structure notes - We want to minimize the number of bottom level accelaration structures for performance reasons. 
  * Ideally one should categorize the meshes into groups and create one bottom level accelaration structure for each group.
@@ -232,6 +233,7 @@ public:
 		return materials.size();
 	}
 	
+	// When non-default materialIndex is provided, it will override the per vertex material.
 	void addInstance(uint32_t meshIdx, glm::mat4 &transform, uint32_t materialIndex = 0xffffffff)
 	{
 		if (meshIdx >= meshes.size())
