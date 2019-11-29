@@ -6,11 +6,12 @@ layout(location = 0) rayPayloadInNV vec4 hitValue;
 hitAttributeNV vec3 attribs;
 
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
-layout(binding = 3, set = 0) buffer Vertices { vec4 v[]; } vertices;
-layout(binding = 4, set = 0) buffer Indices { uint i[]; } indices;
-layout(binding = 5, set = 0) buffer StaticInstanceData { uvec4 i[]; } staticInstanceData;
-layout(binding = 6, set = 0) uniform sampler2DArray ldrTexSampler;
-layout(binding = 7, set = 0) uniform sampler2DArray hdrTexSampler;
+layout(binding = 3, set = 0) readonly buffer Material { uvec4 textureIdx[]; } materials;
+layout(binding = 4, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
+layout(binding = 5, set = 0) readonly buffer Indices { uint i[]; } indices;
+layout(binding = 6, set = 0) readonly buffer StaticInstanceData { uvec4 i[]; } staticInstanceData;
+layout(binding = 7, set = 0) uniform sampler2DArray ldrTexSampler;
+layout(binding = 8, set = 0) uniform sampler2DArray hdrTexSampler;
 
 struct Vertex 
 {
@@ -18,20 +19,16 @@ struct Vertex
 	vec3 color;
 	vec3 normal;
 	vec2 texCoord;
-	float dummy;
+	uint materialIdx;
 };
 
 struct InstanceData_static 
 {
 	uvec4 data;
-	uvec4 other;
 };
 
 // Number of vec4 values used to represent a vertex i.e. vertexSize * sizeof(vec4) == sizeof(Vertex)
 uint vertexSize = 3;
-
-// Number of vec4 values used to represent a instance static data i.e. staticSize * sizeof(vec4) == sizeof(InstanceData_static)
-uint staticSize = 2;
 
 Vertex unpackVertex(uint index)
 {
@@ -45,27 +42,17 @@ Vertex unpackVertex(uint index)
   v.color = vec3(d0.w, d1.x, d1.y);
   v.normal = vec3(d1.z, d1.w, d2.x);
   v.texCoord = vec2(d2.y, d2.z);
-  v.dummy = d2.w;
+  v.materialIdx = floatBitsToUint(d2.w);
 
   return v;
 }
 
-InstanceData_static unpackDataStatic(uint index)
-{
-  InstanceData_static d;
-  
-  d.data = staticInstanceData.i[staticSize * index + 0];
-  d.other = staticInstanceData.i[staticSize * index + 1];
-
-  return d;
-}
-
 void main()
 { 
-  InstanceData_static instanceData = unpackDataStatic(gl_InstanceID);
-
-  ivec3 ind = ivec3(indices.i[3 * gl_PrimitiveID + instanceData.other.x], indices.i[3 * gl_PrimitiveID + instanceData.other.x + 1],
-                    indices.i[3 * gl_PrimitiveID + instanceData.other.x + 2]);
+  uvec4 staticInstanceDataUnit = staticInstanceData.i[gl_InstanceID];
+  
+  ivec3 ind = ivec3(indices.i[3 * gl_PrimitiveID + staticInstanceDataUnit.y], indices.i[3 * gl_PrimitiveID + staticInstanceDataUnit.y + 1],
+                    indices.i[3 * gl_PrimitiveID + staticInstanceDataUnit.y + 2]);
     
   const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 
@@ -73,12 +60,15 @@ void main()
   Vertex v1 = unpackVertex(ind.y);
   Vertex v2 = unpackVertex(ind.z);
 
+  uint materialIdx = staticInstanceDataUnit.x == 0xffffffff ? v0.materialIdx : staticInstanceDataUnit.x;
+  uvec4 textureIdxUnit = materials.textureIdx[materialIdx];
+
   vec3 color = v0.color * barycentricCoords.x + v1.color * barycentricCoords.y + v2.color * barycentricCoords.z;
   vec2 texCoord = v0.texCoord * barycentricCoords.x + v1.texCoord * barycentricCoords.y + v2.texCoord * barycentricCoords.z;
   vec3 normal = v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z; // this is incorrect, multiply by modelIT mat
   
-  hitValue = texture(ldrTexSampler, vec3(texCoord, instanceData.data.x)) * vec4(color, 1.0f); // diffuse texture
-  //hitValue = texture(ldrTexSampler, vec3(texCoord, instanceData.data.y)) * vec4(color, 1.0f); // specular texture
+  hitValue = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)) * vec4(color, 1.0f); // diffuse texture
+  //hitValue = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.y)) * vec4(color, 1.0f); // specular texture
 
   //hitValue = vec4(abs(normal), 1.0f);
 }

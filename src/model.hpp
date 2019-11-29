@@ -15,7 +15,7 @@
 #include "generator.h"
 
 /*
- * Mesh organisation - Think of each mesh having one or more instances. A model is composed of several such meshes and their instanaces. Simply put,
+ * Mesh organisation philosphy - Think of each mesh having one or more instances. A model is composed of several such meshes and their instanaces. Simply put,
  * a mesh is the largest set of vertices that can be represented by a transformation matrix. For example - A car can have several meshes - body, windshield, doors, wheels etc. Ideally,
  * one should combine the body, windshield into a single mesh, since the combination only require one transformation matrix. We should have seperate mesh for wheels and doors as the each 
  * require one transform matrix.
@@ -44,7 +44,7 @@ struct Vertex
 	glm::vec3 color;
 	glm::vec3 normal;
 	glm::vec2 texCoord;
-	float dummy;
+	uint32_t materialIndex;
 
 	bool operator==(const Vertex& other) const 
 	{
@@ -70,7 +70,6 @@ namespace std
 struct InstanceData_static 
 {
 	glm::uvec4 data; // diffuse texture index, specular texture index, alpha_intIor_extIor texture index, Material brdf type
-	glm::uvec4 other; // This field has not been added to vertexDescription, for now only required for rtx. other.x is indexOffset for the instance.
 };
 
 // Per instance data, update at drawtime
@@ -242,8 +241,7 @@ public:
 		
 		InstanceData_static instanceDataStatic;
 		instanceDataStatic.data = glm::uvec4(materialIndex, indexOffset, 0, 0);
-		instanceDataStatic.other = glm::uvec4(indexOffset, 0, 0, 0);
-
+		
 		// assumes instances have meshIdx in groups i.e. aaa-bbbbb-ccccc-dddddd. 
 		uint32_t firstInstance = 0;
 		while (firstInstance < meshPointers.size() && meshPointers[firstInstance] != meshIdx)
@@ -293,7 +291,7 @@ public:
 
 	static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() 
 	{
-		std::array<VkVertexInputAttributeDescription, 13> attributeDescriptions = {};
+		std::array<VkVertexInputAttributeDescription, 14> attributeDescriptions = {};
 		uint32_t location = 0;
 		// per vertex
 		attributeDescriptions[location].binding = VERTEX_BINDING_ID;
@@ -389,6 +387,12 @@ public:
 		attributeDescriptions[location].offset = offsetof(InstanceData_dynamic, modelIT) + 48;
 
 		location++;
+
+		// per vertex
+		attributeDescriptions[location].binding = VERTEX_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32_UINT;
+		attributeDescriptions[location].offset = offsetof(Vertex, materialIndex);
 
 		return std::vector<VkVertexInputAttributeDescription>(attributeDescriptions.begin(), attributeDescriptions.end());
 	}

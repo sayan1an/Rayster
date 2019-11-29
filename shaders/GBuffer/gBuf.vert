@@ -25,6 +25,9 @@ layout(location = 4) in uvec4 inData;
 layout(location = 5) in mat4 modelTransform;
 layout(location = 9) in mat4 modelTransformIT;
 
+// per vertex
+layout(location = 13) in uint materialIdx;
+
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec3 fragNormal;
 layout(location = 2) out vec2 fragTexCoord;
@@ -36,5 +39,6 @@ void main()
     fragColor = inColor;
     fragNormal = (modelTransformIT * vec4(inNormal, 0)).xyz;
     fragTexCoord = inTexCoord;
+    uint materialIndex = inData.x == 0xffffffff ? materialIdx : inData.x;
     fragData = materials.textureIds[inData.x];
 }
