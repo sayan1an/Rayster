@@ -4,14 +4,41 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
-struct Material
-{
+//-----------------------------------------------------------------------------
+// Extract the directory component from a complete path.
+//
+#ifdef WIN32
+#define CORRECT_PATH_SEP "\\"
+#define WRONG_PATH_SEP '/'
+#else
+#define CORRECT_PATH_SEP "/"
+#define WRONG_PATH_SEP '\\'
+#endif
+
+static struct NamedMaterial : Material {
 	std::string name;
-	uint32_t diffuseTextureIdx;
-	uint32_t specularTextureIdx;
-	uint32_t alphaIntExtIorTextureIdx;
-	uint32_t brdfType;
+	NamedMaterial(std::string _name, uint32_t diffIdx, uint32_t specIdx, uint32_t alphaIdx, uint32_t matType)
+	{
+		name = _name;
+		diffuseTextureIdx = diffIdx;
+		specularTextureIdx = specIdx;
+		alphaIntExtIorTextureIdx = alphaIdx;
+		materialType = matType;
+	}
 };
+
+static std::string get_path(const std::string& file)
+{
+	std::string dir;
+	size_t idx = file.find_last_of("\\/");
+	if (idx != std::string::npos)
+		dir = file.substr(0, idx);
+	if (!dir.empty())
+	{
+		dir += CORRECT_PATH_SEP;
+	}
+	return dir;
+}
 
 static Mesh* loadMeshTiny(const char* meshPath)
 {	
@@ -22,13 +49,16 @@ static Mesh* loadMeshTiny(const char* meshPath)
 	std::vector<tinyobj::material_t> materials;
 	std::string warn, err;
 
-	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, meshPath)) {
+	std::string materialPath = get_path(meshPath);
+
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, meshPath, materialPath.c_str())) {
 		throw std::runtime_error(warn + err);
 	}
 
 	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
 
 	for (const auto& shape : shapes) {
+		std::cout << shape.mesh.num_face_vertices.size() << std::endl;
 		for (const auto& index : shape.mesh.indices) {
 			Vertex vertex = {};
 
@@ -71,29 +101,39 @@ static Mesh* loadMeshTiny(const char* meshPath)
 
 			mesh->indices.push_back(uniqueVertices[vertex]);
 		}
+	}
 
-		// Compute normal when no normal were provided.
-		if (attrib.normals.empty()) {
-			for (auto& v : mesh->vertices)
-				v.normal = { 0, 0, 0 };
+	// Compute normal when no normal were provided.
+	if (attrib.normals.empty()) {
+		for (auto& v : mesh->vertices)
+			v.normal = { 0, 0, 0 };
 
-			for (size_t i = 0; i < mesh->indices.size(); i += 3) {
-				Vertex& v0 = mesh->vertices[mesh->indices[i + 0]];
-				Vertex& v1 = mesh->vertices[mesh->indices[i + 1]];
-				Vertex& v2 = mesh->vertices[mesh->indices[i + 2]];
+		for (size_t i = 0; i < mesh->indices.size(); i += 3) {
+			Vertex& v0 = mesh->vertices[mesh->indices[i + 0]];
+			Vertex& v1 = mesh->vertices[mesh->indices[i + 1]];
+			Vertex& v2 = mesh->vertices[mesh->indices[i + 2]];
 
-				glm::vec3 n = glm::normalize(glm::cross((v1.pos - v0.pos), (v2.pos - v0.pos)));
-				v0.normal += n;
-				v1.normal += n;
-				v2.normal += n;
-			}
-
-			for (auto& v : mesh->vertices)
-				v.normal = glm::normalize(v.normal); 
+			glm::vec3 n = glm::normalize(glm::cross((v1.pos - v0.pos), (v2.pos - v0.pos)));
+			v0.normal += n;
+			v1.normal += n;
+			v2.normal += n;
 		}
+
+		for (auto& v : mesh->vertices)
+			v.normal = glm::normalize(v.normal);
 	}
 
 	return mesh;
+}
+
+static void loadMedievalHouse(Model& model, Camera& cam)
+{
+	model.addMesh(loadMeshTiny((ROOT +"/models/medievalHouse/Medieval_building.obj").c_str()));
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f)));
+	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.1f, 1.0f, 1.0f, 1.0f), true));
+
+	glm::mat4 tf = glm::identity<glm::mat4>();
+	//model.addInstance(0, 0, 0, 0, 0, tf);
 }
 
 static void loadSpaceship(Model& model, Camera& cam)
@@ -136,12 +176,11 @@ static void loadSpaceship(Model& model, Camera& cam)
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.2f, 1.5f, 1.0f, 1.0f), true)); // 1
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.4f, 1.5f, 1.0f, 1.0f), true)); // 2
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.01f, 1.5f, 1.0f, 1.0f), true)); // 3
-
 	
 	enum BRDF_TYPE { DIFFUSE, BECKMANN, GGX, DIELECTRIC, AREA };
 
-	std::vector<Material> materials;
-	Material m = { "RoughAluminium", 0, 2, 0, GGX };
+	std::vector<NamedMaterial> materials;
+	NamedMaterial m = { "RoughAluminium", 0, 2, 0, GGX };
 	materials.push_back(m);
 	m = { "RoughSteel", 0, 1, 0, GGX };
 	materials.push_back(m);
@@ -160,16 +199,19 @@ static void loadSpaceship(Model& model, Camera& cam)
 	m = { "Backdrop", 10, 1, 0, DIFFUSE };
 	materials.push_back(m);
 
+	for (const auto& material : materials)
+		model.addMaterial(material.diffuseTextureIdx, material.specularTextureIdx, material.alphaIntExtIorTextureIdx, material.materialType);
+
 	auto addInstance = [&materials, &model](std::string matName, uint32_t meshIdx)
-	{
+	{	
+		uint32_t matIdx = 0;
 		for (const auto& material : materials) {
 			if (material.name.compare(matName) == 0) {
 				glm::mat4 tf = glm::identity<glm::mat4>();
-				model.addInstance(meshIdx, 
-					material.diffuseTextureIdx, material.specularTextureIdx, 
-					material.alphaIntExtIorTextureIdx, material.brdfType, tf);
+				model.addInstance(meshIdx, matIdx, tf);
 				break;
 			}
+			matIdx++;
 		}
 	};
 
@@ -285,28 +327,29 @@ static void loadDefault(Model &model, Camera &cam)
 	model.addMesh(mesh);
 	
 	glm::mat4 tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 0, 2));
-	model.addInstance(2, 1, 1, 0, 0, tf);
+	//model.addInstance(2, 1, 1, 0, 0, tf);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, -2, 0));
-	model.addInstance(0, 0, 0, 0, 0, tf);
+	//model.addInstance(0, 0, 0, 0, 0, tf);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(2, 0, 0));
-	model.addInstance(1, 1, 1, 0, 0, tf);
+	//model.addInstance(1, 1, 1, 0, 0, tf);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 2, 0));
-	model.addInstance(0, 0, 0, 0, 0, tf);
+	//model.addInstance(0, 0, 0, 0, 0, tf);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 0, -2));
-	model.addInstance(2, 1, 1, 0, 0, tf);
+	//model.addInstance(2, 1, 1, 0, 0, tf);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(-2, 0, 0));
-	model.addInstance(1, 1, 1, 0, 0, tf);
+	//model.addInstance(1, 1, 1, 0, 0, tf);
 }
 
 extern void loadScene(Model& model, Camera& cam, const std::string& name)
 {	
-	//loadSpaceship(model, cam);
-	loadDefault(model, cam);
+	//loadMedievalHouse(model, cam);
+	loadSpaceship(model, cam);
+	//loadDefault(model, cam);
 
 	/*if (name.compare("default") == 0)
 		loadDefault(model, cam);

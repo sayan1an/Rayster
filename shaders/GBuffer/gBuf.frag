@@ -8,8 +8,8 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 projInv;
 } ubo;
 
-layout(binding = 1) uniform sampler2DArray ldrTexSampler;
-layout(binding = 2) uniform sampler2DArray hdrTexSampler;
+layout(binding = 2) uniform sampler2DArray ldrTexSampler;
+layout(binding = 3) uniform sampler2DArray hdrTexSampler;
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec3 fragNormal;

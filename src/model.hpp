@@ -30,6 +30,14 @@
 #define STATIC_INSTANCE_BINDING_ID	1
 #define DYNAMIC_INSTANCE_BINDING_ID 2 
 
+struct Material
+{
+	uint32_t diffuseTextureIdx;
+	uint32_t specularTextureIdx;
+	uint32_t alphaIntExtIorTextureIdx;
+	uint32_t materialType;
+};
+
 struct Vertex 
 {
 	glm::vec3 pos;
@@ -203,12 +211,9 @@ public:
 
 		return hdrTexGen.addTexture(texture);
 	}
-	
-	void addInstance(uint32_t meshIdx, uint32_t diffuseTextureIdx, uint32_t specularTextureIdx, uint32_t alphaIorTextureIdx, uint32_t bsdfType, glm::mat4 &transform)
-	{
-		if (meshIdx >= meshes.size())
-			throw std::runtime_error("This mesh does not exsist");
 
+	size_t addMaterial(uint32_t diffuseTextureIdx, uint32_t specularTextureIdx, uint32_t alphaIorTextureIdx, uint32_t materialfType)
+	{
 		if (diffuseTextureIdx >= ldrTexGen.size())
 			throw std::runtime_error("This ldr texture does not exsist");
 
@@ -218,12 +223,20 @@ public:
 		if (alphaIorTextureIdx >= hdrTexGen.size())
 			throw std::runtime_error("This hdr texture does not exsist");
 
+		materials.push_back({ diffuseTextureIdx, specularTextureIdx, alphaIorTextureIdx, materialfType });
+	}
+	
+	void addInstance(uint32_t meshIdx, uint32_t materialIndex, glm::mat4 &transform)
+	{
+		if (meshIdx >= meshes.size())
+			throw std::runtime_error("This mesh does not exsist");
+
 		uint32_t indexOffset = 0;
 		for (uint32_t i = 0; i < meshIdx; i++)
 			indexOffset += static_cast<uint32_t>(meshes[i]->indices.size());
 		
 		InstanceData_static instanceDataStatic;
-		instanceDataStatic.data = glm::uvec4(diffuseTextureIdx, specularTextureIdx, alphaIorTextureIdx, bsdfType);
+		instanceDataStatic.data = glm::uvec4(materialIndex, indexOffset, 0, 0);
 		instanceDataStatic.other = glm::uvec4(indexOffset, 0, 0, 0);
 
 		// assumes instances have meshIdx in groups i.e. aaa-bbbbb-ccccc-dddddd. 
@@ -375,6 +388,16 @@ public:
 		return std::vector<VkVertexInputAttributeDescription>(attributeDescriptions.begin(), attributeDescriptions.end());
 	}
 
+	VkDescriptorBufferInfo getMaterialDescriptorBufferInfo() const
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = materialBuffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		return descriptorBufferInfo;
+	}
+
 	// Used to transfer vetex data to Rtx shader as raw buffer
 	VkDescriptorBufferInfo getVertexDescriptorBufferInfo() const
 	{
@@ -458,6 +481,7 @@ public:
 
 	void createBuffers(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) 
 	{	
+		createBuffer(device, allocator, queue, commandPool, materialBuffer, materialBufferAllocation, sizeof(Material) * materials.size(), materials.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		createBuffer(device, allocator, queue, commandPool, vertexBuffer, vertexBufferAllocation, sizeof(Vertex) * vertices.size(), vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		createBuffer(device, allocator, queue, commandPool, staticInstanceBuffer, staticInstanceBufferAllocation, sizeof(instanceData_static[0]) * instanceData_static.size(), instanceData_static.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		createDynamicInstanceBuffer(device, allocator, queue, commandPool);
@@ -526,6 +550,7 @@ public:
 
 		vmaDestroyImage(allocator, hdrTextureImage, hdrTextureImageAllocation);
 
+		vmaDestroyBuffer(allocator, materialBuffer, materialBufferAllocation);
 		vmaDestroyBuffer(allocator, indexBuffer, indexBufferAllocation);
 		vmaDestroyBuffer(allocator, vertexBuffer, vertexBufferAllocation);
 		vmaDestroyBuffer(allocator, staticInstanceBuffer, staticInstanceBufferAllocation);
@@ -549,6 +574,7 @@ public:
 		return as_topLevel.getDescriptorTlasInfo();
 	}
 private:
+	std::vector<Material> materials; // store matrials
 	std::vector<Mesh *> meshes; // ideally store unique meshes
 	std::vector<Vertex> vertices; // concatenate vertices from all meshes
 	std::vector<uint32_t> indices;  // indeces into the above global vertices
@@ -559,6 +585,8 @@ private:
 	void *mappedDynamicInstancePtr;
 	std::vector<VkDrawIndexedIndirectCommand> indirectCommands; // Its size is meshes.size().
 	
+	VkBuffer materialBuffer = VK_NULL_HANDLE;
+	VmaAllocation materialBufferAllocation = VK_NULL_HANDLE;
 	VkBuffer vertexBuffer = VK_NULL_HANDLE;
 	VmaAllocation vertexBufferAllocation = VK_NULL_HANDLE;
 	VkBuffer staticInstanceBuffer = VK_NULL_HANDLE;

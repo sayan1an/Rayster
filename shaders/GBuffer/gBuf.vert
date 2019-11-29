@@ -8,6 +8,10 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 projInv;
 } ubo;
 
+layout(binding = 1) readonly buffer Material {
+    uvec4 textureIds[];
+} materials;
+
 // per vertex
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inColor;
@@ -32,5 +36,5 @@ void main()
     fragColor = inColor;
     fragNormal = (modelTransformIT * vec4(inNormal, 0)).xyz;
     fragTexCoord = inTexCoord;
-    fragData = inData;
+    fragData = materials.textureIds[inData.x];
 }

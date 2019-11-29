@@ -107,11 +107,12 @@ public:
 	}
 	
 	void createSubpass(const VkDevice &device, const VkExtent2D &swapChainExtent, const VkSampleCountFlagBits &msaaSamples, const VkRenderPass &renderPass,
-		const Camera &cam, const VkImageView& ldrTextureImageView, const VkSampler& ldrTextureSampler, const VkImageView& hdrTextureImageView, const VkSampler& hdrTextureSampler) {
+		const Camera &cam, const Model& model) {
 		
 		descGen.bindBuffer({ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT }, cam.getDescriptorBufferInfo());
-		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { ldrTextureSampler,  ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { hdrTextureSampler,  hdrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		descGen.bindBuffer({ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT }, model.getMaterialDescriptorBufferInfo());
+		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { model.ldrTextureSampler,  model.ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { model.hdrTextureSampler,  model.hdrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -287,7 +288,7 @@ private:
 		gui.setStyle();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass, 1);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
+		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, computeShaderOutImageView);
 		computePipeline.createPipeline(device, diffuseColor.viewResolve, specularColor.viewResolve, normal.viewResolve, otherInfo.viewResolve, computeShaderOutImageView);
 		createCommandBuffers();
@@ -338,7 +339,7 @@ private:
 		createFboResources();
 		createFramebuffers();
 
-		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model.ldrTextureImageView, model.ldrTextureSampler, model.hdrTextureImageView, model.hdrTextureSampler);
+		subpass1.createSubpass(device, swapChainExtent, msaaSamples, renderPass, cam, model);
 		subpass2.createSubpass(device, swapChainExtent, renderPass, computeShaderOutImageView);
 		computePipeline.createPipeline(device, diffuseColor.viewResolve, specularColor.viewResolve, normal.viewResolve, otherInfo.viewResolve, computeShaderOutImageView);
 		createCommandBuffers();
@@ -705,7 +706,6 @@ private:
 	}
 };
 
-/*
 int main() 
 {
 	{
@@ -723,7 +723,7 @@ int main()
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}*/
+}
 
 
 
