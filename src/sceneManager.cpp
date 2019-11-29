@@ -15,7 +15,8 @@
 #define WRONG_PATH_SEP '\\'
 #endif
 
-static struct NamedMaterial : Material {
+static struct NamedMaterial : Material 
+{
 	std::string name;
 	NamedMaterial(std::string _name, uint32_t diffIdx, uint32_t specIdx, uint32_t alphaIdx, uint32_t matType)
 	{
@@ -58,7 +59,6 @@ static Mesh* loadMeshTiny(const char* meshPath)
 	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
 
 	for (const auto& shape : shapes) {
-		std::cout << shape.mesh.num_face_vertices.size() << std::endl;
 		for (const auto& index : shape.mesh.indices) {
 			Vertex vertex = {};
 
@@ -208,7 +208,7 @@ static void loadSpaceship(Model& model, Camera& cam)
 		for (const auto& material : materials) {
 			if (material.name.compare(matName) == 0) {
 				glm::mat4 tf = glm::identity<glm::mat4>();
-				model.addInstance(meshIdx, matIdx, tf);
+				model.addInstance(meshIdx, tf, matIdx);
 				break;
 			}
 			matIdx++;
@@ -325,31 +325,34 @@ static void loadDefault(Model &model, Camera &cam)
 	mesh = loadMeshTiny(MODEL_PATHS[2].c_str());
 	mesh->normailze(0.7f);
 	model.addMesh(mesh);
+
+	model.addMaterial(1, 1, 0, 0);
+	model.addMaterial(0, 0, 0, 0);
 	
 	glm::mat4 tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 0, 2));
-	//model.addInstance(2, 1, 1, 0, 0, tf);
+	model.addInstance(2, tf, 0);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, -2, 0));
-	//model.addInstance(0, 0, 0, 0, 0, tf);
+	model.addInstance(0, tf, 1);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(2, 0, 0));
-	//model.addInstance(1, 1, 1, 0, 0, tf);
+	model.addInstance(1, tf, 0);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 2, 0));
-	//model.addInstance(0, 0, 0, 0, 0, tf);
+	model.addInstance(0, tf, 1);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 0, -2));
-	//model.addInstance(2, 1, 1, 0, 0, tf);
+	model.addInstance(2, tf, 0);
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(-2, 0, 0));
-	//model.addInstance(1, 1, 1, 0, 0, tf);
+	model.addInstance(1, tf, 0);
 }
 
 extern void loadScene(Model& model, Camera& cam, const std::string& name)
 {	
 	//loadMedievalHouse(model, cam);
-	loadSpaceship(model, cam);
-	//loadDefault(model, cam);
+	//loadSpaceship(model, cam);
+	loadDefault(model, cam);
 
 	/*if (name.compare("default") == 0)
 		loadDefault(model, cam);

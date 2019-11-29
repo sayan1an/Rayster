@@ -224,12 +224,17 @@ public:
 			throw std::runtime_error("This hdr texture does not exsist");
 
 		materials.push_back({ diffuseTextureIdx, specularTextureIdx, alphaIorTextureIdx, materialfType });
+
+		return materials.size();
 	}
 	
-	void addInstance(uint32_t meshIdx, uint32_t materialIndex, glm::mat4 &transform)
+	void addInstance(uint32_t meshIdx, glm::mat4 &transform, uint32_t materialIndex = 0xffffffff)
 	{
 		if (meshIdx >= meshes.size())
 			throw std::runtime_error("This mesh does not exsist");
+
+		if (materialIndex < 0xffffffff && materialIndex >= materials.size())
+			throw std::runtime_error("This material does not exsist");
 
 		uint32_t indexOffset = 0;
 		for (uint32_t i = 0; i < meshIdx; i++)
@@ -481,6 +486,18 @@ public:
 
 	void createBuffers(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool) 
 	{	
+		if (ldrTexGen.size() == 0)
+			throw std::runtime_error("Model: LDR textures have not been added.");
+
+		if (hdrTexGen.size() == 0)
+			throw std::runtime_error("Model: HDR textures have not been added.");
+
+		if (materials.size() == 0)
+			throw std::runtime_error("Model: Materials have not been added.");
+
+		if (meshes.size() == 0)
+			throw std::runtime_error("Model: Meshes have not been added.");
+
 		createBuffer(device, allocator, queue, commandPool, materialBuffer, materialBufferAllocation, sizeof(Material) * materials.size(), materials.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		createBuffer(device, allocator, queue, commandPool, vertexBuffer, vertexBufferAllocation, sizeof(Vertex) * vertices.size(), vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		createBuffer(device, allocator, queue, commandPool, staticInstanceBuffer, staticInstanceBufferAllocation, sizeof(instanceData_static[0]) * instanceData_static.size(), instanceData_static.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);

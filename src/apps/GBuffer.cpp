@@ -540,7 +540,7 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-/*
+
 int main() 
 {
 	{
@@ -558,6 +558,6 @@ int main()
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}*/
+}
 
 
