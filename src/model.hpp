@@ -20,6 +20,11 @@
  * one should combine the body, windshield into a single mesh, since the combination only require one transformation matrix. We should have seperate mesh for wheels and doors as the each 
  * require one transform matrix.
 
+ * Material loading philosphy - Refering back to the car example, let's consider the body and windshield as a single mesh. Then the problem is body and windshield has obviously different 
+ * materials but same transform. To solve this problem we use per vertex material and is currently the default.
+ * As alternative, we can also specify per instance material. This is useful in case when per vertex material is too complicated or unnecessary. Specifying per insatnce material overrides
+ * the per vertex material values if any.
+
  * Accelaration Structure notes - We want to minimize the number of bottom level accelaration structures for performance reasons. 
  * Ideally one should categorize the meshes into groups and create one bottom level accelaration structure for each group.
  * In our implementation we will simply associate one BLAS for each mesh. Thus we assume each mesh is already a combination of several other meshes as explained above.
