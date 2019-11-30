@@ -40,5 +40,5 @@ void main()
     fragNormal = (modelTransformIT * vec4(inNormal, 0)).xyz;
     fragTexCoord = inTexCoord;
     uint materialIndex = inData.x == 0xffffffff ? materialIdx : inData.x;
-    fragData = materials.textureIds[inData.x];
+    fragData = materials.textureIds[materialIndex];
 }

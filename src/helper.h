@@ -10,6 +10,7 @@
 #include "vk_mem_alloc.h"
 #include "stb_image.h"
 #include "stb_image_write.h"
+#include "stb_image_resize.h"
 #include "imgui.h"
 #include <glm/glm.hpp>
 
@@ -62,7 +63,7 @@ struct Image2d
 			case VK_FORMAT_R32G32B32A32_SFLOAT:
 				return height * width * 4 * sizeof(float);
 			default:
-				throw std::runtime_error("Unrecognised texture format.");
+				throw std::runtime_error("Image2d : Unrecognised texture format.");
 		}
 
 		return 0;
@@ -84,7 +85,7 @@ struct Image2d
 		int texChannels, iWidth, iHeight;
 		pixels = stbi_load(texturePath.c_str(), &iWidth, &iHeight, &texChannels, STBI_rgb_alpha);
 		if (!pixels) {
-			throw std::runtime_error("failed to load texture image!");
+			throw std::runtime_error("Image2d : Failed to load texture image - " + texturePath);
 		}
 
 		width = static_cast<uint32_t> (iWidth);
@@ -134,11 +135,46 @@ struct Image2d
 		path = "";
 	}
 
+	void resize(uint32_t newWidth, uint32_t newHeight)
+	{
+		if (format == VK_FORMAT_R8G8B8A8_UNORM) {
+			void* newPixels = new unsigned char[(size_t)newWidth * newHeight * 4];
+			if (stbir_resize_uint8((const unsigned char*)pixels, width, height, 0, (unsigned char *)newPixels, newWidth, newHeight, 0, 4) < 1)
+				throw std::runtime_error("Failed to resize image.");
+			if (!externalAlocation)
+				stbi_image_free(pixels);
+			else
+				std::cerr << "Image2d : Memory for image - " + path + " is allocated by user. Cannot free memory for resize." << std::endl;
+
+			pixels = newPixels;
+			
+			width = newWidth;
+			height = newHeight;
+		}
+		else if (format == VK_FORMAT_R32G32B32A32_SFLOAT) {
+			void* newPixels = new float[(size_t)newWidth * newHeight * 4];
+			if (stbir_resize_float((const float*)pixels, width, height, 0, (float *)newPixels, newWidth, newHeight, 0, 4) < 1)
+				throw std::runtime_error("Image2d : Failed to resize image.");
+			
+			if (!externalAlocation)
+				stbi_image_free(pixels);
+			else
+				std::cerr << "Image2d : Memory for image - " + path + " is allocated by user. Cannot free memory for resize." << std::endl;
+
+			pixels = newPixels;
+
+			width = newWidth;
+			height = newHeight;
+		}
+		else
+			throw std::runtime_error("Image2d : Failed to resize image. Format is unsupported.");
+	}
+
 	// This is specific to ImGui fonts
 	Image2d(bool forceMipLevelToOne)
 	{	
 		if (ImGui::GetCurrentContext() == NULL)
-			throw std::runtime_error("ImGui context is null, cannot create font image.");
+			throw std::runtime_error("Image2d : ImGui context is null, cannot create font image.");
 
 		ImGuiIO& io = ImGui::GetIO();
 		
@@ -152,13 +188,6 @@ struct Image2d
 		height = static_cast<uint32_t>(textHeight);
 		format = VK_FORMAT_R8G8B8A8_UNORM;
 
-		//for (int i = 0; i < textHeight * textWidth; i++) {
-			//fontData[4 * i] = fontData[4 * i + 3];
-			//fontData[4 * i + 1] = fontData[4 * i + 3];
-			//fontData[4 * i + 2] = fontData[4 * i + 3];
-			//std::cout << (uint32_t)fontData[4 * i] << " " << (uint32_t)fontData[4 * i + 1] << " " << (uint32_t)fontData[4 * i + 2] << " " << (uint32_t)fontData[4 * i + 3] << std::endl;
-		//}
-		//stbi_write_png("font.png", textWidth, textHeight, 4, pixels, 4);
 		this->forceMipLevelToOne = forceMipLevelToOne;
 		this->externalAlocation = true;
 

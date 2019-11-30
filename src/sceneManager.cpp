@@ -15,7 +15,7 @@
 #define WRONG_PATH_SEP '\\'
 #endif
 
-static struct NamedMaterial : Material 
+struct NamedMaterial : Material 
 {
 	std::string name;
 	NamedMaterial(std::string _name, uint32_t diffIdx, uint32_t specIdx, uint32_t alphaIdx, uint32_t matType)
@@ -50,9 +50,7 @@ static Mesh* loadMeshTiny(const char* meshPath)
 	std::vector<tinyobj::material_t> materials;
 	std::string warn, err;
 
-	std::string materialPath = get_path(meshPath);
-
-	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, meshPath, materialPath.c_str())) {
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, meshPath)) {
 		throw std::runtime_error(warn + err);
 	}
 
@@ -126,15 +124,169 @@ static Mesh* loadMeshTiny(const char* meshPath)
 	return mesh;
 }
 
+static void loadModelTiny(const char* meshPath, Model &model)
+{
+	Mesh* mesh = new Mesh();
+
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string warn, err;
+
+	std::string materialPath = get_path(meshPath) + "materials/";
+
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, meshPath, materialPath.c_str())) {
+		throw std::runtime_error(warn + err);
+	}
+	
+	if (materials.size() < 1) {
+		model.addLdrTexture(Image2d(1, 1, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f)));
+		model.addHdrTexture(Image2d(1, 1, glm::vec4(0.1f, 1.0f, 1.0f, 1.0f), true));
+		model.addMaterial(0, 0, 0, 0);
+	}
+
+	uint32_t materialSize = 0;
+
+	// Collecting the material in the scene
+	for (const auto& material : materials)
+	{	
+		uint32_t diffuseTexureIdx, specularTextureIdx, alphaIntExtIorIdx;
+		if (!material.diffuse_texname.empty()) {
+			diffuseTexureIdx = model.addLdrTexture(Image2d(materialPath + material.diffuse_texname));
+			std::cout << "Diffuse Texture loaded" << std::endl;
+		}
+		else
+			diffuseTexureIdx = model.addLdrTexture(Image2d(1, 1, glm::vec4(material.diffuse[0], material.diffuse[1], material.diffuse[2], 1.0f)));
+
+		std::cout << "Diffuse done" << std::endl;
+
+		if (!material.specular_texname.empty())
+			specularTextureIdx = model.addLdrTexture(Image2d(materialPath + material.specular_texname));
+		else
+			specularTextureIdx = model.addLdrTexture(Image2d(1, 1, glm::vec4(material.specular[0], material.specular[1], material.specular[2], 1.0f)));
+
+		std::cout << "Specular done" << std::endl;
+		if (!material.roughness_texname.empty())
+		{
+			throw std::runtime_error("SceneManager : Roughness texture not yet handled.");
+		}
+		else
+			alphaIntExtIorIdx = model.addHdrTexture(Image2d(1, 1, glm::vec4(std::sqrt(2 / (material.shininess + 2)), material.ior, 1.0f, 1.0f), true));
+		
+		std::cout << "alpha done" << std::endl;
+		materialSize = model.addMaterial(diffuseTexureIdx - 1, specularTextureIdx - 1, alphaIntExtIorIdx - 1, 1); // the last 1 corresponds to some-non diffuse material
+		std::cout << materialSize << std::endl;
+	}
+
+	
+	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
+	
+	for (const auto& shape : shapes) {
+		
+		uint32_t faceID = 0;
+		int index_cnt = 0;
+
+		for (const auto& index : shape.mesh.indices) {
+			Vertex vertex = {};
+
+			vertex.pos = {
+				attrib.vertices[3 * index.vertex_index + 0],
+				attrib.vertices[3 * index.vertex_index + 1],
+				attrib.vertices[3 * index.vertex_index + 2]
+			};
+
+			if (!attrib.normals.empty() && index.normal_index >= 0)
+				vertex.normal = {
+					attrib.normals[3 * index.normal_index + 0],
+					attrib.normals[3 * index.normal_index + 1],
+					attrib.normals[3 * index.normal_index + 2]
+			};
+			else
+				vertex.normal = { 0.0f, 1.0f, 0.0f };
+
+			if (!attrib.texcoords.empty() && index.texcoord_index >= 0)
+				vertex.texCoord = {
+					attrib.texcoords[2 * index.texcoord_index],
+					1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+			};
+			else
+				vertex.texCoord = glm::vec2(0.5f);
+
+			if (!attrib.colors.empty())
+				vertex.color = {
+					attrib.colors[3 * index.vertex_index + 0],
+					attrib.colors[3 * index.vertex_index + 1],
+					attrib.colors[3 * index.vertex_index + 2]
+			};
+			else
+				vertex.color = { 1.0f, 1.0f, 1.0f };
+
+			vertex.materialIndex = shape.mesh.material_ids[faceID];
+			if (vertex.materialIndex < 0 || vertex.materialIndex >= materialSize) {
+				std::cout << "Why" << std::endl;
+				vertex.materialIndex = 0;
+			}
+			
+			index_cnt++;
+			if (index_cnt >= 3)
+			{
+				++faceID;
+				index_cnt = 0;
+			}
+			
+			if (uniqueVertices.count(vertex) == 0) {
+				uniqueVertices[vertex] = static_cast<uint32_t>(mesh->vertices.size());
+				mesh->vertices.push_back(vertex);
+			}
+
+			mesh->indices.push_back(uniqueVertices[vertex]);
+		}
+	}
+
+	// Compute normal when no normal were provided.
+	if (attrib.normals.empty()) {
+		for (auto& v : mesh->vertices)
+			v.normal = { 0, 0, 0 };
+
+		for (size_t i = 0; i < mesh->indices.size(); i += 3) {
+			Vertex& v0 = mesh->vertices[mesh->indices[i + 0]];
+			Vertex& v1 = mesh->vertices[mesh->indices[i + 1]];
+			Vertex& v2 = mesh->vertices[mesh->indices[i + 2]];
+
+			glm::vec3 n = glm::normalize(glm::cross((v1.pos - v0.pos), (v2.pos - v0.pos)));
+			v0.normal += n;
+			v1.normal += n;
+			v2.normal += n;
+		}
+
+		for (auto& v : mesh->vertices)
+			v.normal = glm::normalize(v.normal);
+	}
+
+	model.addMesh(mesh);
+	glm::mat4 tf = glm::identity<glm::mat4>();
+	model.addInstance(0, tf);
+}
+/*
 static void loadMedievalHouse(Model& model, Camera& cam)
 {
-	model.addMesh(loadMeshTiny((ROOT +"/models/medievalHouse/Medieval_building.obj").c_str()));
+	model.addMesh(loadMeshTiny((ROOT +"/models/medievalHouse/medievalHouse.obj").c_str()));
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f)));
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f)));
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.1f, 1.0f, 1.0f, 1.0f), true));
+	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.1f, 1.0f, 1.0f, 1.0f), true));
 
+	model.addMaterial(0, 0, 0, 0);
 	glm::mat4 tf = glm::identity<glm::mat4>();
-	//model.addInstance(0, 0, 0, 0, 0, tf);
+	model.addInstance(0, tf, 0);
 }
+*/
+
+static void loadMedievalHouse(Model& model, Camera& cam)
+{
+	loadModelTiny((ROOT + "/models/medievalHouse/medievalHouse.obj").c_str(), model);
+}
+
 
 static void loadSpaceship(Model& model, Camera& cam)
 {
@@ -350,9 +502,9 @@ static void loadDefault(Model &model, Camera &cam)
 
 extern void loadScene(Model& model, Camera& cam, const std::string& name)
 {	
-	//loadMedievalHouse(model, cam);
+	loadMedievalHouse(model, cam);
 	//loadSpaceship(model, cam);
-	loadDefault(model, cam);
+	//loadDefault(model, cam);
 
 	/*if (name.compare("default") == 0)
 		loadDefault(model, cam);

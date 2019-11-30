@@ -99,10 +99,10 @@ public:
 	void initBLAS(const VkDevice& device, const VkCommandBuffer &cmdBuf, const VmaAllocator& allocator, const VkBuffer &vertexBuffer, const VkDeviceSize vertexBufferOffset, const VkBuffer &indexBuffer, const VkDeviceSize indexBufferOffset) 
 	{
 		if (vertexBuffer == VK_NULL_HANDLE)
-			throw std::runtime_error("Vertex buffer for creating BLAS not initialized");
+			throw std::runtime_error("Model : Vertex buffer for creating BLAS not initialized");
 
 		if (indexBuffer == VK_NULL_HANDLE)
-			throw std::runtime_error("Vertex indices for creating BLAS not initialized");
+			throw std::runtime_error("Model : Vertex indices for creating BLAS not initialized");
 
 		std::vector<VkGeometryNV> vGeometry;
 
@@ -172,7 +172,7 @@ public:
 			delete mesh;
 	}
 
-	size_t addMesh(Mesh* mesh) 
+	uint32_t addMesh(Mesh* mesh) 
 	{	
 		size_t indexOffset = 0;
 		size_t meshVertexOffset = 0;
@@ -198,49 +198,50 @@ public:
 		indirectCommands.push_back(indirectCmd);
 		
 		meshes.push_back(mesh);
-		return meshes.size();
+
+		return static_cast<uint32_t>(meshes.size());
 	}
 
-	size_t addLdrTexture(Image2d texture)
+	uint32_t addLdrTexture(Image2d texture)
 	{	
 		if (texture.format != VK_FORMAT_R8G8B8A8_UNORM)
-			throw std::runtime_error("Ldr texture must be VK_FORMAT_R8G8B8A8_UNORM format type");
+			throw std::runtime_error("Model : Ldr texture must be VK_FORMAT_R8G8B8A8_UNORM format type");
 
-		return ldrTexGen.addTexture(texture);
+		return static_cast<uint32_t>(ldrTexGen.addTexture(texture));
 	}
 
-	size_t addHdrTexture(Image2d texture)
+	uint32_t addHdrTexture(Image2d texture)
 	{
 		if (texture.format != VK_FORMAT_R32G32B32A32_SFLOAT)
-			throw std::runtime_error("Hdr texture must be VK_FORMAT_R32G32B32A32_SFLOAT format type");
+			throw std::runtime_error("Model : Hdr texture must be VK_FORMAT_R32G32B32A32_SFLOAT format type");
 
-		return hdrTexGen.addTexture(texture);
+		return static_cast<uint32_t>(hdrTexGen.addTexture(texture));
 	}
 
-	size_t addMaterial(uint32_t diffuseTextureIdx, uint32_t specularTextureIdx, uint32_t alphaIorTextureIdx, uint32_t materialfType)
+	uint32_t addMaterial(uint32_t diffuseTextureIdx, uint32_t specularTextureIdx, uint32_t alphaIorTextureIdx, uint32_t materialfType)
 	{
 		if (diffuseTextureIdx >= ldrTexGen.size())
-			throw std::runtime_error("This ldr texture does not exsist");
+			throw std::runtime_error("Model : This ldr texture does not exsist");
 
 		if (specularTextureIdx >= ldrTexGen.size())
-			throw std::runtime_error("This ldr texture does not exsist");
+			throw std::runtime_error("Model : This ldr texture does not exsist");
 
 		if (alphaIorTextureIdx >= hdrTexGen.size())
-			throw std::runtime_error("This hdr texture does not exsist");
+			throw std::runtime_error("Model : This hdr texture does not exsist");
 
 		materials.push_back({ diffuseTextureIdx, specularTextureIdx, alphaIorTextureIdx, materialfType });
 
-		return materials.size();
+		return static_cast<uint32_t>(materials.size());
 	}
 	
 	// When non-default materialIndex is provided, it will override the per vertex material.
-	void addInstance(uint32_t meshIdx, glm::mat4 &transform, uint32_t materialIndex = 0xffffffff)
+	uint32_t addInstance(uint32_t meshIdx, glm::mat4 &transform, uint32_t materialIndex = 0xffffffff)
 	{
 		if (meshIdx >= meshes.size())
-			throw std::runtime_error("This mesh does not exsist");
+			throw std::runtime_error("Model : This mesh does not exsist");
 
 		if (materialIndex < 0xffffffff && materialIndex >= materials.size())
-			throw std::runtime_error("This material does not exsist");
+			throw std::runtime_error("Model : This material does not exsist");
 
 		uint32_t indexOffset = 0;
 		for (uint32_t i = 0; i < meshIdx; i++)
@@ -276,6 +277,8 @@ public:
 			indirectCommands[meshIdx].instanceCount = meshes[meshIdx]->instanceCount;
 
 		}
+
+		return static_cast<uint32_t>(instanceData_static.size());
 	}
 
 	static std::vector<VkVertexInputBindingDescription> getBindingDescription() 
@@ -561,7 +564,7 @@ public:
 		}
 
 		if (globalInstanceId != instanceData_dynamic.size())
-			throw std::runtime_error("Number of instances for Top Level Accelaration structure should match dynamic instance data count.");
+			throw std::runtime_error("Model : Number of instances for Top Level Accelaration structure should match dynamic instance data count.");
 
 		as_topLevel.updateInstanceData(tlas_instanceData);
 	}
@@ -657,7 +660,7 @@ private:
 		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
 
 		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &dynamicInstanceStagingBuffer, &dynamicInstanceStagingBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create staging buffer for static instances!");
+			throw std::runtime_error("Model : Failed to create staging buffer for dynamic instances!");
 		
 		vmaMapMemory(allocator, dynamicInstanceStagingBufferAllocation, &mappedDynamicInstancePtr);
 		
@@ -665,7 +668,7 @@ private:
 		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
 		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &dynamicInstanceBuffer, &dynamicInstanceBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create vertex buffer!");
+			throw std::runtime_error("Model : Failed to create buffer for dynamic instances!");
 	}
 };
 

@@ -186,20 +186,49 @@ private:
 	void fixTextureCache()
 	{
 		if (textureCache.empty())
-			throw std::runtime_error("Provided texture cache is empty");
+			throw std::runtime_error("TextureGenerator : Provided texture cache is empty");
 		else {
 			// All images must have same image format and size. We can relax this restriction to having same aspect ratio and rescaling the
 			// images to the largest one.
 
-			// for now let's just throw an error when size and format are not same.
-			// TODO : Check if the images have same aspect ratio and format. Upscale all images to the size of the largest one.
+			// throw an error when format, aspectRatio and mip levels are not same.
+			// Check if the images have same aspect ratio and format. Upscale all images to the size of the largest one.
 			VkFormat desiredFormat = textureCache[0].format;
-			uint32_t desiredWidth = textureCache[0].width;
-			uint32_t desiredHeight = textureCache[0].height;
+			float desiredAspectRatio = (float)textureCache[0].width / textureCache[0].height;
+			
+			uint32_t maxWidth = 0;
+			uint32_t maxHeight = 0;
+
+			for (const auto& image : textureCache) {
+				float aspectRatio = (float)image.width / image.height;
+
+				if (image.format != desiredFormat)
+					throw std::runtime_error("TextureGenerator : Format for all texture images must be same in the texture cache.");
+
+				else if  (std::abs(aspectRatio - desiredAspectRatio) / desiredAspectRatio > 0.01)
+					throw std::runtime_error("TextureGenerator : Aspect ratio for all texture images must be same in the texture cache.");
+
+				if (image.width > maxWidth)
+					maxWidth = image.width;
+
+				if (image.height > maxHeight)
+					maxHeight = image.height;
+			}
+
+			if (textureCache.size() > 1)
+			for (auto& image : textureCache)
+				if (image.width != maxWidth || image.height != maxHeight)
+					image.resize(maxWidth, maxHeight);
+
+			// check size and mipLevels of all images are same
 			uint32_t mipLevels = textureCache[0].mipLevels();
-			for (const auto& image : textureCache)
-				if (image.format != desiredFormat || image.width != desiredWidth || image.height != desiredHeight || mipLevels != image.mipLevels())
-					throw std::runtime_error("Size, format and Mipmap levels for all texture images must be same.");
+			for (const auto& image : textureCache) {
+				if (image.width != maxWidth || image.height != maxHeight)
+					throw std::runtime_error("TextureGenerator: Fix me - some problem with image resize.");
+				else if (mipLevels != image.mipLevels())
+					throw std::runtime_error("TextureGenerator : Mip levels for all texture images must be same in the texture cache.");
+			}
+
 		}
 	}
 
