@@ -16,10 +16,31 @@
 
 #define ROOT std::string("D:/projects/vulkanexperiments")
 
+#define NDEBUG
+
 #ifdef NDEBUG
-static const bool enableValidationLayers = false;
-#else
 static const bool enableValidationLayers = true;
+#else
+static const bool enableValidationLayers = false;
+#endif
+
+#define CHECK(cond, stringVal) \
+{ \
+	if (!(cond)) throw std::runtime_error("Error: " + std::string(stringVal) + " FILE: " + std::string(__FILE__) + " LINE: " + std::to_string(__LINE__));\
+}
+
+#ifdef NDEBUG
+#define CHECK_DBG_ONLY(cond, stringVal) CHECK(cond, stringVal)
+#else
+#define CHECK_DBG_ONLY(cond, stringVal) {}
+#endif
+
+#define VK_CHECK(result, stringVal) CHECK(((result) == VK_SUCCESS), stringVal)
+
+#ifdef NDEBUG
+#define VK_CHECK_DBG_ONLY(result, stringVal) CHECK(((result) == VK_SUCCESS), stringVal)
+#else
+#define VK_CHECK_DBG_ONLY(result, stringVal) {}
 #endif
 
 #ifndef ROUND_UP
@@ -29,7 +50,6 @@ static const bool enableValidationLayers = true;
 #ifndef PRINT_VECTOR
 #define PRINT_VECTOR(v) (std::cout << "(" << (v).x << ", " << (v).y << ", " << (v).z << ", " << (v).w << ")" << std::endl)
 #endif 
-
 
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphicsFamily;
