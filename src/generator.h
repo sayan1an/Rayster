@@ -164,8 +164,6 @@ public:
 	size_t addTexture(Image2d textureImage)
 	{	
 		textureCache.push_back(textureImage);
-		fixTextureCache();
-
 		return textureCache.size();
 	}
 
@@ -175,7 +173,8 @@ public:
 	}
 
 	void createTexture(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& textureImage, VkImageView &textureImageView, VkSampler &sampler, VmaAllocation& textureImageAllocation)
-	{
+	{	
+		fixTextureCache();
 		createTextureImage(physicalDevice, device, allocator, queue, commandPool, textureImage, textureImageAllocation, textureCache[0].mipLevels());
 		textureImageView = createImageView(device, textureImage, textureCache[0].format, VK_IMAGE_ASPECT_COLOR_BIT, textureCache[0].mipLevels(), static_cast<uint32_t>(textureCache.size()));
 		createTextureSampler(device, sampler, textureCache[0].mipLevels());
@@ -215,7 +214,6 @@ private:
 					maxHeight = image.height;
 			}
 
-			if (textureCache.size() > 1)
 			for (auto& image : textureCache)
 				if (image.width != maxWidth || image.height != maxHeight)
 					image.resize(maxWidth, maxHeight);

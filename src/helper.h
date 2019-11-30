@@ -14,7 +14,7 @@
 #include "imgui.h"
 #include <glm/glm.hpp>
 
-#define ROOT std::string("D:/projects/VkExperiment")
+#define ROOT std::string("D:/projects/vulkanexperiments")
 
 #ifdef NDEBUG
 static const bool enableValidationLayers = false;
@@ -144,12 +144,14 @@ struct Image2d
 			if (!externalAlocation)
 				stbi_image_free(pixels);
 			else
-				std::cerr << "Image2d : Memory for image - " + path + " is allocated by user. Cannot free memory for resize." << std::endl;
-
+				std::cerr << ("Image2d : Memory for image - " + path + " is allocated by user. Cannot free memory for resize.").c_str() << std::endl;
+				
 			pixels = newPixels;
 			
 			width = newWidth;
 			height = newHeight;
+
+			externalAlocation = false;
 		}
 		else if (format == VK_FORMAT_R32G32B32A32_SFLOAT) {
 			void* newPixels = new float[(size_t)newWidth * newHeight * 4];
@@ -159,12 +161,14 @@ struct Image2d
 			if (!externalAlocation)
 				stbi_image_free(pixels);
 			else
-				std::cerr << "Image2d : Memory for image - " + path + " is allocated by user. Cannot free memory for resize." << std::endl;
-
+				std::cerr << ("Image2d : Memory for image - " + path + " is allocated by user. Cannot free memory for resize.").c_str() << std::endl;
+			
 			pixels = newPixels;
 
 			width = newWidth;
 			height = newHeight;
+
+			externalAlocation = false;
 		}
 		else
 			throw std::runtime_error("Image2d : Failed to resize image. Format is unsupported.");
