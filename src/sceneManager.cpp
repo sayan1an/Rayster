@@ -43,6 +43,8 @@ static std::string get_path(const std::string& file)
 
 static Mesh* loadMeshTiny(const char* meshPath)
 {	
+	std::cout << "Loading Model...";
+
 	Mesh* mesh = new Mesh();
 
 	tinyobj::attrib_t attrib;
@@ -121,11 +123,13 @@ static Mesh* loadMeshTiny(const char* meshPath)
 			v.normal = glm::normalize(v.normal);
 	}
 
+	std::cout << "Done." << std::endl;
 	return mesh;
 }
 
 static void loadModelTiny(const char* meshPath, Model &model)
-{
+{	
+	std::cout << "Loading Model...";
 	Mesh* mesh = new Mesh();
 
 	tinyobj::attrib_t attrib;
@@ -153,29 +157,22 @@ static void loadModelTiny(const char* meshPath, Model &model)
 		uint32_t diffuseTexureIdx, specularTextureIdx, alphaIntExtIorIdx;
 		if (!material.diffuse_texname.empty()) {
 			diffuseTexureIdx = model.addLdrTexture(Image2d(materialPath + material.diffuse_texname));
-			std::cout << "Diffuse Texture loaded" << std::endl;
 		}
 		else
 			diffuseTexureIdx = model.addLdrTexture(Image2d(1, 1, glm::vec4(material.diffuse[0], material.diffuse[1], material.diffuse[2], 1.0f)));
-
-		std::cout << "Diffuse done" << std::endl;
 
 		if (!material.specular_texname.empty())
 			specularTextureIdx = model.addLdrTexture(Image2d(materialPath + material.specular_texname));
 		else
 			specularTextureIdx = model.addLdrTexture(Image2d(1, 1, glm::vec4(material.specular[0], material.specular[1], material.specular[2], 1.0f)));
 
-		std::cout << "Specular done" << std::endl;
-		if (!material.roughness_texname.empty())
-		{
+		if (!material.roughness_texname.empty()) {
 			throw std::runtime_error("SceneManager : Roughness texture not yet handled.");
 		}
 		else
 			alphaIntExtIorIdx = model.addHdrTexture(Image2d(1, 1, glm::vec4(std::sqrt(2 / (material.shininess + 2)), material.ior, 1.0f, 1.0f), true));
 		
-		std::cout << "alpha done" << std::endl;
 		materialSize = model.addMaterial(diffuseTexureIdx - 1, specularTextureIdx - 1, alphaIntExtIorIdx - 1, 1); // the last 1 corresponds to some-non diffuse material
-		std::cout << materialSize << std::endl;
 	}
 
 	
@@ -223,7 +220,6 @@ static void loadModelTiny(const char* meshPath, Model &model)
 
 			vertex.materialIndex = shape.mesh.material_ids[faceID];
 			if (vertex.materialIndex < 0 || vertex.materialIndex >= materialSize) {
-				std::cout << "Why" << std::endl;
 				vertex.materialIndex = 0;
 			}
 			
@@ -266,6 +262,8 @@ static void loadModelTiny(const char* meshPath, Model &model)
 	model.addMesh(mesh);
 	glm::mat4 tf = glm::identity<glm::mat4>();
 	model.addInstance(0, tf);
+
+	std::cout << "Done." << std::endl;
 }
 /*
 static void loadMedievalHouse(Model& model, Camera& cam)
