@@ -2,8 +2,11 @@
 #extension GL_NV_ray_tracing : require
 
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
-layout(binding = 1, set = 0, rgba8) uniform image2D image;
-layout(binding = 2, set = 0) uniform CameraProperties 
+layout(binding = 1, set = 0, rgba8) uniform image2D imageDiffuse;
+layout(binding = 2, set = 0, rgba8) uniform image2D imageSpecular;
+layout(binding = 3, set = 0, rgba32f) uniform image2D imageNormal;
+layout(binding = 4, set = 0, rgba32f) uniform image2D imageOther;
+layout(binding = 5, set = 0) uniform CameraProperties 
 {
 	mat4 view;
     mat4 proj;
@@ -11,7 +14,12 @@ layout(binding = 2, set = 0) uniform CameraProperties
     mat4 projInv;
 } cam;
 
-layout(location = 0) rayPayloadNV vec4 hitValue;
+layout(location = 0) rayPayloadNV Payload {
+	vec4 diffuseColor;
+	vec4 specularColor;
+	vec4 normal; // normla + specular alpha
+	vec4 other; // depth, int ior, ext ior, material type
+} payload;
 
 void main() 
 {
@@ -30,7 +38,10 @@ void main()
 
 	traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
 	
-	imageStore(image, ivec2(gl_LaunchIDNV.xy), hitValue);
+	imageStore(imageDiffuse, ivec2(gl_LaunchIDNV.xy), payload.diffuseColor);
+	imageStore(imageSpecular, ivec2(gl_LaunchIDNV.xy), payload.specularColor);
+	imageStore(imageNormal, ivec2(gl_LaunchIDNV.xy), payload.normal);
+	imageStore(imageOther, ivec2(gl_LaunchIDNV.xy), payload.other);
 	
 	//imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(abs(d.x), abs(d.y), 0.0, 0.0));
 }

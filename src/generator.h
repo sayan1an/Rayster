@@ -121,7 +121,16 @@ public:
 			
 			_attachmentImageViews[attachment.second.index] = attachment.second.view[index < count ? index : count - 1];
 		}
+	}
 
+	VkImageView getImageView(std::string name, uint32_t index = 0)
+	{
+		if (attachments.find(name) == attachments.end())
+			throw std::runtime_error("Attachment name - " + name + " not found");
+		
+		uint32_t count = attachments[name].count;
+
+		return attachments[name].view[index < count ? index : count - 1];
 	}
 
 	std::vector<VkClearValue>& getClearValues() 

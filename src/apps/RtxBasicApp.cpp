@@ -32,11 +32,6 @@ public:
 	const IO* io;
 private:
 
-	const char* items[9] = { "Diffuse Color", "Specular Color", "World-space Normal", "View-space depth", "Clip-space depth", "Internal IOR", "External IOR", "Specular roughness", "Material type" };
-	const char* currentItem = items[0];
-	float scaleCoarse = 1;
-	float scaleFine = 1;
-
 	void guiSetup()
 	{
 		io->frameRateWidget();

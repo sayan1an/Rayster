@@ -2,16 +2,22 @@
 #extension GL_NV_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : enable
 
-layout(location = 0) rayPayloadInNV vec4 hitValue;
+layout(location = 0) rayPayloadInNV Payload {
+	vec4 diffuseColor;
+	vec4 specularColor;
+  vec4 normal; // normla + specular alpha
+  vec4 other; // depth, int ior, ext ior, material type
+} payload;
+
+
 hitAttributeNV vec3 attribs;
 
-layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
-layout(binding = 3, set = 0) readonly buffer Material { uvec4 textureIdx[]; } materials;
-layout(binding = 4, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
-layout(binding = 5, set = 0) readonly buffer Indices { uint i[]; } indices;
-layout(binding = 6, set = 0) readonly buffer StaticInstanceData { uvec4 i[]; } staticInstanceData;
-layout(binding = 7, set = 0) uniform sampler2DArray ldrTexSampler;
-layout(binding = 8, set = 0) uniform sampler2DArray hdrTexSampler;
+layout(binding = 6, set = 0) readonly buffer Material { uvec4 textureIdx[]; } materials;
+layout(binding = 7, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
+layout(binding = 8, set = 0) readonly buffer Indices { uint i[]; } indices;
+layout(binding = 9, set = 0) readonly buffer StaticInstanceData { uvec4 i[]; } staticInstanceData;
+layout(binding = 10, set = 0) uniform sampler2DArray ldrTexSampler;
+layout(binding = 11, set = 0) uniform sampler2DArray hdrTexSampler;
 
 struct Vertex 
 {
@@ -67,8 +73,12 @@ void main()
   vec2 texCoord = v0.texCoord * barycentricCoords.x + v1.texCoord * barycentricCoords.y + v2.texCoord * barycentricCoords.z;
   vec3 normal = v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z; // this is incorrect, multiply by modelIT mat
   
-  hitValue = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)) * vec4(color, 1.0f); // diffuse texture
-  //hitValue = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.y)) * vec4(color, 1.0f); // specular texture
+  vec4 alphaIntExtIor = texture(hdrTexSampler, vec3(texCoord, textureIdxUnit.z)); // alphaIntExtIor texture
+  payload.diffuseColor = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)) * vec4(color, 1.0f); // diffuse texture
+  payload.specularColor = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.y)); // specular texture
+  payload.normal = vec4(normal, alphaIntExtIor.x);
+  payload.other = vec4(gl_HitTNV, alphaIntExtIor.yz, textureIdxUnit.w);
 
   //hitValue = vec4(abs(normal), 1.0f);
+  //hitValue = vec4(vec3(gl_HitTNV), 1.0f);
 }
