@@ -43,18 +43,18 @@ protected:
 	}
 private:
 	
-	TextureGenerator fontTexGen;
+	TextureGenerator fontTexGen = TextureGenerator("GUI");
 	VkImage fontTexImage;
 	VkImageView fontTexImageView;
 	VkSampler fontTexSampler;
 	VmaAllocation fontTexAllocation;
 
-	DescriptorSetGenerator descGen;
+	DescriptorSetGenerator descGen = DescriptorSetGenerator("GUI");
 	VkDescriptorSetLayout descriptorSetLayout;
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSet descriptorSet;
 
-	GraphicsPipelineGenerator gfxPipeGen;
+	GraphicsPipelineGenerator gfxPipeGen = GraphicsPipelineGenerator("GUI");
 
 	struct PushConstBlock {
 		glm::vec2 scale;

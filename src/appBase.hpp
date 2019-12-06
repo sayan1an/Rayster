@@ -27,10 +27,8 @@ protected:
 	VkCommandPool computeCommandPool;
 
 	void createInstance(const std::vector<const char*> extraInstanceExtensions) {
-		if (enableValidationLayers && !checkValidationLayerSupport()) {
-			throw std::runtime_error("validation layers requested, but not available!");
-		}
-
+		CHECK(!enableValidationLayers || checkValidationLayerSupport(), "Application: validation layers requested, but not available!");
+		
 		VkApplicationInfo appInfo = {};
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 		appInfo.pApplicationName = "Hello Triangle";
@@ -61,14 +59,14 @@ protected:
 			createInfo.pNext = nullptr;
 		}
 
-		VK_CHECK(vkCreateInstance(&createInfo, nullptr, &instance), "failed to create instance!");
+		VK_CHECK(vkCreateInstance(&createInfo, nullptr, &instance), "Application: failed to create instance!");
 	}
 
 	void pickPhysicalDevice(const VkSurfaceKHR &surface, boolean enableMsaa) {
 		uint32_t deviceCount = 0;
 		vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
-		CHECK(deviceCount != 0, "failed to find GPUs with Vulkan support!");
+		CHECK(deviceCount != 0, "Application: failed to find GPUs with Vulkan support!");
 		
 		std::vector<VkPhysicalDevice> devices(deviceCount);
 		vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
@@ -83,7 +81,7 @@ protected:
 			}
 		}
 
-		CHECK(physicalDevice != VK_NULL_HANDLE, "failed to find a suitable GPU!");
+		CHECK(physicalDevice != VK_NULL_HANDLE, "Application: failed to find a suitable GPU!");
 	}
 
 	void createLogicalDevice(const VkSurfaceKHR &surface) {
@@ -123,7 +121,7 @@ protected:
 			createInfo.enabledLayerCount = 0;
 		}
 
-		VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device), "failed to create logical device!"); 
+		VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device), "Application: failed to create logical device!"); 
 
 		vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
 		vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
@@ -136,7 +134,7 @@ protected:
 		VkDebugUtilsMessengerCreateInfoEXT createInfo;
 		populateDebugMessengerCreateInfo(createInfo);
 
-		VK_CHECK(CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger), "failed to set up debug messenger!");
+		VK_CHECK(CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger), "Application: failed to set up debug messenger!");
 	}
 
 	void vmaInit() {
@@ -155,12 +153,12 @@ protected:
 		poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
 
-		VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &graphicsCommandPool), "failed to create graphics command pool!");
+		VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &graphicsCommandPool), "Application: failed to create graphics command pool!");
 		
 		poolInfo.queueFamilyIndex = queueFamilyIndices.computeFamily.value();
 		poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-		VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &computeCommandPool), "failed to create graphics command pool!");
+		VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &computeCommandPool), "Application: failed to create graphics command pool!");
 	}
 public:
 	Application(const std::vector<const char*> &_validationLayers, const std::vector<const char*>&_instanceExtensions, const std::vector<const char*>&_deviceExtensions, const std::vector<const char*>&_requiredDeviceFeatures) {
@@ -369,7 +367,7 @@ protected:
 			return 0xffffffff;
 		}
 
-		CHECK_DBG_ONLY(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR, "failed to acquire swap chain image!");
+		CHECK_DBG_ONLY(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR, "WindowApplication: failed to acquire swap chain image!");
 		
 		return imageIndex;
 	}
@@ -393,7 +391,7 @@ protected:
 
 		vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
-		VK_CHECK_DBG_ONLY(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]), "failed to submit draw command buffer!");
+		VK_CHECK_DBG_ONLY(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]), "WindowApplication: failed to submit draw command buffer!");
 	}
 
 	void frameEnd(uint32_t imageIndex) {
@@ -417,7 +415,7 @@ protected:
 			recreateSwapChain();
 		}
 		
-		VK_CHECK_DBG_ONLY(result, "failed to present swap chain image!");
+		VK_CHECK_DBG_ONLY(result, "WindowApplication: failed to present swap chain image!");
 		
 		currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	}
@@ -486,7 +484,7 @@ private:
 		createInfo.presentMode = presentMode;
 		createInfo.clipped = VK_TRUE;
 
-		VK_CHECK(vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain), "failed to create swap chain!");
+		VK_CHECK(vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain), "WindowApplication: failed to create swap chain!");
 		
 		vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
 		swapChainImages.resize(imageCount);
@@ -580,7 +578,7 @@ private:
 			if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
 				vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
 				vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-				throw std::runtime_error("failed to create synchronization objects for a frame!");
+				throw std::runtime_error("WindowApplication: failed to create synchronization objects for a frame!");
 			}
 		}
 	}

@@ -35,6 +35,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 class FboManager
 {
 public:
+	FboManager(std::string _appName = "")
+	{
+		appName = _appName;
+	}
+
 	void addDepthAttachment(std::string name, VkFormat format, VkSampleCountFlagBits sample,
 		const VkImageView* view, uint32_t count = 1, VkClearDepthStencilValue clearDepth = { 1.0f, 0 })
 	{
@@ -55,8 +60,7 @@ public:
 
 	VkAttachmentReference getAttachmentReference(std::string name, VkImageLayout layout)
 	{	
-		if (attachments.find(name) == attachments.end())
-			throw std::runtime_error("Attachment name - " + name + " not found");
+		CHECK(attachments.find(name) != attachments.end(), appName + " FboManager: Attachment name - " + name + " not found");
 
 		VkAttachmentReference ref = {};
 		const FboData data = attachments[name];
@@ -69,24 +73,21 @@ public:
 
 	VkFormat getFormat(std::string name)
 	{
-		if (attachments.find(name) == attachments.end())
-			throw std::runtime_error("Attachment name - " + name + " not found");
+		CHECK(attachments.find(name) != attachments.end(), appName + " FboManager: Attachment name - " + name + " not found");
 		
 		return attachments[name].format;
 	}
 
 	VkSampleCountFlagBits getSampleCount(std::string name)
 	{
-		if (attachments.find(name) == attachments.end())
-			throw std::runtime_error("Attachment name - " + name + " not found");
+		CHECK(attachments.find(name) != attachments.end(), appName + " FboManager: Attachment name - " + name + " not found");
 
 		return attachments[name].samples;
 	}
 
 	void updateAttachmentDescription(std::string name, VkAttachmentDescription description)
 	{	
-		if (attachments.find(name) == attachments.end())
-			throw std::runtime_error("Attachment name - " + name + " not found");
+		CHECK(attachments.find(name) != attachments.end(), appName + " FboManager: Attachment name - " + name + " not found");
 		
 		FboData data = attachments[name];
 		description.format = data.format;
@@ -100,13 +101,12 @@ public:
 
 	void getAttachmentDescriptions(std::vector<VkAttachmentDescription> &_attachmentDescriptions) 
 	{
-		if (attachmentDescriptions.size() != attachments.size())
-			throw std::runtime_error("One or more of the attachment descriptions has not been updated");
+		CHECK(attachmentDescriptions.size() == attachments.size(), appName + " FboManager: One or more of the attachment descriptions has not been updated");
 
 		_attachmentDescriptions.resize(attachments.size());
 		for (const auto& attachment : attachments) {
-			if (attachmentDescriptions.find(attachment.first) == attachmentDescriptions.end())
-				throw std::runtime_error("This should not be happening, something wrong with the logic; attchemnt name not found");
+			CHECK(attachmentDescriptions.find(attachment.first) != attachmentDescriptions.end(), 
+				appName + " FboManager: This should not be happening, something wrong with the logic; attchemnt name not found");
 
 			_attachmentDescriptions[attachment.second.index] = attachmentDescriptions[attachment.first];
 		}
@@ -125,11 +125,9 @@ public:
 
 	VkImageView getImageView(std::string name, uint32_t index = 0)
 	{
-		if (attachments.find(name) == attachments.end())
-			throw std::runtime_error("Attachment name - " + name + " not found");
-		
-		uint32_t count = attachments[name].count;
+		CHECK(attachments.find(name) != attachments.end(), appName + " FboManager: Attachment name - " + name + " not found");
 
+		uint32_t count = attachments[name].count;
 		return attachments[name].view[index < count ? index : count - 1];
 	}
 
@@ -139,6 +137,8 @@ public:
 	}
 
 private:
+	std::string appName;
+
 	struct FboData
 	{	
 		uint32_t index;
@@ -160,8 +160,7 @@ private:
 		FboData data = { index, format, sample, view, count };
 		auto iter = attachments.insert(std::make_pair(name, data));
 
-		if (iter.second == false)
-			throw std::runtime_error("Attachment already exsists");
+		CHECK(iter.second != false, appName + " FboManager: Attachment already exsists");
 
 		clearValues.push_back(clear);
 	}
@@ -170,6 +169,10 @@ private:
 class TextureGenerator 
 {
 public:
+	TextureGenerator(std::string _appName = "")
+	{
+		appName = _appName;
+	}
 	size_t addTexture(Image2d textureImage)
 	{	
 		textureCache.push_back(textureImage);
@@ -189,53 +192,48 @@ public:
 		createTextureSampler(device, sampler, textureCache[0].mipLevels());
 	}
 private:
+	std::string appName;
 	std::vector<Image2d> textureCache;
-	
+		
 	void fixTextureCache()
 	{
-		if (textureCache.empty())
-			throw std::runtime_error("TextureGenerator : Provided texture cache is empty");
-		else {
-			// All images must have same image format and size. We can relax this restriction to having same aspect ratio and rescaling the
-			// images to the largest one.
+		CHECK(!textureCache.empty(), appName + " TextureGenerator: Provided texture cache is empty");
+		
+		// All images must have same image format and size. We can relax this restriction to having same aspect ratio and rescaling the
+		// images to the largest one.
 
-			// throw an error when format, aspectRatio and mip levels are not same.
-			// Check if the images have same aspect ratio and format. Upscale all images to the size of the largest one.
-			VkFormat desiredFormat = textureCache[0].format;
-			float desiredAspectRatio = (float)textureCache[0].width / textureCache[0].height;
+		// throw an error when format, aspectRatio and mip levels are not same.
+		// Check if the images have same aspect ratio and format. Upscale all images to the size of the largest one.
+		VkFormat desiredFormat = textureCache[0].format;
+		float desiredAspectRatio = (float)textureCache[0].width / textureCache[0].height;
 			
-			uint32_t maxWidth = 0;
-			uint32_t maxHeight = 0;
+		uint32_t maxWidth = 0;
+		uint32_t maxHeight = 0;
 
-			for (const auto& image : textureCache) {
-				float aspectRatio = (float)image.width / image.height;
+		for (const auto& image : textureCache) {
+			float aspectRatio = (float)image.width / image.height;
 
-				if (image.format != desiredFormat)
-					throw std::runtime_error("TextureGenerator : Format for all texture images must be same in the texture cache.");
+			CHECK(image.format == desiredFormat, appName + " TextureGenerator: Format for all texture images must be same in the texture cache.");
+			CHECK(std::abs(aspectRatio - desiredAspectRatio) / desiredAspectRatio < 0.01, appName + " TextureGenerator: Aspect ratio for all texture images must be same in the texture cache.");
 
-				else if  (std::abs(aspectRatio - desiredAspectRatio) / desiredAspectRatio > 0.01)
-					throw std::runtime_error("TextureGenerator : Aspect ratio for all texture images must be same in the texture cache.");
+			if (image.width > maxWidth)
+				maxWidth = image.width;
 
-				if (image.width > maxWidth)
-					maxWidth = image.width;
+			if (image.height > maxHeight)
+				maxHeight = image.height;
+		}
 
-				if (image.height > maxHeight)
-					maxHeight = image.height;
-			}
+		for (auto& image : textureCache)
+			if (image.width != maxWidth || image.height != maxHeight)
+				image.resize(maxWidth, maxHeight);
 
-			for (auto& image : textureCache)
-				if (image.width != maxWidth || image.height != maxHeight)
-					image.resize(maxWidth, maxHeight);
-
-			// check size and mipLevels of all images are same
-			uint32_t mipLevels = textureCache[0].mipLevels();
-			for (const auto& image : textureCache) {
-				if (image.width != maxWidth || image.height != maxHeight)
-					throw std::runtime_error("TextureGenerator: Fix me - some problem with image resize.");
-				else if (mipLevels != image.mipLevels())
-					throw std::runtime_error("TextureGenerator : Mip levels for all texture images must be same in the texture cache.");
-			}
-
+		// check size and mipLevels of all images are same
+		uint32_t mipLevels = textureCache[0].mipLevels();
+		for (const auto& image : textureCache) {
+			CHECK(image.width == maxWidth && image.height == maxHeight,
+				appName + " TextureGenerator: Fix me - some problem with image resize.");
+			CHECK(mipLevels == image.mipLevels(),
+				appName + " TextureGenerator: Mip levels for all texture images must be same in the texture cache.");
 		}
 	}
 
@@ -257,8 +255,8 @@ private:
 		VmaAllocationCreateInfo allocCreateInfo = {};
 		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
 
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create staging buffer for index buffer!");
+		VK_CHECK(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr),
+			appName + " TextureGenerator: Failed to create staging buffer for texture image!");
 
 		void* data;
 		vmaMapMemory(allocator, stagingBufferAllocation, &data);
@@ -307,8 +305,8 @@ private:
 		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-		if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &textureImage, &textureImageAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create texture image!");
+		VK_CHECK(vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &textureImage, &textureImageAllocation, nullptr),
+			appName + " TextureGenerator: Failed to create texture image!");
 
 		transitionImageLayout(device, queue, commandPool, textureImage, textureCache[0].format,
 			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels, static_cast<uint32_t>(textureCache.size()));
@@ -339,10 +337,9 @@ private:
 		VkFormatProperties formatProperties;
 		vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
 
-		if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
-			throw std::runtime_error("texture image format does not support linear blitting!");
-		}
-
+		CHECK((formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT),
+			appName + " TextureGenerator: texture image format does not support linear blitting!");
+		
 		VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
 
 		VkImageMemoryBarrier barrier = {};
@@ -423,7 +420,6 @@ private:
 
 	void createTextureSampler(const VkDevice& device, VkSampler& sampler, uint32_t mipLevels)
 	{
-		
 		VkSamplerCreateInfo samplerInfo = {};
 		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 		samplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -442,15 +438,18 @@ private:
 		samplerInfo.maxLod = static_cast<float>(mipLevels);
 		samplerInfo.mipLodBias = 0;
 						
-		if (vkCreateSampler(device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create texture sampler!");
-		}
+		VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &sampler),
+			appName + " TextureGenerator: failed to create texture sampler!");
 	}
 
 };
 
 class DescriptorSetGenerator {
 public:
+	DescriptorSetGenerator(std::string _appName = "")
+	{
+		appName = _appName;
+	}
 	void bindBuffer(VkDescriptorSetLayoutBinding layout, VkDescriptorBufferInfo bufferInfo) 
 	{
 		VkDescriptorImageInfo imageInfo = {};
@@ -467,7 +466,8 @@ public:
 		descriptorTypeInfo.push_back({ bufferInfo, imageInfo, tlasInfo, TYPE_IMAGE });
 	}
 
-	void bindTLAS(VkDescriptorSetLayoutBinding layout, VkWriteDescriptorSetAccelerationStructureNV tlasInfo) {
+	void bindTLAS(VkDescriptorSetLayoutBinding layout, VkWriteDescriptorSetAccelerationStructureNV tlasInfo) 
+	{
 		VkDescriptorBufferInfo bufferInfo = {};
 		VkDescriptorImageInfo imageInfo = {};
 		bindings.push_back(layout);
@@ -476,8 +476,8 @@ public:
 
 	void generateDescriptorSet(const VkDevice &device, VkDescriptorSetLayout* layout, VkDescriptorPool* descriptorPool, VkDescriptorSet* descriptorSets, uint32_t maxSets = 1) 
 	{
-		if (descriptorTypeInfo.size() == 0)
-			throw std::runtime_error("Descriptor bindings are un-initialized");
+		CHECK(descriptorTypeInfo.size() != 0,
+			appName + " DescriptorSetGenerator: Descriptor bindings are un-initialized");
 
 		createDescriptorSetLayout(device, layout);
 		allocateDescriptorSets(device, *layout, descriptorPool, descriptorSets, maxSets);
@@ -488,15 +488,18 @@ public:
 		reset();
 	}
 
-	void reset() {
+	void reset() 
+	{
 		bindings.clear();
 		descriptorTypeInfo.clear();
 	}
 
 private:
+	std::string appName;
 	enum DESCRIPTOR_TYPE {TYPE_BUFFER, TYPE_IMAGE, TYPE_TLAS};
 
-	struct DescriptorTypeInfo {
+	struct DescriptorTypeInfo 
+	{
 		VkDescriptorBufferInfo bufferInfo;
 		VkDescriptorImageInfo imageInfo;
 		VkWriteDescriptorSetAccelerationStructureNV tlasInfo;
@@ -506,18 +509,18 @@ private:
 	std::vector<VkDescriptorSetLayoutBinding> bindings;
 	std::vector<DescriptorTypeInfo> descriptorTypeInfo;
 
-	void createDescriptorSetLayout(const VkDevice& device, VkDescriptorSetLayout* layout) {
+	void createDescriptorSetLayout(const VkDevice& device, VkDescriptorSetLayout* layout) 
+	{
 		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
 		layoutInfo.pBindings = bindings.data();
 
-		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, layout) != VK_SUCCESS) {
-			throw std::runtime_error("Failed to create descriptor set layout!");
-		}
+		VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, layout), appName + " DescriptorSetGenerator: Failed to create descriptor set layout!");
 	}
 
-	void allocateDescriptorSets(const VkDevice& device, const VkDescriptorSetLayout &layout, VkDescriptorPool *descriptorPool, VkDescriptorSet *descriptorSets, uint32_t maxSets) {
+	void allocateDescriptorSets(const VkDevice& device, const VkDescriptorSetLayout &layout, VkDescriptorPool *descriptorPool, VkDescriptorSet *descriptorSets, uint32_t maxSets) 
+	{
 		std::vector<VkDescriptorPoolSize> poolSizes;
 
 		for (auto& binding : bindings) {
@@ -533,19 +536,17 @@ private:
 		poolInfo.pPoolSizes = poolSizes.data();
 		poolInfo.maxSets = maxSets;
 
-		if (vkCreateDescriptorPool(device, &poolInfo, nullptr, descriptorPool) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create descriptor pool!");
-		}
-
+		VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, descriptorPool), 
+			appName + " DescriptorSetGenerator: failed to create descriptor pool!");
+		
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		allocInfo.descriptorPool = *descriptorPool;
 		allocInfo.descriptorSetCount = maxSets;
 		allocInfo.pSetLayouts = &layout;
 
-		if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets) != VK_SUCCESS) {
-			throw std::runtime_error("failed to allocate descriptor sets!");
-		}
+		VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, descriptorSets),
+			appName + " DescriptorSetGenerator: failed to allocate descriptor sets!");
 	}
 
 	void updateDescriptorSet(const VkDevice &device, VkDescriptorSet &descriptorSet) {
@@ -567,7 +568,7 @@ private:
 			else if (descriptorTypeInfo[i].type == TYPE_TLAS)
 				write.pNext = &descriptorTypeInfo[i].tlasInfo;
 			else
-				throw std::runtime_error("Could not find descriptor set type");
+				CHECK(false, appName + " DescriptorSetGenerator: Could not find descriptor set type");
 
 			descriptorWrites.push_back(write);
 		}
@@ -579,6 +580,10 @@ private:
 class PipelineGenerator
 {
 public:
+	PipelineGenerator(std::string _appName)
+	{
+		appName = _appName;
+	}
 	void addPushConstantRange(const VkPushConstantRange pushConstant)
 	{	
 		pushConstantRanges.push_back(pushConstant);
@@ -586,6 +591,7 @@ public:
 private:
 	std::vector<VkPushConstantRange> pushConstantRanges;
 protected:
+	std::string appName;
 	/// Shader stages contained in the pipeline
 	std::vector<VkPipelineShaderStageCreateInfo> shaderStageCIs;
 	std::vector<VkShaderModule> shaderModules;
@@ -599,9 +605,8 @@ protected:
 		pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
 		pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
 
-		if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, pipelineLayout) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create pipeline layout!");
-		}
+		VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, pipelineLayout),
+			appName + " PipelineGenerator: failed to create pipeline layout!");
 	}
 	
 	void createShaderStage(const VkDevice& device, const std::string& filename, VkShaderStageFlagBits stageFlag)
@@ -631,8 +636,8 @@ protected:
 		createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
 		VkShaderModule shaderModule = VK_NULL_HANDLE;
-		if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-			throw std::runtime_error("failed to create shader module!");
+		VK_CHECK(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule),
+			"PipelineGenerator: failed to create shader module!");
 		
 		return shaderModule;
 	}
@@ -651,7 +656,8 @@ protected:
 class GraphicsPipelineGenerator : public PipelineGenerator
 {
 public:
-	GraphicsPipelineGenerator() {
+	GraphicsPipelineGenerator(std::string _appName = "") : PipelineGenerator(_appName)
+	{
 		reset();
 	}
 	void addVertexShaderStage(const VkDevice& device, const std::string& filename)
@@ -760,8 +766,8 @@ public:
 		pipelineInfo.renderPass = renderPass;
 		pipelineInfo.subpass = subpassIdx;
 		
-		if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, pipeline) != VK_SUCCESS)
-			throw std::runtime_error("failed to create graphics pipeline!");
+		VK_CHECK(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, pipeline),
+			appName + " GraphicsPipelineGenerator: failed to create graphics pipeline!");
 		
 		cleanUp(device);
 		reset();
@@ -845,6 +851,7 @@ private:
 class ComputePipelineGenerator : public PipelineGenerator
 {
 public:
+	ComputePipelineGenerator(std::string _appName = "") : PipelineGenerator(_appName) {}
 	void addComputeShaderStage(const VkDevice& device, const std::string& filename)
 	{
 		createShaderStage(device, filename, VK_SHADER_STAGE_COMPUTE_BIT);
@@ -854,16 +861,15 @@ public:
 	{
 		createPipelineLayout(device, descriptorSetLayout, pipelineLayout);
 
-		if (shaderStageCIs.size() != 1)
-			throw std::runtime_error("no compute shader stage found.");
+		CHECK(shaderStageCIs.size() == 1, appName + " ComputePipelineGenerator: no compute shader stage found.");
 
 		VkComputePipelineCreateInfo pipelineInfo = {};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
 		pipelineInfo.stage = shaderStageCIs[0];
 		pipelineInfo.layout = *pipelineLayout;
 
-		if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, pipeline) != VK_SUCCESS)
-			throw std::runtime_error("failed to create compute pipeline!");
+		VK_CHECK(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, pipeline),
+			appName + " ComputePipelineGenerator: failed to create compute pipeline!");
 		
 		cleanUp(device);
 	}
@@ -873,6 +879,7 @@ public:
 class RayTracingPipelineGenerator : public PipelineGenerator
 {
 public:
+	RayTracingPipelineGenerator(std::string _appName = "") : PipelineGenerator(_appName) {}
   /// Start the description of a hit group, that contains at least a closest hit shader, but may
   /// also contain an intesection shader and a any-hit shader. The method outputs the index of the
   /// created hit group

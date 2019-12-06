@@ -4,10 +4,8 @@
 extern std::vector<char> readFile(const std::string& filename) {
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
-	if (!file.is_open()) {
-		throw std::runtime_error("failed to open file - " + filename);
-	}
-
+	CHECK(file.is_open(), "failed to open file - " + filename);
+	
 	size_t fileSize = (size_t)file.tellg();
 	std::vector<char> buffer(fileSize);
 
@@ -33,7 +31,7 @@ extern VkPhysicalDeviceFeatures checkSupportedDeviceFeatures(const VkPhysicalDev
 		else if (std::strcmp(requiredFeature, "drawIndirectFirstInstance") == 0 && supportedFeatures.drawIndirectFirstInstance)
 			vk_requiredFeatures.drawIndirectFirstInstance = VK_TRUE;
 		else
-			throw std::runtime_error(std::string("physical device feature '") + requiredFeature + "' not found or unsupported!");
+			CHECK(false, std::string("physical device feature '") + requiredFeature + "' not found or unsupported!");
 	}
 
 	return vk_requiredFeatures;
@@ -96,8 +94,8 @@ extern void createBuffer(const VkDevice& device, const VmaAllocator& allocator, 
 	VmaAllocationCreateInfo allocCreateInfo = {};
 	allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
 
-	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr) != VK_SUCCESS)
-		throw std::runtime_error("Failed to create staging buffer!");
+	VK_CHECK(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr),
+		"Failed to create staging buffer!");
 
 	void* data;
 	vmaMapMemory(allocator, stagingBufferAllocation, &data);
@@ -107,8 +105,8 @@ extern void createBuffer(const VkDevice& device, const VmaAllocator& allocator, 
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | bufferUsageFlags;
 	allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &buffer, &bufferAllocation, nullptr) != VK_SUCCESS)
-		throw std::runtime_error("Failed to create vertex buffer!");
+	VK_CHECK(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &buffer, &bufferAllocation, nullptr),
+		"Failed to create vertex buffer!");
 
 	copyBuffer(device, queue, commandPool, stagingBuffer, buffer, bufferSize);
 
@@ -128,10 +126,9 @@ extern VkImageView createImageView(const VkDevice& device, VkImage image, VkForm
 	viewInfo.subresourceRange.layerCount = layerCount;
 
 	VkImageView imageView;
-	if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create texture image view!");
-	}
-
+	VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &imageView),
+		"failed to create texture image view!");
+	
 	return imageView;
 }
 
@@ -221,7 +218,7 @@ extern void cmdTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage imag
 	}
 
 	else {
-		throw std::invalid_argument("unsupported layout transition!");
+		CHECK(false, "Unsupported layout transition!");
 	}
 
 	vkCmdPipelineBarrier(
@@ -279,7 +276,7 @@ extern VkFormat findSupportedFormat(VkPhysicalDevice& physicalDevice, const std:
 		}
 	}
 
-	throw std::runtime_error("failed to find supported format!");
+	CHECK(false, "Failed to find supported format!");
 }
 
 extern VkFormat findDepthFormat(VkPhysicalDevice& physicalDevice) {
@@ -347,8 +344,7 @@ extern QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, cons
 		i++;
 	}
 
-	if (!indices.isComplete())
-		throw std::runtime_error("Couldn't find all necessary queues!");
+	CHECK(indices.isComplete(), "Couldn't find all necessary queues!");
 
 	return indices;
 }

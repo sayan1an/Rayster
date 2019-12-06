@@ -51,8 +51,7 @@ compiling in debug mode.
 // created hit group
 uint32_t RayTracingPipelineGenerator::startHitGroup()
 {
-	if (m_isHitGroupOpen)
-		throw std::logic_error("Hit group already open");
+	CHECK(!m_isHitGroupOpen, "RayTracingPipelineGenerator: Hit group already open");
 
 	VkRayTracingShaderGroupCreateInfoNV groupInfo;
 	groupInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_NV;

@@ -17,8 +17,8 @@ void Gui::uploadData(const VkDevice& device, const VmaAllocator& allocator)
 		VmaAllocationCreateInfo allocCreateInfo = {};
 		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &buffer, &bufferAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create buffer!");
+		VK_CHECK(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &buffer, &bufferAllocation, nullptr),
+			"GUI: Failed to create mapped buffer!");
 
 		vmaMapMemory(allocator, bufferAllocation, &mappedPtr);
 	};
@@ -27,7 +27,7 @@ void Gui::uploadData(const VkDevice& device, const VmaAllocator& allocator)
 	VkDeviceSize indexBufferSize = imDrawData->TotalIdxCount * sizeof(ImDrawIdx);
 
 	if (vertexBufferSize == 0 || indexBufferSize == 0) {
-		std::cout << "GUI vertex and index buffer size are zero" << std::endl;
+		WARN_DBG_ONLY(false, "GUI: vertex and index buffer size are zero");
 		return;
 	}
 

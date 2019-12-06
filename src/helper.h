@@ -5,6 +5,7 @@
 #include <fstream>
 #include <optional>
 #include <algorithm>
+#include <string>
 
 #include "vulkan/vulkan.h"
 #include "vk_mem_alloc.h"
@@ -14,7 +15,7 @@
 #include "imgui.h"
 #include <glm/glm.hpp>
 
-#define ROOT std::string("D:/projects/VkExperiment")
+#define ROOT std::string("D:/projects/vulkanexperiments")
 
 #define NDEBUG
 
@@ -29,10 +30,21 @@ static const bool enableValidationLayers = false;
 	if (!(cond)) throw std::runtime_error("Error: " + std::string(stringVal) + " FILE: " + std::string(__FILE__) + " LINE: " + std::to_string(__LINE__));\
 }
 
+#define WARN(cond, stringVal) \
+{ \
+	if (!(cond)) std::cerr << "Warning: " + std::string(stringVal) + " FILE: " + std::string(__FILE__) + " LINE: " + std::to_string(__LINE__) << std::endl;\
+}
+
 #ifdef NDEBUG
 #define CHECK_DBG_ONLY(cond, stringVal) CHECK(cond, stringVal)
 #else
 #define CHECK_DBG_ONLY(cond, stringVal) {}
+#endif
+
+#ifdef NDEBUG
+#define WARN_DBG_ONLY(cond, stringVal) WARN(cond, stringVal)
+#else
+#define WARN_DBG_ONLY(cond, stringVal) {}
 #endif
 
 #define VK_CHECK(result, stringVal) CHECK(((result) == VK_SUCCESS), stringVal)
@@ -83,7 +95,7 @@ struct Image2d
 			case VK_FORMAT_R32G32B32A32_SFLOAT:
 				return height * width * 4 * sizeof(float);
 			default:
-				throw std::runtime_error("Image2d : Unrecognised texture format.");
+				CHECK(false, "Image2d : Unrecognised texture format.");
 		}
 
 		return 0;
@@ -104,10 +116,8 @@ struct Image2d
 	{
 		int texChannels, iWidth, iHeight;
 		pixels = stbi_load(texturePath.c_str(), &iWidth, &iHeight, &texChannels, STBI_rgb_alpha);
-		if (!pixels) {
-			throw std::runtime_error("Image2d : Failed to load texture image - " + texturePath);
-		}
-
+		CHECK(pixels, "Image2d : Failed to load texture image - " + texturePath);
+		
 		width = static_cast<uint32_t> (iWidth);
 		height = static_cast<uint32_t> (iHeight);
 		format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -159,12 +169,13 @@ struct Image2d
 	{
 		if (format == VK_FORMAT_R8G8B8A8_UNORM) {
 			void* newPixels = new unsigned char[(size_t)newWidth * newHeight * 4];
-			if (stbir_resize_uint8((const unsigned char*)pixels, width, height, 0, (unsigned char *)newPixels, newWidth, newHeight, 0, 4) < 1)
-				throw std::runtime_error("Failed to resize image.");
+			CHECK(stbir_resize_uint8((const unsigned char*)pixels, width, height, 0, (unsigned char *)newPixels, newWidth, newHeight, 0, 4) > 0,
+				"Image2d: Failed to resize image.");
+
 			if (!externalAlocation)
 				stbi_image_free(pixels);
 			else
-				std::cerr << ("Image2d : Memory for image - " + path + " is allocated by user. Cannot free memory for resize.").c_str() << std::endl;
+				WARN(false, "Image2d: Memory for image - " + path + " is allocated by user. Cannot free memory for resize.");
 				
 			pixels = newPixels;
 			
@@ -175,14 +186,14 @@ struct Image2d
 		}
 		else if (format == VK_FORMAT_R32G32B32A32_SFLOAT) {
 			void* newPixels = new float[(size_t)newWidth * newHeight * 4];
-			if (stbir_resize_float((const float*)pixels, width, height, 0, (float *)newPixels, newWidth, newHeight, 0, 4) < 1)
-				throw std::runtime_error("Image2d : Failed to resize image.");
+			CHECK (stbir_resize_float((const float*)pixels, width, height, 0, (float *)newPixels, newWidth, newHeight, 0, 4) >0,
+				"Image2d: Failed to resize image.");
 			
 			if (!externalAlocation)
 				stbi_image_free(pixels);
 			else
-				std::cerr << ("Image2d : Memory for image - " + path + " is allocated by user. Cannot free memory for resize.").c_str() << std::endl;
-			
+				WARN(false, "Image2d: Memory for image - " + path + " is allocated by user. Cannot free memory for resize.");
+
 			pixels = newPixels;
 
 			width = newWidth;
@@ -191,14 +202,14 @@ struct Image2d
 			externalAlocation = false;
 		}
 		else
-			throw std::runtime_error("Image2d : Failed to resize image. Format is unsupported.");
+			CHECK(false, "Image2d: Failed to resize image. Format is unsupported.");
 	}
 
 	// This is specific to ImGui fonts
 	Image2d(bool forceMipLevelToOne)
 	{	
-		if (ImGui::GetCurrentContext() == NULL)
-			throw std::runtime_error("Image2d : ImGui context is null, cannot create font image.");
+		CHECK(ImGui::GetCurrentContext() != NULL,
+			"Image2d : ImGui context is null, cannot create font image.");
 
 		ImGuiIO& io = ImGui::GetIO();
 		
