@@ -365,9 +365,8 @@ private:
 		renderPassInfo.dependencyCount = 3;
 		renderPassInfo.pDependencies = dependencies.data();
 
-		if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create render pass!");
-		}
+		VK_CHECK(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass),
+			"GBufferApp: failed to create render pass!");
 	}
 
 	void createFramebuffers() {
@@ -386,9 +385,8 @@ private:
 			framebufferInfo.height = swapChainExtent.height;
 			framebufferInfo.layers = 1;
 
-			if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
-				throw std::runtime_error("failed to create framebuffer!");
-			}
+			VK_CHECK(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]),
+				"GraphicsComputeGraphicsApp: failed to create framebuffer!");
 		}
 	}
 
@@ -416,8 +414,8 @@ private:
 			VmaAllocationCreateInfo allocCreateInfo = {};
 			allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-			if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &image, &allocation, nullptr) != VK_SUCCESS)
-				throw std::runtime_error("Failed to create color image!");
+			VK_CHECK(vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &image, &allocation, nullptr),
+				"GBufferApp: Failed to create color image!");
 
 			imageView = createImageView(device, image, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 
@@ -453,8 +451,8 @@ private:
 		VmaAllocationCreateInfo allocCreateInfo = {};
 		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-		if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &depthImage, &depthImageAllocation, nullptr) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create color image!");
+		VK_CHECK(vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &depthImage, &depthImageAllocation, nullptr),
+			"GBufferApp: Failed to create color image!");
 
 		depthImageView = createImageView(device, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1, 1);
 
@@ -471,9 +469,8 @@ private:
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
 
-		if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
-			throw std::runtime_error("failed to allocate command buffers!");
-		}
+		VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()),
+			"GBufferApp: failed to allocate command buffers!");
 	}
 
 	void buildCommandBuffer(size_t index)
@@ -482,8 +479,8 @@ private:
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
-		if (vkBeginCommandBuffer(commandBuffers[index], &beginInfo) != VK_SUCCESS)
-			throw std::runtime_error("failed to begin recording command buffer!");
+		VK_CHECK_DBG_ONLY(vkBeginCommandBuffer(commandBuffers[index], &beginInfo),
+			"GBufferApp: failed to begin recording command buffer!");
 		
 		model.cmdTransferData(commandBuffers[index]);
 
@@ -518,8 +515,8 @@ private:
 
 		vkCmdEndRenderPass(commandBuffers[index]);
 
-		if (vkEndCommandBuffer(commandBuffers[index]) != VK_SUCCESS)
-			throw std::runtime_error("failed to record command buffer!");
+		VK_CHECK_DBG_ONLY(vkEndCommandBuffer(commandBuffers[index]),
+			"GBufferApp: failed to record command buffer!");
 	}
 
 	void drawFrame() {

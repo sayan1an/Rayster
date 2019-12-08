@@ -17,8 +17,8 @@ void BottomLevelAccelerationStructure::create(const VkDevice& device, const VmaA
 	VkAccelerationStructureCreateInfoNV accelerationStructureCreateInfo{};
 	accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_NV;
 	accelerationStructureCreateInfo.info = accelerationStructureInfo;
-	if (vkCreateAccelerationStructureNV(device, &accelerationStructureCreateInfo, nullptr, &accelerationStructure) != VK_SUCCESS)
-		throw std::runtime_error("failed to create bottom level accelaration structure!");
+	VK_CHECK_DBG_ONLY(vkCreateAccelerationStructureNV(device, &accelerationStructureCreateInfo, nullptr, &accelerationStructure),
+		"AccelarationStructure: failed to create bottom level accelaration structure!");
 
 	// Find memory requirements for accelaration structure object
 	VkAccelerationStructureMemoryRequirementsInfoNV memoryRequirementsInfo{};
@@ -36,8 +36,8 @@ void BottomLevelAccelerationStructure::create(const VkDevice& device, const VmaA
 	allocCreateInfo.memoryTypeBits = memoryRequirements2.memoryRequirements.memoryTypeBits;
 
 	VmaAllocationInfo allocInfo = {};
-	if (vmaAllocateMemory(allocator, &memoryRequirements2.memoryRequirements, &allocCreateInfo, &accelerationStructureAllocation, &allocInfo) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate memory for bottom level accelaration structure!");
+	VK_CHECK_DBG_ONLY(vmaAllocateMemory(allocator, &memoryRequirements2.memoryRequirements, &allocCreateInfo, &accelerationStructureAllocation, &allocInfo),
+		"AccelarationStructure: failed to allocate memory for bottom level accelaration structure!");
 
 	// Bind Accelaration structure with its memory
 	VkBindAccelerationStructureMemoryInfoNV accelerationStructureMemoryInfo{};
@@ -45,12 +45,12 @@ void BottomLevelAccelerationStructure::create(const VkDevice& device, const VmaA
 	accelerationStructureMemoryInfo.accelerationStructure = accelerationStructure;
 	accelerationStructureMemoryInfo.memory = allocInfo.deviceMemory;
 	accelerationStructureMemoryInfo.memoryOffset = allocInfo.offset;
-	if (vkBindAccelerationStructureMemoryNV(device, 1, &accelerationStructureMemoryInfo) != VK_SUCCESS)
-		throw std::runtime_error("failed to bind memory for bottom level accelaration structure!");
+	VK_CHECK_DBG_ONLY(vkBindAccelerationStructureMemoryNV(device, 1, &accelerationStructureMemoryInfo),
+		"AccelarationStructure: failed to bind memory for bottom level accelaration structure!");
 		
 	// Get a handle for the acceleration structure
-	if (vkGetAccelerationStructureHandleNV(device, accelerationStructure, sizeof(uint64_t), &handle) != VK_SUCCESS)
-		throw std::runtime_error("failed to retrive handle for bottom level accelaration structure!");
+	VK_CHECK_DBG_ONLY(vkGetAccelerationStructureHandleNV(device, accelerationStructure, sizeof(uint64_t), &handle),
+		"AccelarationStructur: failed to retrive handle for bottom level accelaration structure!");
 
 	// Find memory requirements for accelaration structure build scratch
 	memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_NV;
@@ -66,8 +66,8 @@ void BottomLevelAccelerationStructure::create(const VkDevice& device, const VmaA
 		vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
 		scratchSize = scratchSize > memoryRequirements2.memoryRequirements.size ? scratchSize : memoryRequirements2.memoryRequirements.size;
 
-		if (buildScratchType != memoryRequirements2.memoryRequirements.memoryTypeBits)
-			throw std::runtime_error("Build scratch and update scratch type do not match for bottom level AS!");
+		VK_CHECK_DBG_ONLY(buildScratchType == memoryRequirements2.memoryRequirements.memoryTypeBits,
+			"AccelartionStructure: Build scratch and update scratch type do not match for bottom level AS!");
 	}
 
 	// Create scratch buffer
@@ -82,14 +82,14 @@ void BottomLevelAccelerationStructure::create(const VkDevice& device, const VmaA
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	// Allocate memory and bind it to the buffer
-	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &scratchBuffer, &scratchBufferAllocation, &allocInfo) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate scratch buffer for bottom level accelaration structure!");
+	VK_CHECK_DBG_ONLY(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &scratchBuffer, &scratchBufferAllocation, &allocInfo),
+		"AccelarationStructure: failed to allocate scratch buffer for bottom level accelaration structure!");
 }
 
 void BottomLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, const std::vector<VkGeometryNV>& geometries, bool partialRebuild)
 {
-	if (partialRebuild && allowUpdate != partialRebuild)
-		throw std::runtime_error("Partial rebuild for bottom level accelaration structure is not allowed. First create the BLAS with appropriate flag!");
+	CHECK_DBG_ONLY(!partialRebuild || allowUpdate == partialRebuild,
+		"AccelartionStructure: Partial rebuild for bottom level accelaration structure is not allowed. First create the BLAS with appropriate flag!");
 
 	// Build the actual bottom-level acceleration structure
 	VkAccelerationStructureInfoNV buildInfo = {};
@@ -136,8 +136,8 @@ void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllo
 	VkAccelerationStructureCreateInfoNV accelerationStructureCreateInfo{};
 	accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_NV;
 	accelerationStructureCreateInfo.info = accelerationStructureInfo;
-	if (vkCreateAccelerationStructureNV(device, &accelerationStructureCreateInfo, nullptr, &accelerationStructure) != VK_SUCCESS)
-		throw std::runtime_error("failed to create top level accelaration structure!");
+	VK_CHECK_DBG_ONLY(vkCreateAccelerationStructureNV(device, &accelerationStructureCreateInfo, nullptr, &accelerationStructure),
+		"AccelerationStructure: failed to create top level accelaration structure!");
 
 	// Find memory requirements for accelaration structure object
 	VkAccelerationStructureMemoryRequirementsInfoNV memoryRequirementsInfo{};
@@ -155,8 +155,8 @@ void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllo
 	allocCreateInfo.memoryTypeBits = memoryRequirements2.memoryRequirements.memoryTypeBits;
 	
 	VmaAllocationInfo allocInfo = {};
-	if (vmaAllocateMemory(allocator, &memoryRequirements2.memoryRequirements, &allocCreateInfo, &accelerationStructureAllocation, &allocInfo) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate memory for bottom level accelaration structure!");
+	VK_CHECK_DBG_ONLY(vmaAllocateMemory(allocator, &memoryRequirements2.memoryRequirements, &allocCreateInfo, &accelerationStructureAllocation, &allocInfo),
+		"AccelarationStructure: failed to allocate memory for bottom level accelaration structure!");
 
 	// Bind Accelaration structure with its memory
 	VkBindAccelerationStructureMemoryInfoNV accelerationStructureMemoryInfo{};
@@ -165,8 +165,8 @@ void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllo
 	accelerationStructureMemoryInfo.memory = allocInfo.deviceMemory;
 	accelerationStructureMemoryInfo.memoryOffset = allocInfo.offset;
 	
-	if (vkBindAccelerationStructureMemoryNV(device, 1, &accelerationStructureMemoryInfo) != VK_SUCCESS)
-		throw std::runtime_error("failed to bind memory for top level accelaration structure!");
+	VK_CHECK_DBG_ONLY(vkBindAccelerationStructureMemoryNV(device, 1, &accelerationStructureMemoryInfo),
+		"AccelarationStructure: failed to bind memory for top level accelaration structure!");
 	
 	// Find memory requirements for accelaration structure build scratch
 	memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_NV;
@@ -182,8 +182,8 @@ void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllo
 		vkGetAccelerationStructureMemoryRequirementsNV(device, &memoryRequirementsInfo, &memoryRequirements2);
 		scratchSize = scratchSize > memoryRequirements2.memoryRequirements.size ? scratchSize : memoryRequirements2.memoryRequirements.size;
 
-		if (buildScratchType != memoryRequirements2.memoryRequirements.memoryTypeBits)
-			throw std::runtime_error("Build scratch and update scratch type do not match for top level AS!");
+		CHECK_DBG_ONLY(buildScratchType == memoryRequirements2.memoryRequirements.memoryTypeBits,
+			"AccelarationStructure: Build scratch and update scratch type do not match for top level AS!");
 	}
 
 	// Create scratch buffer
@@ -199,8 +199,8 @@ void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllo
 
 	allocInfo = {};
 	// Allocate memory and bind it to the buffer
-	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &scratchBuffer, &scratchBufferAllocation, &allocInfo) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate scratch buffer for top level accelaration structure!");
+	VK_CHECK_DBG_ONLY(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &scratchBuffer, &scratchBufferAllocation, &allocInfo),
+		"AccelarationStructure: failed to allocate scratch buffer for top level accelaration structure!");
 
 	// Create instance buffer
 	allocCreateInfo = {};
@@ -213,8 +213,8 @@ void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllo
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	// Allocate memory and bind it to the buffer
-	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &instanceBuffer, &instanceBufferAllocation, nullptr) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate instance buffer for top level accelaration structure!");
+	VK_CHECK_DBG_ONLY(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &instanceBuffer, &instanceBufferAllocation, nullptr),
+		"AccelarationStructure: failed to allocate instance buffer for top level accelaration structure!");
 
 	// Create staging buffer for instances
 	allocCreateInfo = {};
@@ -226,17 +226,17 @@ void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllo
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &instanceStagingBuffer, &instanceStagingBufferAllocation, nullptr) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate instance buffer for top level accelaration structure!");
+	VK_CHECK_DBG_ONLY(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &instanceStagingBuffer, &instanceStagingBufferAllocation, nullptr),
+		"AccelarationStructure: failed to allocate instance buffer for top level accelaration structure!");
 
-	if (vmaMapMemory(allocator, instanceStagingBufferAllocation, &mappedInstanceBuffer) != VK_SUCCESS)
-		throw std::runtime_error("failed to map instance buffer for top level accelaration structure!");
+	VK_CHECK_DBG_ONLY(vmaMapMemory(allocator, instanceStagingBufferAllocation, &mappedInstanceBuffer),
+		"AccelarationStructure: failed to map instance buffer for top level accelaration structure!");
 }
 
 void TopLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, const uint32_t instanceCount, bool rebuild)
-{
-	if (rebuild && allowUpdate != rebuild)
-		throw std::runtime_error("Partial rebuild for top level accelaration structure is not allowed. First create the BLAS with appropriate flag!");
+{	
+	CHECK_DBG_ONLY(!rebuild || allowUpdate == rebuild,
+		"AccelartionStructure: Partial rebuild for bottom level accelaration structure is not allowed. First create the BLAS with appropriate flag!");
 
 	VkBufferCopy copyRegion = {};
 	copyRegion.size = sizeof(TopLevelAccelerationStructureData) * instanceCount;

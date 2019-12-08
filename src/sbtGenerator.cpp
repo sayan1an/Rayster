@@ -103,13 +103,13 @@ void ShaderBindingTableGenerator::populateSBT(const VkDevice &device, const VkPi
 	// Note that this could be also done by fetching the handles one by one when writing the SBT entries
 	auto shaderHandleStorage = new uint8_t[groupCount * m_progIdSize];
 	PFN_vkGetRayTracingShaderGroupHandlesNV vkGetRayTracingShaderGroupHandlesNV = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesNV>(vkGetDeviceProcAddr(device, "vkGetRayTracingShaderGroupHandlesNV"));
-	if (vkGetRayTracingShaderGroupHandlesNV(device, raytracingPipeline, 0, groupCount, m_progIdSize * groupCount, shaderHandleStorage) != VK_SUCCESS)
-		throw std::runtime_error("SBT failed to get shader group handles");
+	VK_CHECK(vkGetRayTracingShaderGroupHandlesNV(device, raytracingPipeline, 0, groupCount, m_progIdSize * groupCount, shaderHandleStorage),
+		"SbtGenerator: SBT failed to get shader group handles");
 
 	// Map the SBT
 	void* vData;
-	if (vmaMapMemory(allocator, sbtBufferAllocation, &vData) != VK_SUCCESS)
-		throw std::logic_error("SBT vkMapMemory failed");
+	VK_CHECK(vmaMapMemory(allocator, sbtBufferAllocation, &vData),
+		"SbtGenerator: vkMapMemory failed");
   
 	auto* data = static_cast<uint8_t*>(vData);
 

@@ -1,7 +1,8 @@
 #include "helper.h"
 #include "vk_mem_alloc.h"
 
-extern std::vector<char> readFile(const std::string& filename) {
+extern std::vector<char> readFile(const std::string& filename) 
+{
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
 	CHECK(file.is_open(), "failed to open file - " + filename);
@@ -17,7 +18,8 @@ extern std::vector<char> readFile(const std::string& filename) {
 	return buffer;
 }
 
-extern VkPhysicalDeviceFeatures checkSupportedDeviceFeatures(const VkPhysicalDevice& physicalDevice, const std::vector<const char*>& requiredFeatures) {
+extern VkPhysicalDeviceFeatures checkSupportedDeviceFeatures(const VkPhysicalDevice& physicalDevice, const std::vector<const char*>& requiredFeatures) 
+{
 	VkPhysicalDeviceFeatures supportedFeatures = {};
 	VkPhysicalDeviceFeatures vk_requiredFeatures = {};
 
@@ -37,7 +39,8 @@ extern VkPhysicalDeviceFeatures checkSupportedDeviceFeatures(const VkPhysicalDev
 	return vk_requiredFeatures;
 }
 
-extern VkCommandBuffer beginSingleTimeCommands(const VkDevice& device, const VkCommandPool& commandPool) {
+extern VkCommandBuffer beginSingleTimeCommands(const VkDevice& device, const VkCommandPool& commandPool) 
+{
 	VkCommandBufferAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -56,7 +59,8 @@ extern VkCommandBuffer beginSingleTimeCommands(const VkDevice& device, const VkC
 	return commandBuffer;
 }
 
-extern void endSingleTimeCommands(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool, const VkCommandBuffer& commandBuffer) {
+extern void endSingleTimeCommands(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool, const VkCommandBuffer& commandBuffer) 
+{
 	vkEndCommandBuffer(commandBuffer);
 
 	VkSubmitInfo submitInfo = {};
@@ -70,7 +74,8 @@ extern void endSingleTimeCommands(const VkDevice& device, const VkQueue& queue, 
 	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
-extern void copyBuffer(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool, const VkBuffer& srcBuffer, const VkBuffer& dstBuffer, VkDeviceSize size) {
+extern void copyBuffer(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool, const VkBuffer& srcBuffer, const VkBuffer& dstBuffer, VkDeviceSize size) 
+{
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
 
 	VkBufferCopy copyRegion = {};
@@ -113,7 +118,8 @@ extern void createBuffer(const VkDevice& device, const VmaAllocator& allocator, 
 	vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
 }
 
-extern VkImageView createImageView(const VkDevice& device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, uint32_t layerCount) {
+extern VkImageView createImageView(const VkDevice& device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, uint32_t layerCount) 
+{
 	VkImageViewCreateInfo viewInfo = {};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	viewInfo.image = image;
@@ -132,7 +138,8 @@ extern VkImageView createImageView(const VkDevice& device, VkImage image, VkForm
 	return imageView;
 }
 
-extern bool hasStencilComponent(VkFormat format) {
+extern bool hasStencilComponent(VkFormat format) 
+{
 	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
@@ -232,7 +239,8 @@ extern void cmdTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage imag
 }
 
 extern void transitionImageLayout(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,
-	VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount) {
+	VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount) 
+{
 
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
 	cmdTransitionImageLayout(commandBuffer, image, format, oldLayout, newLayout, mipLevels, layerCount);
@@ -240,7 +248,8 @@ extern void transitionImageLayout(const VkDevice& device, const VkQueue& queue, 
 }
 
 extern void copyBufferToImage(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,
-	VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
+	VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) 
+{
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
 
 	VkBufferImageCopy region = {};
@@ -279,7 +288,8 @@ extern VkFormat findSupportedFormat(VkPhysicalDevice& physicalDevice, const std:
 	CHECK(false, "Failed to find supported format!");
 }
 
-extern VkFormat findDepthFormat(VkPhysicalDevice& physicalDevice) {
+extern VkFormat findDepthFormat(VkPhysicalDevice& physicalDevice) 
+{
 	return findSupportedFormat(physicalDevice,
 		{ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
 		VK_IMAGE_TILING_OPTIMAL,
@@ -287,7 +297,8 @@ extern VkFormat findDepthFormat(VkPhysicalDevice& physicalDevice) {
 	);
 }
 
-extern SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDevice& device, const VkSurfaceKHR& surface) {
+extern SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDevice& device, const VkSurfaceKHR& surface) 
+{
 	SwapChainSupportDetails details;
 
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
@@ -311,7 +322,8 @@ extern SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDevice& dev
 	return details;
 }
 
-extern QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, const VkSurfaceKHR& surface) {
+extern QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, const VkSurfaceKHR& surface) 
+{
 	QueueFamilyIndices indices;
 
 	uint32_t queueFamilyCount = 0;

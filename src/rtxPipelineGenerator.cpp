@@ -51,7 +51,7 @@ compiling in debug mode.
 // created hit group
 uint32_t RayTracingPipelineGenerator::startHitGroup()
 {
-	CHECK(!m_isHitGroupOpen, "RayTracingPipelineGenerator: Hit group already open");
+	CHECK(!m_isHitGroupOpen, appName + " RayTracingPipelineGenerator: Hit group already open");
 
 	VkRayTracingShaderGroupCreateInfoNV groupInfo;
 	groupInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_NV;
@@ -74,13 +74,12 @@ uint32_t RayTracingPipelineGenerator::startHitGroup()
 // VK_SHADER_STAGE_INTERSECTION_BIT_NV
 uint32_t RayTracingPipelineGenerator::addAnyHitShaderStage(const VkDevice& device, const std::string& filename)
 {
-	if (!m_isHitGroupOpen)
-		throw std::logic_error("Cannot add hit stage in when no hit group open");
+	CHECK(m_isHitGroupOpen, appName + " RayTracingPipelineGenerator: Cannot add hit stage in when no hit group open");
   
 	auto& group = m_shaderGroups[m_currentGroupIndex];
 
-	if (group.anyHitShader != VK_SHADER_UNUSED_NV)
-		throw std::logic_error("Any hit shader already specified for current hit group");
+	CHECK(group.anyHitShader == VK_SHADER_UNUSED_NV,
+		appName + " Any hit shader already specified for current hit group");
       
 	createShaderStage(device, filename, VK_SHADER_STAGE_ANY_HIT_BIT_NV);
 
@@ -91,14 +90,13 @@ uint32_t RayTracingPipelineGenerator::addAnyHitShaderStage(const VkDevice& devic
 
 uint32_t RayTracingPipelineGenerator::addCloseHitShaderStage(const VkDevice& device, const std::string& filename)
 {
-	if (!m_isHitGroupOpen)
-		throw std::logic_error("Cannot add hit stage in when no hit group open");
+	CHECK(m_isHitGroupOpen, appName + " RayTracingPipelineGenerator: Cannot add hit stage in when no hit group open");
 
 	auto& group = m_shaderGroups[m_currentGroupIndex];
 
-	if (group.closestHitShader != VK_SHADER_UNUSED_NV)
-		throw std::logic_error("Close hit shader already specified for current hit group");
-
+	CHECK(group.closestHitShader == VK_SHADER_UNUSED_NV,
+		appName + " RtxPipelineGenerator: Close hit shader already specified for current hit group");
+	
 	createShaderStage(device, filename, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
 	group.closestHitShader = static_cast<uint32_t>(shaderStageCIs.size() - 1);
@@ -108,13 +106,12 @@ uint32_t RayTracingPipelineGenerator::addCloseHitShaderStage(const VkDevice& dev
 
 uint32_t RayTracingPipelineGenerator::addIntersectionShaderStage(const VkDevice& device, const std::string& filename)
 {
-	if (!m_isHitGroupOpen)
-		throw std::logic_error("Cannot add hit stage in when no hit group open");
+	CHECK(m_isHitGroupOpen, appName + " RayTracingPipelineGenerator: Cannot add hit stage in when no hit group open");
 
 	auto& group = m_shaderGroups[m_currentGroupIndex];
 
-	if (group.intersectionShader != VK_SHADER_UNUSED_NV)
-		throw std::logic_error("Intersection shader already specified for current hit group");
+	CHECK(group.intersectionShader == VK_SHADER_UNUSED_NV,
+		appName + " RtxPipelineGenerator: Intersection shader already specified for current hit group");
 
 	createShaderStage(device, filename, VK_SHADER_STAGE_INTERSECTION_BIT_NV);
 
@@ -129,9 +126,8 @@ uint32_t RayTracingPipelineGenerator::addIntersectionShaderStage(const VkDevice&
 // End the description of the hit group
 void RayTracingPipelineGenerator::endHitGroup()
 {
-	if(!m_isHitGroupOpen)
-		throw std::logic_error("No hit group open");
-  
+	CHECK(m_isHitGroupOpen, appName + " RayTracingPipelineGenerator: No hit group open");
+	  
 	m_isHitGroupOpen = false;
 	m_currentGroupIndex++;
 }
@@ -141,8 +137,7 @@ void RayTracingPipelineGenerator::endHitGroup()
 // Add a ray generation shader stage, and return the index of the created stage
 uint32_t RayTracingPipelineGenerator::addRayGenShaderStage(const VkDevice& device, const std::string& filename)
 {
-	if (m_isHitGroupOpen)
-	    throw std::logic_error("Cannot add raygen stage in when hit group open");
+	CHECK(!m_isHitGroupOpen, appName + "RtxPipelineGeneraor: Cannot add raygen stage in when hit group open");
 	
 	createShaderStage(device, filename, VK_SHADER_STAGE_RAYGEN_BIT_NV);
  
@@ -164,9 +159,8 @@ uint32_t RayTracingPipelineGenerator::addRayGenShaderStage(const VkDevice& devic
 // Add a miss shader stage, and return the index of the created stage
 uint32_t RayTracingPipelineGenerator::addMissShaderStage(const VkDevice& device, const std::string& filename)
 {
-	if (m_isHitGroupOpen)
-		throw std::logic_error("Cannot add miss stage in when hit group open");
-  
+	CHECK(!m_isHitGroupOpen, appName + "RtxPipelineGeneraor: Cannot add miss stage in when hit group open");
+	  
 	createShaderStage(device, filename, VK_SHADER_STAGE_MISS_BIT_NV);
  
     VkRayTracingShaderGroupCreateInfoNV groupInfo;
@@ -216,8 +210,8 @@ void RayTracingPipelineGenerator::createPipeline(const VkDevice& device, const V
 	rayPipelineInfo.basePipelineIndex  = 0;
 
 	PFN_vkCreateRayTracingPipelinesNV vkCreateRayTracingPipelinesNV = reinterpret_cast<PFN_vkCreateRayTracingPipelinesNV>(vkGetDeviceProcAddr(device, "vkCreateRayTracingPipelinesNV"));
-	if (vkCreateRayTracingPipelinesNV(device, nullptr, 1, &rayPipelineInfo, nullptr, pipeline) != VK_SUCCESS)
-	    throw std::logic_error("rt vkCreateRayTracingPipelinesNV failed");
+	VK_CHECK(vkCreateRayTracingPipelinesNV(device, nullptr, 1, &rayPipelineInfo, nullptr, pipeline),
+	    appName + "RtxPipelineGenerator: vkCreateRayTracingPipelinesNV failed");
 
 	cleanUp(device);
 }

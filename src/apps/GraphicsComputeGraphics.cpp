@@ -484,8 +484,8 @@ private:
 			VmaAllocationCreateInfo allocCreateInfo = {};
 			allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-			if (vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &image, &allocation, nullptr) != VK_SUCCESS)
-				throw std::runtime_error("Failed to create color image!");
+			VK_CHECK(vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &image, &allocation, nullptr),
+				"GraphicsComputeGraphicsApp: Failed to create color image!");
 
 			imageView = createImageView(device, image, colorFormat, depthImage ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 
@@ -527,13 +527,9 @@ private:
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
 
-		if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
-			throw std::runtime_error("failed to allocate command buffers!");
-		}
-
-		for (size_t i = 0; i < commandBuffers.size(); i++) {
-			
-		}
+		VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()),
+			"GraphicsComputeGraphicsApp: failed to allocate command buffers!");
+		
 	}
 
 	void buildGraphicsCommandBuffer(size_t index)
@@ -542,10 +538,9 @@ private:
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
-		if (vkBeginCommandBuffer(commandBuffers[index], &beginInfo) != VK_SUCCESS) {
-			throw std::runtime_error("failed to begin recording command buffer!");
-		}
-
+		VK_CHECK_DBG_ONLY(vkBeginCommandBuffer(commandBuffers[index], &beginInfo), 
+			"GraphicsComputeGraphicsApp: failed to begin recording command buffer!");
+		
 		model.cmdTransferData(commandBuffers[index]);
 
 		// Image memory barrier to make sure that compute shader writes are finished before sampling from the texture
@@ -632,9 +627,8 @@ private:
 
 		vkCmdEndRenderPass(commandBuffers[index]);
 
-		if (vkEndCommandBuffer(commandBuffers[index]) != VK_SUCCESS) {
-			throw std::runtime_error("failed to record command buffer!");
-		}
+		VK_CHECK_DBG_ONLY(vkEndCommandBuffer(commandBuffers[index]),
+			"GraphicsComputeGraphicsApp: failed to record command buffer!");
 	}
 
 	void createComputeCommandBuffer()
@@ -645,9 +639,8 @@ private:
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		allocInfo.commandBufferCount = 1;
 
-		if (vkAllocateCommandBuffers(device, &allocInfo, &computeCommandBuffer) != VK_SUCCESS) {
-			throw std::runtime_error("failed to allocate compute command buffers!");
-		}
+		VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &computeCommandBuffer),
+			"GraphicsComputeGraphicsApp: failed to allocate compute command buffers!");
 
 	}
 
@@ -658,10 +651,9 @@ private:
 
 		VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, 0, VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT };
 
-		if (vkBeginCommandBuffer(computeCommandBuffer, &beginInfo) != VK_SUCCESS) {
-			throw std::runtime_error("failed to begin recording compute command buffer!");
-		}
-		
+		VK_CHECK(vkBeginCommandBuffer(computeCommandBuffer, &beginInfo),
+			"GraphicsComputeGraphicsApp: failed to begin recording compute command buffer!");
+			
 		vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline.pipeline);
 		vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline.pipelineLayout, 0, 1, &computePipeline.descriptorSet, 0, 0);
 		vkCmdPushConstants(computeCommandBuffer, computePipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstantBlock), &gui.pcb);
@@ -675,8 +667,8 @@ private:
 		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-		if (vkCreateFence(device, &fenceInfo, nullptr, &computeShaderFence) != VK_SUCCESS)
-			throw std::runtime_error("failed to create synchronization objects for compute shader!");
+		VK_CHECK(vkCreateFence(device, &fenceInfo, nullptr, &computeShaderFence),
+			"GraphicsComputeGraphicsApp: failed to create synchronization objects for compute shader!");
 	}
 	
 	void drawFrame() {
@@ -699,12 +691,14 @@ private:
 		computeSubmitInfo.commandBufferCount = 1;
 		computeSubmitInfo.pCommandBuffers = &computeCommandBuffer;
 		vkResetFences(device, 1, &computeShaderFence);
-		if (vkQueueSubmit(computeQueue, 1, &computeSubmitInfo, computeShaderFence) != VK_SUCCESS)
-			throw std::runtime_error("failed to submit compute command buffer!");
+
+		VK_CHECK_DBG_ONLY(vkQueueSubmit(computeQueue, 1, &computeSubmitInfo, computeShaderFence),
+			"GraphicsComputeGraphicsApp: failed to submit compute command buffer!");
 
 		frameEnd(imageIndex);
 	}
 };
+
 /*
 int main() 
 {
@@ -723,8 +717,7 @@ int main()
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}
-*/
+}*/
 
 
 
