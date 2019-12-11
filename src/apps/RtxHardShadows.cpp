@@ -28,8 +28,7 @@
 
 struct PushConstantBlock
 {
-	uint32_t select = 0;
-	float scale = 1;
+	glm::vec3 lightPosition;
 };
 
 class NewGui : public Gui
@@ -41,33 +40,23 @@ private:
 
 	const char* items[8] = { "Diffuse Color", "Specular Color", "World-space Normal", "View-space depth", "Internal IOR", "External IOR", "Specular roughness", "Material type" };
 	const char* currentItem = items[0];
-	float scaleCoarse = 1;
-	float scaleFine = 1;
+	float lightX = 1;
+	float lightY = 1;
+	float lightZ = 1;
+	float scale = 10;
 
 	void guiSetup()
 	{
 		io->frameRateWidget();
-		ImGui::SetCursorPos(ImVec2(5, 110));
-
-		if (ImGui::BeginCombo("Select", currentItem)) // The second parameter is the label previewed before opening the combo.
-		{
-			for (int n = 0; n < IM_ARRAYSIZE(items); n++)
-			{
-				bool is_selected = (currentItem == items[n]); // You can store your selection however you want, outside or inside your objects
-				if (ImGui::Selectable(items[n], is_selected)) {
-					currentItem = items[n];
-					pcb.select = static_cast<uint32_t>(n);
-				}
-				if (is_selected)
-					ImGui::SetItemDefaultFocus();   // You may set the initial focus when opening the combo (scrolling + for keyboard navigation support)
-			}
-			ImGui::EndCombo();
-		}
 		ImGui::SetCursorPos(ImVec2(5, 135));
-		ImGui::SliderFloat("Scale - Coarse", &scaleCoarse, 0.01f, 10.0f);
+		ImGui::SliderFloat("Light direction - x", &lightX, -1.0f, 1.0f);
 		ImGui::SetCursorPos(ImVec2(5, 160));
-		ImGui::SliderFloat("Scale - Fine", &scaleFine, 0.01f, 1.0f);
-		pcb.scale = scaleCoarse * scaleFine;
+		ImGui::SliderFloat("Light direction - y", &lightY, -1.0f, 1.0f);
+		ImGui::SetCursorPos(ImVec2(5, 185));
+		ImGui::SliderFloat("Light direction - z", &lightZ, -1.0f, 1.0f);
+		ImGui::SetCursorPos(ImVec2(5, 210));
+		ImGui::SliderFloat("Scale", &scale, 1.0f, 200.0f);
+		pcb.lightPosition = glm::vec3(lightX, lightY, lightZ) * scale;
 	}
 };
 
@@ -110,6 +99,7 @@ public:
 		rtxPipeGen.endHitGroup();
 
 		rtxPipeGen.setMaxRecursionDepth(1);
+		rtxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_RAYGEN_BIT_NV , 0, sizeof(PushConstantBlock) });
 
 		rtxPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
 
@@ -172,7 +162,6 @@ public:
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("diffuseColor"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		gfxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_FRAGMENT_BIT , 0, sizeof(PushConstantBlock) });
 		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxHardShadows/gShowVert.spv");
 		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxHardShadows/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
@@ -443,6 +432,7 @@ private:
 
 		vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipeline);
 		vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipelineLayout, 0, 1, &rtxPass.descriptorSet, 0, nullptr);
+		vkCmdPushConstants(commandBuffers[index], rtxPass.pipelineLayout, VK_SHADER_STAGE_RAYGEN_BIT_NV, 0, sizeof(PushConstantBlock), &gui.pcb);
 
 		// Calculate shader binding offsets, which is pretty straight forward in our example
 		VkDeviceSize rayGenOffset = rtxPass.sbtGen.getRayGenOffset();
@@ -468,7 +458,6 @@ private:
 
 		vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipeline);
 		vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipelineLayout, 0, 1, &subpass1.descriptorSet, 0, nullptr);
-		vkCmdPushConstants(commandBuffers[index], subpass1.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantBlock), &gui.pcb);
 		vkCmdDraw(commandBuffers[index], 3, 1, 0, 0);
 
 		gui.cmdDraw(commandBuffers[index]);

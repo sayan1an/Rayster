@@ -22,6 +22,10 @@ layout(location = 1) rayPayloadNV PayloadShadow {
 	uint hit;
 } payloadShadow;
 
+layout (push_constant) uniform pcBlock {
+	vec3 lightPosition;
+} pcb;
+
 void main() 
 {
 	const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
@@ -41,7 +45,7 @@ void main()
 
 	// for shadow rays
 	origin = origin + (payload.other.x - 0.05f) * direction;
-	vec4 lightPosition = vec4(100, 100, 100, 0);
+	vec4 lightPosition = vec4(pcb.lightPosition, 0);
 	direction = normalize(lightPosition - origin);
 	payloadShadow.hit = 0;
 	traceNV(topLevelAS, rayFlags, gl_RayFlagsTerminateOnFirstHitNV|gl_RayFlagsOpaqueNV|gl_RayFlagsSkipClosestHitShaderNV
