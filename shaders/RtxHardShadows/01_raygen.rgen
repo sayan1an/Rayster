@@ -24,7 +24,10 @@ layout(location = 1) rayPayloadNV PayloadShadow {
 
 layout (push_constant) uniform pcBlock {
 	vec3 lightPosition;
+	float power;
 } pcb;
+
+const float pi = 3.141592653589793;
 
 void main() 
 {
@@ -46,10 +49,18 @@ void main()
 	// for shadow rays
 	origin = origin + (payload.other.x - 0.05f) * direction;
 	vec4 lightPosition = vec4(pcb.lightPosition, 0);
-	direction = normalize(lightPosition - origin);
-	payloadShadow.hit = 0;
-	traceNV(topLevelAS, rayFlags, gl_RayFlagsTerminateOnFirstHitNV|gl_RayFlagsOpaqueNV|gl_RayFlagsSkipClosestHitShaderNV
-		, 1, 0, 1, origin.xyz, tmin, direction.xyz, tmax, 1);
+	float distance = length(lightPosition.xyz - origin.xyz);
+	direction = (lightPosition - origin) / distance;
 	
-	imageStore(imageOut, ivec2(gl_LaunchIDNV.xy), payload.diffuseColor * payloadShadow.hit);
+	float cos = dot(direction.xyz, payload.normal.xyz);
+
+	vec4 color = vec4(0, 0, 0, 1);
+	if (cos > 0) {
+		payloadShadow.hit = 0;
+		traceNV(topLevelAS, rayFlags, gl_RayFlagsTerminateOnFirstHitNV|gl_RayFlagsOpaqueNV|gl_RayFlagsSkipClosestHitShaderNV
+			, 1, 0, 1, origin.xyz, tmin, direction.xyz, tmax, 1);
+
+		color = pcb.power * payload.diffuseColor * payloadShadow.hit * cos / (pi * distance * distance);
+	}
+	imageStore(imageOut, ivec2(gl_LaunchIDNV.xy), color);
 }

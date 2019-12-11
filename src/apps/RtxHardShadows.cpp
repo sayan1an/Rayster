@@ -29,6 +29,7 @@
 struct PushConstantBlock
 {
 	glm::vec3 lightPosition;
+	float power;
 };
 
 class NewGui : public Gui
@@ -41,7 +42,8 @@ private:
 	float lightX = 1;
 	float lightY = 1;
 	float lightZ = 1;
-	float scale = 10;
+	float power = 100;
+	float distance = 10;
 
 	void guiSetup()
 	{
@@ -53,8 +55,11 @@ private:
 		ImGui::SetCursorPos(ImVec2(5, 185));
 		ImGui::SliderFloat("Light direction - z", &lightZ, -1.0f, 1.0f);
 		ImGui::SetCursorPos(ImVec2(5, 210));
-		ImGui::SliderFloat("Scale", &scale, 1.0f, 200.0f);
-		pcb.lightPosition = glm::vec3(lightX, lightY, lightZ) * scale;
+		ImGui::SliderFloat("Light power", &power, 50.0f, 500.0f);
+		ImGui::SetCursorPos(ImVec2(5, 235));
+		ImGui::SliderFloat("Light distance", &distance, 1.0f, 25.0f);
+		pcb.lightPosition = glm::normalize(glm::vec3(lightX, lightY, lightZ)) * distance;
+		pcb.power = power;
 	}
 };
 
