@@ -98,18 +98,26 @@ public:
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
 		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RtxHardShadows/01_raygen.spv");
-		uint32_t missShaderId = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxHardShadows/01_miss.spv");
-		uint32_t hitGroupId = rtxPipeGen.startHitGroup();
-
+		uint32_t missShaderId0 = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxHardShadows/01_miss.spv");
+		uint32_t missShaderId1 = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxHardShadows/02_miss.spv");
+		uint32_t hitGroupId0 = rtxPipeGen.startHitGroup();
 		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RtxHardShadows/01_close.spv");
 		rtxPipeGen.endHitGroup();
+
+		// Add an empty hit group
+		uint32_t hitGroupId1 = rtxPipeGen.startHitGroup();
+		//rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RtxHardShadows/02_close.spv");
+		rtxPipeGen.endHitGroup();
+
 		rtxPipeGen.setMaxRecursionDepth(1);
 
 		rtxPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
 
 		sbtGen.addRayGenerationProgram(rayGenId, {});
-		sbtGen.addMissProgram(missShaderId, {});
-		sbtGen.addHitGroup(hitGroupId, {});
+		sbtGen.addMissProgram(missShaderId0, {});
+		sbtGen.addMissProgram(missShaderId1, {});
+		sbtGen.addHitGroup(hitGroupId0, {});
+		sbtGen.addHitGroup(hitGroupId1, {});
 
 		VkDeviceSize shaderBindingTableSize = sbtGen.computeSBTSize(raytracingProperties);
 		
@@ -491,7 +499,6 @@ private:
 	}
 };
 
-/*
 int main() 
 {
 	{	
@@ -512,6 +519,6 @@ int main()
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-*/
+
 
 

@@ -2,7 +2,7 @@
 #extension GL_NV_ray_tracing : require
 
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
-layout(binding = 1, set = 0, rgba8) uniform image2D imageDiffuse;
+layout(binding = 1, set = 0, rgba8) uniform image2D imageOut;
 layout(binding = 2, set = 0) uniform CameraProperties 
 {
 	mat4 view;
@@ -17,6 +17,10 @@ layout(location = 0) rayPayloadNV Payload {
 	vec4 normal; // normla + specular alpha
 	vec4 other; // depth, int ior, ext ior, material type
 } payload;
+
+layout(location = 1) rayPayloadNV PayloadShadow {
+	uint hit;
+} payloadShadow;
 
 void main() 
 {
@@ -34,6 +38,14 @@ void main()
 	float tmax = 10000.0;
 
 	traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
+
+	// for shadow rays
+	origin = origin + (payload.other.x - 0.05f) * direction;
+	vec4 lightPosition = vec4(100, 100, 100, 0);
+	direction = normalize(lightPosition - origin);
+	payloadShadow.hit = 0;
+	traceNV(topLevelAS, rayFlags, gl_RayFlagsTerminateOnFirstHitNV|gl_RayFlagsOpaqueNV|gl_RayFlagsSkipClosestHitShaderNV
+		, 1, 0, 1, origin.xyz, tmin, direction.xyz, tmax, 1);
 	
-	imageStore(imageDiffuse, ivec2(gl_LaunchIDNV.xy), payload.diffuseColor);
+	imageStore(imageOut, ivec2(gl_LaunchIDNV.xy), payload.diffuseColor * payloadShadow.hit);
 }

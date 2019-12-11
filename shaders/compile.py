@@ -32,7 +32,9 @@ compileList.append(("./RtxGBuffer/gShow.frag", "./RtxGBuffer/gShowFrag.spv"))
 
 compileList.append(("./RtxHardShadows/01_raygen.rgen", "./RtxHardShadows/01_raygen.spv"))
 compileList.append(("./RtxHardShadows/01_miss.rmiss", "./RtxHardShadows/01_miss.spv"))
+compileList.append(("./RtxHardShadows/02_miss.rmiss", "./RtxHardShadows/02_miss.spv"))
 compileList.append(("./RtxHardShadows/01_close.rchit", "./RtxHardShadows/01_close.spv"))
+compileList.append(("./RtxHardShadows/02_close.rchit", "./RtxHardShadows/02_close.spv"))
 compileList.append(("./RtxHardShadows/gShow.vert", "./RtxHardShadows/gShowVert.spv"))
 compileList.append(("./RtxHardShadows/gShow.frag", "./RtxHardShadows/gShowFrag.spv"))
 
