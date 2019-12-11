@@ -38,8 +38,6 @@ public:
 	PushConstantBlock pcb;
 private:
 
-	const char* items[8] = { "Diffuse Color", "Specular Color", "World-space Normal", "View-space depth", "Internal IOR", "External IOR", "Specular roughness", "Material type" };
-	const char* currentItem = items[0];
 	float lightX = 1;
 	float lightY = 1;
 	float lightZ = 1;
