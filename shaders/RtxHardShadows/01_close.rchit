@@ -12,12 +12,12 @@ layout(location = 0) rayPayloadInNV Payload {
 
 hitAttributeNV vec3 attribs;
 
-layout(binding = 6, set = 0) readonly buffer Material { uvec4 textureIdx[]; } materials;
-layout(binding = 7, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
-layout(binding = 8, set = 0) readonly buffer Indices { uint i[]; } indices;
-layout(binding = 9, set = 0) readonly buffer StaticInstanceData { uvec4 i[]; } staticInstanceData;
-layout(binding = 10, set = 0) uniform sampler2DArray ldrTexSampler;
-layout(binding = 11, set = 0) uniform sampler2DArray hdrTexSampler;
+layout(binding = 3, set = 0) readonly buffer Material { uvec4 textureIdx[]; } materials;
+layout(binding = 4, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
+layout(binding = 5, set = 0) readonly buffer Indices { uint i[]; } indices;
+layout(binding = 6, set = 0) readonly buffer StaticInstanceData { uvec4 i[]; } staticInstanceData;
+layout(binding = 7, set = 0) uniform sampler2DArray ldrTexSampler;
+layout(binding = 8, set = 0) uniform sampler2DArray hdrTexSampler;
 
 struct Vertex 
 {
@@ -78,7 +78,4 @@ void main()
   payload.specularColor = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.y)); // specular texture
   payload.normal = vec4(normal.xyz, alphaIntExtIor.x);
   payload.other = vec4(gl_HitTNV, alphaIntExtIor.yz, textureIdxUnit.w);
-
-  //hitValue = vec4(abs(normal), 1.0f);
-  //hitValue = vec4(vec3(gl_HitTNV), 1.0f);
 }
