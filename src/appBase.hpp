@@ -414,9 +414,9 @@ protected:
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || io.isFramebufferResized(true)) {
 			recreateSwapChain();
 		}
-		
-		VK_CHECK_DBG_ONLY(result, "WindowApplication: failed to present swap chain image!");
-		
+		else {
+			VK_CHECK_DBG_ONLY(result, "WindowApplication: failed to present swap chain image!");
+		}
 		currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	}
 	

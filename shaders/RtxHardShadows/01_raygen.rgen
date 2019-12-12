@@ -29,6 +29,48 @@ layout (push_constant) uniform pcBlock {
 
 const float pi = 3.141592653589793;
 
+float ggxDist(const vec3 h, const vec3 n, float alpha) {
+    float cosine_sq = dot(h, n);
+    cosine_sq *= cosine_sq;
+    float tan_sq = 1.0f / cosine_sq - 1.0f;
+    float alpha_sq = alpha * alpha;
+
+    tan_sq += alpha_sq;
+    tan_sq *= tan_sq;
+    float D = alpha_sq / (pi * cosine_sq * cosine_sq * tan_sq);
+
+    return D;
+}
+
+float ggxG1(const vec3 v, const vec3 h, const vec3 n, float alpha) {
+    float cosv_sq = dot(v, n);
+    cosv_sq *= cosv_sq;
+    float tanv_sq = 1.0f / cosv_sq - 1.0f;
+
+    if (tanv_sq <= 1e-15)
+        return 1.0f;
+    else if (dot(h, v) <= 1e-15)
+        return 0.0f;
+
+    float alpha_sq = alpha * alpha;
+
+    tanv_sq *= alpha_sq;
+    tanv_sq += 1.0f;
+    tanv_sq = 1.0f + sqrt(tanv_sq);
+
+    return 2.0f/tanv_sq;
+}
+
+float ggxBrdf(const vec3 wo, const vec3 wi, const vec3 n, float alpha) {
+    vec3 h = normalize(wo + wi);
+    
+    float D = ggxDist(h, n, alpha);
+    float G = ggxG1(wo, h, n, alpha) * ggxG1(wi, h, n, alpha);
+
+    return (D * G) / (4.0f * dot(wo, n));
+}
+
+
 void main() 
 {
 	const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
@@ -37,30 +79,34 @@ void main()
 
 	vec4 origin = cam.viewInv * vec4(0,0,0,1);
 	vec4 target = cam.projInv * vec4(d.x, d.y, 1, 1) ;
-	vec4 direction = cam.viewInv * vec4(normalize(target.xyz), 0) ;
+	vec4 viewDir = cam.viewInv * vec4(normalize(target.xyz), 0) ;
 
 	uint rayFlags = gl_RayFlagsOpaqueNV;
 	uint cullMask = 0xff;
 	float tmin = 0.001;
 	float tmax = 10000.0;
 
-	traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
+	traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, viewDir.xyz, tmax, 0);
 
 	// for shadow rays
-	origin = origin + (payload.other.x - 0.05f) * direction;
+	origin = origin + (payload.other.x - 0.05f) * viewDir;
 	vec4 lightPosition = vec4(pcb.lightPosition, 0);
 	float distance = length(lightPosition.xyz - origin.xyz);
-	direction = (lightPosition - origin) / distance;
+	vec4 lightDir = (lightPosition - origin) / distance;
 	
-	float cos = dot(direction.xyz, payload.normal.xyz);
+	float cos = dot(lightDir.xyz, payload.normal.xyz);
 
 	vec4 color = vec4(0, 0, 0, 1);
 	if (cos > 0) {
 		payloadShadow.hit = 0;
 		traceNV(topLevelAS, rayFlags, gl_RayFlagsTerminateOnFirstHitNV|gl_RayFlagsOpaqueNV|gl_RayFlagsSkipClosestHitShaderNV
-			, 1, 0, 1, origin.xyz, tmin, direction.xyz, tmax, 1);
+			, 1, 0, 1, origin.xyz, tmin, lightDir.xyz, tmax, 1);
 
-		color = pcb.power * payload.diffuseColor * payloadShadow.hit * cos / (pi * distance * distance);
+		vec4 specularColor = payload.other.w > 0.5f ? payload.specularColor * ggxBrdf(-viewDir.xyz, lightDir.xyz, payload.normal.xyz, payload.normal.w) : vec4(0, 0, 0, 1);
+		vec4 diffuseColor = payload.diffuseColor * cos / pi;
+		
+		color = pcb.power * (diffuseColor + specularColor) * payloadShadow.hit  / (distance * distance);
 	}
+
 	imageStore(imageOut, ivec2(gl_LaunchIDNV.xy), color);
 }
