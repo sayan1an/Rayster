@@ -38,6 +38,11 @@ compileList.append(("./RtxHardShadows/02_close.rchit", "./RtxHardShadows/02_clos
 compileList.append(("./RtxHardShadows/gShow.vert", "./RtxHardShadows/gShowVert.spv"))
 compileList.append(("./RtxHardShadows/gShow.frag", "./RtxHardShadows/gShowFrag.spv"))
 
+compileList.append(("./RtxHybridHardShadows/gBuf.vert", "./RtxHybridHardShadows/gBufVert.spv"))
+compileList.append(("./RtxHybridHardShadows/gBuf.frag", "./RtxHybridHardShadows/gBufFrag.spv"))
+compileList.append(("./RtxHybridHardShadows/gShow.vert", "./RtxHybridHardShadows/gShowVert.spv"))
+compileList.append(("./RtxHybridHardShadows/gShow.frag", "./RtxHybridHardShadows/gShowFrag.spv"))
+
 try:
     for shader in compileList:
         output = subprocess.Popen([glslangValidator, "-V", shader[0], "-o", shader[1] ], stdout=subprocess.PIPE).communicate()[0]
