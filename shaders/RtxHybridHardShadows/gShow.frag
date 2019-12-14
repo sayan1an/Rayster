@@ -4,7 +4,6 @@ layout (input_attachment_index = 0, binding = 0) uniform subpassInput inDiffuseC
 layout (input_attachment_index = 1, binding = 1) uniform subpassInput inSpecularColor;
 layout (input_attachment_index = 2, binding = 2) uniform subpassInput inNormal;
 layout (input_attachment_index = 3, binding = 3) uniform subpassInput inDepthMatInfo;
-layout (input_attachment_index = 4, binding = 4) uniform subpassInput inDepth;
 
 layout (push_constant) uniform pcBlock {
 	uint select;
@@ -23,8 +22,6 @@ void main()
 		outColor = vec4(subpassLoad(inNormal).rgb, 1.0f);
 	else if (pcb.select == 3)
 		outColor = vec4(vec3(subpassLoad(inDepthMatInfo).r * pcb.scale), 1.0f);
-	else if (pcb.select == 4)
-		outColor = vec4(vec3(subpassLoad(inDepth).r * pcb.scale), 1.0f);
 	else if (pcb.select == 5)
 		outColor = vec4(vec3(subpassLoad(inDepthMatInfo).g * pcb.scale), 1.0f); // Int IOR
 	else if (pcb.select == 6)
