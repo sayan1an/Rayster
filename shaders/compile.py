@@ -38,6 +38,11 @@ compileList.append(("./RtxHardShadows/02_close.rchit", "./RtxHardShadows/02_clos
 compileList.append(("./RtxHardShadows/gShow.vert", "./RtxHardShadows/gShowVert.spv"))
 compileList.append(("./RtxHardShadows/gShow.frag", "./RtxHardShadows/gShowFrag.spv"))
 
+compileList.append(("./RtxComputeBase/gBuf.vert", "./RtxComputeBase/gBufVert.spv"))
+compileList.append(("./RtxComputeBase/gBuf.frag", "./RtxComputeBase/gBufFrag.spv"))
+compileList.append(("./RtxComputeBase/gShow.vert", "./RtxComputeBase/gShowVert.spv"))
+compileList.append(("./RtxComputeBase/gShow.frag", "./RtxComputeBase/gShowFrag.spv"))
+
 compileList.append(("./RtxHybridHardShadows/gBuf.vert", "./RtxHybridHardShadows/gBufVert.spv"))
 compileList.append(("./RtxHybridHardShadows/gBuf.frag", "./RtxHybridHardShadows/gBufFrag.spv"))
 compileList.append(("./RtxHybridHardShadows/gShow.vert", "./RtxHybridHardShadows/gShowVert.spv"))

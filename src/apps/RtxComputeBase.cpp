@@ -108,8 +108,8 @@ public:
 		auto bindingDescription = Model::getBindingDescription();
 		auto attributeDescription = Model::getAttributeDescriptions();
 
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/gBufVert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/gBufFrag.spv");
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxComputeBase/gBufVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxComputeBase/gBufFrag.spv");
 		gfxPipeGen.addVertexInputState(bindingDescription, attributeDescription);
 		gfxPipeGen.addViewportState(swapChainExtent);
 		gfxPipeGen.addColorBlendAttachmentState(4);
@@ -161,8 +161,8 @@ public:
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
 		gfxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_FRAGMENT_BIT , 0, sizeof(PushConstantBlock) });
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/gShowVert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/gShowFrag.spv");
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxComputeBase/gShowVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxComputeBase/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
 		gfxPipeGen.addDepthStencilState(VK_FALSE, VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
@@ -614,7 +614,7 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-
+/*
 int main() 
 {
 	{	
@@ -635,4 +635,4 @@ int main()
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-
+*/
