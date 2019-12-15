@@ -160,8 +160,8 @@ public:
 		auto bindingDescription = Model::getBindingDescription();
 		auto attributeDescription = Model::getAttributeDescriptions();
 
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/gBufVert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/gBufFrag.spv");
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GBuffer/gBufVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GBuffer/gBufFrag.spv");
 		gfxPipeGen.addVertexInputState(bindingDescription, attributeDescription);
 		gfxPipeGen.addViewportState(swapChainExtent);
 		gfxPipeGen.addColorBlendAttachmentState(4);

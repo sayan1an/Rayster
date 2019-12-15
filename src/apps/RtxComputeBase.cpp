@@ -108,8 +108,8 @@ public:
 		auto bindingDescription = Model::getBindingDescription();
 		auto attributeDescription = Model::getAttributeDescriptions();
 
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxComputeBase/gBufVert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxComputeBase/gBufFrag.spv");
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/GBuffer/gBufVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/GBuffer/gBufFrag.spv");
 		gfxPipeGen.addVertexInputState(bindingDescription, attributeDescription);
 		gfxPipeGen.addViewportState(swapChainExtent);
 		gfxPipeGen.addColorBlendAttachmentState(4);
@@ -634,5 +634,4 @@ int main()
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}
-*/
+}*/

@@ -32,10 +32,12 @@ layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec3 fragNormal;
 layout(location = 2) out vec2 fragTexCoord;
 layout(location = 3) out uvec4 fragData;
+layout(location = 4) out vec4 worldPos;
 
 void main() 
-{
-    gl_Position = ubo.proj * ubo.view * modelTransform * vec4(inPosition, 1.0);
+{   
+    worldPos = modelTransform * vec4(inPosition, 1.0);
+    gl_Position = ubo.proj * ubo.view * worldPos;
     fragColor = inColor;
     fragNormal = (modelTransformIT * vec4(inNormal, 0)).xyz;
     fragTexCoord = inTexCoord;

@@ -15,6 +15,7 @@ layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec3 fragNormal;
 layout(location = 2) in vec2 fragTexCoord;
 layout(location = 3) flat in uvec4 fragData; // there is no interpolation for flat type
+layout(location = 4) in vec4 worldPos;
 
 layout(location = 0) out vec4 outDiffuseColor;
 layout(location = 1) out vec4 outSpecularColor;
@@ -32,7 +33,7 @@ void main()
     outSpecularColor = texture(ldrTexSampler, vec3(fragTexCoord, specularTextureIdx));
     vec4 alphaIntExtIor = texture(hdrTexSampler, vec3(fragTexCoord, alphaIorIdx));
     outNormal = vec4(fragNormal, alphaIntExtIor.x);
-    vec4 depth = ubo.projInv * vec4(0, 0, gl_FragCoord.z, 1);
+   
     // Depth is the distance of hit point from camera origin.
-    outDepthMatInfo = vec4(abs(depth.z  / depth.w), alphaIntExtIor.yz, bsdfType);
+    outDepthMatInfo = vec4(length(worldPos - ubo.viewInv[3]), alphaIntExtIor.yz, bsdfType);
 }
