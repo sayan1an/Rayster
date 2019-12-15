@@ -28,46 +28,38 @@
 
 struct PushConstantBlock
 {
-	uint32_t select = 0;
-	float scale = 1;
+	glm::vec3 lightPosition;
+	float power;
 };
 
 class NewGui : public Gui
-{	
+{
 public:
 	const IO* io;
 	PushConstantBlock pcb;
 private:
-	
-	const char* items[8] = { "Diffuse Color", "Specular Color", "World-space Normal", "View-space depth", "Internal IOR", "External IOR", "Specular roughness", "Material type" };
-	const char* currentItem = items[0];
-	float scaleCoarse = 1;
-	float scaleFine = 1;
-	
+
+	float lightX = 1;
+	float lightY = 1;
+	float lightZ = 1;
+	float power = 100;
+	float distance = 10;
+
 	void guiSetup()
 	{
 		io->frameRateWidget();
-		ImGui::SetCursorPos(ImVec2(5, 110));
-
-		if (ImGui::BeginCombo("Select", currentItem)) // The second parameter is the label previewed before opening the combo.
-		{
-			for (int n = 0; n < IM_ARRAYSIZE(items); n++)
-			{
-				bool is_selected = (currentItem == items[n]); // You can store your selection however you want, outside or inside your objects
-				if (ImGui::Selectable(items[n], is_selected)) {
-					currentItem = items[n];
-					pcb.select = static_cast<uint32_t>(n);
-				}
-				if (is_selected)
-					ImGui::SetItemDefaultFocus();   // You may set the initial focus when opening the combo (scrolling + for keyboard navigation support)
-			}
-			ImGui::EndCombo();
-		}
 		ImGui::SetCursorPos(ImVec2(5, 135));
-		ImGui::SliderFloat("Scale - Coarse", &scaleCoarse, 0.01f, 10.0f);
+		ImGui::SliderFloat("Light direction - x", &lightX, -1.0f, 1.0f);
 		ImGui::SetCursorPos(ImVec2(5, 160));
-		ImGui::SliderFloat("Scale - Fine", &scaleFine, 0.01f, 1.0f);
-		pcb.scale = scaleCoarse * scaleFine;
+		ImGui::SliderFloat("Light direction - y", &lightY, -1.0f, 1.0f);
+		ImGui::SetCursorPos(ImVec2(5, 185));
+		ImGui::SliderFloat("Light direction - z", &lightZ, -1.0f, 1.0f);
+		ImGui::SetCursorPos(ImVec2(5, 210));
+		ImGui::SliderFloat("Light power", &power, 50.0f, 500.0f);
+		ImGui::SetCursorPos(ImVec2(5, 235));
+		ImGui::SliderFloat("Light distance", &distance, 1.0f, 25.0f);
+		pcb.lightPosition = glm::normalize(glm::vec3(lightX, lightY, lightZ)) * distance;
+		pcb.power = power;
 	}
 };
 
@@ -102,7 +94,7 @@ public:
 		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/01_close.spv");
 		rtxPipeGen.endHitGroup();
 		rtxPipeGen.setMaxRecursionDepth(1);
-
+		rtxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_RAYGEN_BIT_NV, 0, sizeof(PushConstantBlock) });
 		rtxPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
 
 		sbtGen.addRayGenerationProgram(rayGenId, {});
@@ -211,8 +203,7 @@ public:
 	{
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("rtxOut"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
-
-		gfxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_FRAGMENT_BIT , 0, sizeof(PushConstantBlock) });
+				
 		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/gShowVert.spv");
 		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
@@ -284,8 +275,8 @@ private:
 	void init() 
 	{	
 		vkCmdTraceRaysNV = reinterpret_cast<PFN_vkCmdTraceRaysNV>(vkGetDeviceProcAddr(device, "vkCmdTraceRaysNV"));
-
-		fboManager1.addDepthAttachment("depth", findDepthFormat(physicalDevice), VK_SAMPLE_COUNT_1_BIT, &depthImageView);
+		findDepthFormat(physicalDevice);
+		fboManager1.addDepthAttachment("depth", VK_FORMAT_D32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &depthImageView);
 		fboManager1.addColorAttachment("diffuseColor", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &diffuseColorImageView);
 		fboManager1.addColorAttachment("specularColor", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &specularColorImageView);
 		fboManager1.addColorAttachment("normal", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &normalImageView, 1, {0.0f, 0.0f, 0.0f, 0.0f});
@@ -622,6 +613,7 @@ private:
 
 		vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipeline);
 		vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipelineLayout, 0, 1, &rtxPass.descriptorSet, 0, nullptr);
+		vkCmdPushConstants(commandBuffers[index], rtxPass.pipelineLayout, VK_SHADER_STAGE_RAYGEN_BIT_NV, 0, sizeof(PushConstantBlock), &gui.pcb);
 
 		// Calculate shader binding offsets, which is pretty straight forward in our example
 		VkDeviceSize rayGenOffset = rtxPass.sbtGen.getRayGenOffset();
@@ -648,7 +640,6 @@ private:
 			
 		vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipeline);
 		vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipelineLayout, 0, 1, &subpass2.descriptorSet, 0, nullptr);
-		vkCmdPushConstants(commandBuffers[index], subpass2.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantBlock), &gui.pcb);
 		vkCmdDraw(commandBuffers[index], 3, 1, 0, 0);
 			
 		gui.cmdDraw(commandBuffers[index]);

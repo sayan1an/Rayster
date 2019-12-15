@@ -15,26 +15,49 @@ layout(binding = 6, set = 0) uniform CameraProperties
     mat4 projInv;
 } cam;
 
-layout(location = 0) rayPayloadNV vec3 hitValue;
+layout (push_constant) uniform pcBlock {
+	vec3 lightPosition;
+	float power;
+} pcb;
+
+layout(location = 0) rayPayloadNV uint hit;
+
+const float pi = 3.141592653589793;
 
 void main() 
-{
+{	
+	const ivec2 pixel = ivec2(gl_LaunchIDNV.xy);
+	const vec4 diffuseColor = imageLoad(diffuseImage, pixel).rgba;
+	const vec4 specularColor = imageLoad(specularImage, pixel).rgba;
+	const vec4 normal = imageLoad(normalImage, pixel).rgba;
+	const vec4 other = imageLoad(otherImage, pixel).rgba;
+
 	const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
 	const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeNV.xy);
 	vec2 d = inUV * 2.0 - 1.0;
 
 	vec4 origin = cam.viewInv * vec4(0,0,0,1);
 	vec4 target = cam.projInv * vec4(d.x, d.y, 1, 1) ;
-	vec4 direction = cam.viewInv * vec4(normalize(target.xyz), 0) ;
-
-	uint rayFlags = gl_RayFlagsOpaqueNV;
-	uint cullMask = 0xff;
-	float tmin = 0.001;
-	float tmax = 10000.0;
-
-	traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
+	vec4 viewDir = cam.viewInv * vec4(normalize(target.xyz), 0) ;
 	
-	imageStore(outImage, ivec2(gl_LaunchIDNV.xy), imageLoad(diffuseImage, ivec2(gl_LaunchIDNV.xy)));
+	// for shadow rays
+	origin = origin + other.x * viewDir;
+	vec4 lightPosition = vec4(pcb.lightPosition, 0);
+	float distance = length(lightPosition.xyz - origin.xyz);
+	vec4 lightDir = (lightPosition - origin) / distance;
 	
-	//imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(abs(d.x), abs(d.y), 0.0, 0.0));
+	float cos = dot(lightDir.xyz, normal.xyz);	
+	vec4 color = vec4(0, 0, 0, 1);
+	if (cos > 0) {
+		hit = 0;
+		traceNV(topLevelAS, gl_RayFlagsOpaqueNV, gl_RayFlagsTerminateOnFirstHitNV|gl_RayFlagsOpaqueNV|gl_RayFlagsSkipClosestHitShaderNV
+			, 0, 0, 0, origin.xyz, 0.05f, lightDir.xyz, 10000.0f, 0);
+
+		//vec4 specularColor = payload.other.w > 0.5f ? payload.specularColor * ggxBrdf(-viewDir.xyz, lightDir.xyz, payload.normal.xyz, payload.normal.w) : vec4(0, 0, 0, 1);
+		vec4 diffuseColor = diffuseColor * cos / pi;
+		
+		color = pcb.power * (diffuseColor) * hit  / (distance * distance);
+	}
+
+	imageStore(outImage, pixel, color);
 }

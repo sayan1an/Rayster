@@ -32,7 +32,7 @@ void main()
     outSpecularColor = texture(ldrTexSampler, vec3(fragTexCoord, specularTextureIdx));
     vec4 alphaIntExtIor = texture(hdrTexSampler, vec3(fragTexCoord, alphaIorIdx));
     outNormal = vec4(fragNormal, alphaIntExtIor.x);
-    vec4 depth = ubo.projInv * vec4(0, 0, gl_FragCoord.z, 1);
+    vec4 depth = ubo.projInv * vec4(0, 0, gl_FragCoord.z, 1 / gl_FragCoord.w);
     // Depth is the distance of hit point from camera origin.
-    outDepthMatInfo = vec4(abs(depth.z  / depth.w), alphaIntExtIor.yz, bsdfType);
+    outDepthMatInfo = vec4(abs(depth.z), alphaIntExtIor.yz, bsdfType);
 }
