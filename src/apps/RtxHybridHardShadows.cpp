@@ -83,11 +83,15 @@ public:
 	VmaAllocation sbtBufferAllocation;
 	ShaderBindingTableGenerator sbtGen;
 
-	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator, const Model& model, const VkImageView& storageImageView, const Camera& cam)
+	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator, const Model& model, FboManager &fboMgr, const Camera& cam)
 	{
 		descGen.bindTLAS({ 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, model.getDescriptorTlas());
-		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, storageImageView, VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindBuffer({ 2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, cam.getDescriptorBufferInfo());
+		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("diffuseColor"), VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("specularColor"), VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("normal"), VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("other"), VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("rtxOut"), VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindBuffer({ 6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, cam.getDescriptorBufferInfo());
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -193,12 +197,8 @@ public:
 	void createSubpassDescription(const VkDevice& device, FboManager &fboMgr)
 	{
 		colorAttachmentRef = fboMgr.getAttachmentReference("swapchain", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-	
-		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("diffuseColor", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("specularColor", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("normal", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("other", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-	
+		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("rtxOut", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+			
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpassDescription.colorAttachmentCount = 1;
@@ -209,11 +209,7 @@ public:
 
 	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, FboManager &fboMgr) 
 	{
-		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("diffuseColor"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("specularColor"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("normal"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("other"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		
+		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("rtxOut"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
 		gfxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_FRAGMENT_BIT , 0, sizeof(PushConstantBlock) });
@@ -270,6 +266,10 @@ private:
 	VmaAllocation depthImageAllocation;
 	VkImageView depthImageView;
 
+	VkImage rtxOutImage;
+	VmaAllocation rtxOutImageAllocation;
+	VkImageView rtxOutImageView;
+
 	Model model;
 
 	std::vector<VkCommandBuffer> commandBuffers;
@@ -279,18 +279,20 @@ private:
 
 	NewGui gui;
 
+	PFN_vkCmdTraceRaysNV vkCmdTraceRaysNV = nullptr;
+
 	void init() 
-	{
+	{	
+		vkCmdTraceRaysNV = reinterpret_cast<PFN_vkCmdTraceRaysNV>(vkGetDeviceProcAddr(device, "vkCmdTraceRaysNV"));
+
 		fboManager1.addDepthAttachment("depth", findDepthFormat(physicalDevice), VK_SAMPLE_COUNT_1_BIT, &depthImageView);
 		fboManager1.addColorAttachment("diffuseColor", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &diffuseColorImageView);
 		fboManager1.addColorAttachment("specularColor", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &specularColorImageView);
 		fboManager1.addColorAttachment("normal", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &normalImageView, 1, {0.0f, 0.0f, 0.0f, 0.0f});
 		fboManager1.addColorAttachment("other", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &otherInfoImageView, 1, {-1.0f, 0.0f, 0.0f, -1.0f});
+		fboManager1.addColorAttachment("rtxOut", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &rtxOutImageView);
 
-		fboManager2.addColorAttachment("diffuseColor", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &diffuseColorImageView);
-		fboManager2.addColorAttachment("specularColor", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &specularColorImageView);
-		fboManager2.addColorAttachment("normal", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &normalImageView, 1, { 0.0f, 0.0f, 0.0f, 0.0f });
-		fboManager2.addColorAttachment("other", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &otherInfoImageView, 1, { -1.0f, 0.0f, 0.0f, -1.0f });
+		fboManager2.addColorAttachment("rtxOut", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &rtxOutImageView);
 		fboManager2.addColorAttachment("swapchain", swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT, swapChainImageViews.data(), static_cast<uint32_t>(swapChainImageViews.size()));
 
 		loadScene(model, cam, "spaceship");
@@ -299,7 +301,6 @@ private:
 		createRenderPass();
 
 		createColorResources();
-		createDepthResources();
 		createFramebuffers();
 
 		gui.io = &io;
@@ -309,7 +310,7 @@ private:
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
-		rtxPass.createPipeline(device, raytracingProperties, allocator, model, diffuseColorImageView, cam);
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam);
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -329,6 +330,9 @@ private:
 
 		vkDestroyImageView(device, otherInfoImageView, nullptr);
 		vmaDestroyImage(allocator, otherInfoImage, otherInfoImageAllocation);
+
+		vkDestroyImageView(device, rtxOutImageView, nullptr);
+		vmaDestroyImage(allocator, rtxOutImage, rtxOutImageAllocation);
 
 		vkDestroyFramebuffer(device, renderPass1Fbo, nullptr);
 		for (auto framebuffer : swapChainFramebuffers) {
@@ -364,11 +368,10 @@ private:
 		createRenderPass();
 		
 		createColorResources();
-		createDepthResources();
 		createFramebuffers();
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
-		rtxPass.createPipeline(device, raytracingProperties, allocator, model, diffuseColorImageView, cam);
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam);
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -400,6 +403,11 @@ private:
 			attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 			fboManager1.updateAttachmentDescription("depth", attachment);
 
+			attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			attachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
+			fboManager1.updateAttachmentDescription("rtxOut", attachment);
+
 			std::array<VkSubpassDescription, 1> subpassDesc = { subpass1.subpassDescription };
 
 			std::array<VkSubpassDependency, 2> dependencies;
@@ -415,7 +423,7 @@ private:
 			dependencies[1].srcSubpass = 0;
 			dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
 			dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			dependencies[1].dstStageMask = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			dependencies[1].dstStageMask = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV;
 			dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 			dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 			dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
@@ -442,13 +450,10 @@ private:
 			attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 			attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			fboManager2.updateAttachmentDescription("diffuseColor", attachment);
-			fboManager2.updateAttachmentDescription("specularColor", attachment);
-			fboManager2.updateAttachmentDescription("normal", attachment);
-			fboManager2.updateAttachmentDescription("other", attachment);
-
+			attachment.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
+			attachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
+			fboManager2.updateAttachmentDescription("rtxOut", attachment);
+			
 			attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 			attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -461,10 +466,10 @@ private:
 
 			dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
 			dependencies[0].dstSubpass = 0;
-			dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV;
+			dependencies[0].srcStageMask = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV;
 			dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			dependencies[0].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
-			dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_MEMORY_READ_BIT;
+			dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+			dependencies[0].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 			dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 			dependencies[1].srcSubpass = 0;
@@ -533,7 +538,7 @@ private:
 	{	
 		auto makeColorImage = [&device = device, &graphicsQueue = graphicsQueue, 
 				&graphicsCommandPool = graphicsCommandPool, &allocator = allocator, 
-				&swapChainExtent = swapChainExtent](VkFormat colorFormat, VkSampleCountFlagBits samples, VkImage &image, VkImageView &imageView, VmaAllocation &allocation)
+				&swapChainExtent = swapChainExtent](VkFormat colorFormat, VkSampleCountFlagBits samples, VkImageUsageFlags usageFlags, VkImage &image, VkImageView &imageView, VmaAllocation &allocation)
 		{
 			VkImageCreateInfo imageCreateInfo = {};
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -546,7 +551,7 @@ private:
 			imageCreateInfo.format = colorFormat;
 			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+			imageCreateInfo.usage = usageFlags;
 			imageCreateInfo.samples = samples;
 			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -554,48 +559,22 @@ private:
 			allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
 			VK_CHECK(vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &image, &allocation, nullptr),
-				"Failed to create color image!");
+				"Failed to create color/depth image!");
 
-			imageView = createImageView(device, image, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
+			VkImageAspectFlagBits aspectFlagBit = (usageFlags & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+				? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+			imageView = createImageView(device, image, colorFormat, aspectFlagBit, 1, 1);
 		};
 
-		makeColorImage(fboManager1.getFormat("diffuseColor") , fboManager1.getSampleCount("diffuseColor"), diffuseColorImage, diffuseColorImageView, diffuseColorImageAllocation);
-		makeColorImage(fboManager1.getFormat("specularColor"), fboManager1.getSampleCount("specularColor"), specularColorImage, specularColorImageView, specularColorImageAllocation);
-		makeColorImage(fboManager1.getFormat("normal"), fboManager1.getSampleCount("normal"), normalImage, normalImageView, normalImageAllocation);
-		makeColorImage(fboManager1.getFormat("other"), fboManager1.getSampleCount("other"), otherInfoImage, otherInfoImageView, otherInfoImageAllocation);	
+		makeColorImage(fboManager1.getFormat("diffuseColor") , fboManager1.getSampleCount("diffuseColor"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, diffuseColorImage, diffuseColorImageView, diffuseColorImageAllocation);
+		makeColorImage(fboManager1.getFormat("specularColor"), fboManager1.getSampleCount("specularColor"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, specularColorImage, specularColorImageView, specularColorImageAllocation);
+		makeColorImage(fboManager1.getFormat("normal"), fboManager1.getSampleCount("normal"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, normalImage, normalImageView, normalImageAllocation);
+		makeColorImage(fboManager1.getFormat("other"), fboManager1.getSampleCount("other"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, otherInfoImage, otherInfoImageView, otherInfoImageAllocation);
+		makeColorImage(fboManager1.getFormat("depth"), fboManager1.getSampleCount("depth"), VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthImage, depthImageView, depthImageAllocation);
+
+		makeColorImage(fboManager2.getFormat("rtxOut"), fboManager2.getSampleCount("rtxOut"), VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, rtxOutImage, rtxOutImageView, rtxOutImageAllocation);
 	}
-
-	void createDepthResources() 
-	{
-		VkFormat depthFormat = fboManager1.getFormat("depth");
-
-		// change number of samples to msaaSamples
-		VkImageCreateInfo imageCreateInfo = {};
-		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageCreateInfo.extent.width = swapChainExtent.width;
-		imageCreateInfo.extent.height = swapChainExtent.height;
-		imageCreateInfo.extent.depth = 1;
-		imageCreateInfo.mipLevels = 1;
-		imageCreateInfo.arrayLayers = 1;
-		imageCreateInfo.format = depthFormat;
-		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-		imageCreateInfo.samples = fboManager1.getSampleCount("depth");
-		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-		VK_CHECK(vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &depthImage, &depthImageAllocation, nullptr),
-			"Failed to create color image!");
-
-		depthImageView = createImageView(device, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1, 1);
-
-		transitionImageLayout(device, graphicsQueue, graphicsCommandPool, depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, 1);
-	}
-
+	
 	void createCommandBuffers()
 	{
 		commandBuffers.resize(swapChainFramebuffers.size());
@@ -640,6 +619,22 @@ private:
 		// put model draw
 		model.cmdDraw(commandBuffers[index]);
 		vkCmdEndRenderPass(commandBuffers[index]);
+
+		vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipeline);
+		vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, rtxPass.pipelineLayout, 0, 1, &rtxPass.descriptorSet, 0, nullptr);
+
+		// Calculate shader binding offsets, which is pretty straight forward in our example
+		VkDeviceSize rayGenOffset = rtxPass.sbtGen.getRayGenOffset();
+		VkDeviceSize missOffset = rtxPass.sbtGen.getMissOffset();
+		VkDeviceSize missStride = rtxPass.sbtGen.getMissEntrySize();
+		VkDeviceSize hitGroupOffset = rtxPass.sbtGen.getHitGroupOffset();
+		VkDeviceSize hitGroupStride = rtxPass.sbtGen.getHitGroupEntrySize();
+
+		vkCmdTraceRaysNV(commandBuffers[index], rtxPass.sbtBuffer, rayGenOffset,
+			rtxPass.sbtBuffer, missOffset, missStride,
+			rtxPass.sbtBuffer, hitGroupOffset, hitGroupStride,
+			VK_NULL_HANDLE, 0, 0, swapChainExtent.width,
+			swapChainExtent.height, 1);
 
 		// begin second render-pass
 		renderPassInfo.renderPass = renderPass2;
