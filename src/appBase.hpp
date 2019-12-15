@@ -26,6 +26,8 @@ protected:
 	VkCommandPool graphicsCommandPool;
 	VkCommandPool computeCommandPool;
 
+	VkPhysicalDeviceRayTracingPropertiesNV raytracingProperties;
+
 	void createInstance(const std::vector<const char*> extraInstanceExtensions) {
 		CHECK(!enableValidationLayers || checkValidationLayerSupport(), "Application: validation layers requested, but not available!");
 		
@@ -126,6 +128,21 @@ protected:
 		vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
 		vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
 		vkGetDeviceQueue(device, indices.computeFamily.value(), 0, &computeQueue);
+	}
+
+	void getRtxProperties()
+	{
+		// Query the values of shaderHeaderSize and maxRecursionDepth in current implementation
+		raytracingProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PROPERTIES_NV;
+		raytracingProperties.pNext = nullptr;
+		raytracingProperties.maxRecursionDepth = 0;
+		raytracingProperties.shaderGroupHandleSize = 0;
+
+		VkPhysicalDeviceProperties2 props;
+		props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+		props.pNext = &raytracingProperties;
+		props.properties = {};
+		vkGetPhysicalDeviceProperties2(physicalDevice, &props);
 	}
 
 	void setupDebugMessenger() {
@@ -319,6 +336,7 @@ public:
 		setupDebugMessenger();
 		io.createSurface(instance, surface);
 		pickPhysicalDevice(surface, enableMsaa);
+		getRtxProperties();
 		createLogicalDevice(surface);
 		createCommandPool(surface);
 		vmaInit();

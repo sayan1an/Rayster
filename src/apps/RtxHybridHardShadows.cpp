@@ -71,6 +71,62 @@ private:
 	}
 };
 
+class RtxPass {
+public:
+	VkDescriptorSetLayout descriptorSetLayout;
+	VkDescriptorPool descriptorPool;
+	VkDescriptorSet descriptorSet;
+
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+	VkBuffer sbtBuffer;
+	VmaAllocation sbtBufferAllocation;
+	ShaderBindingTableGenerator sbtGen;
+
+	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator, const Model& model, const VkImageView& storageImageView, const Camera& cam)
+	{
+		descGen.bindTLAS({ 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, model.getDescriptorTlas());
+		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, storageImageView, VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindBuffer({ 2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, cam.getDescriptorBufferInfo());
+
+		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
+
+		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/01_raygen.spv");
+		uint32_t missShaderId = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/01_miss.spv");
+		uint32_t hitGroupId = rtxPipeGen.startHitGroup();
+
+		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/01_close.spv");
+		rtxPipeGen.endHitGroup();
+		rtxPipeGen.setMaxRecursionDepth(1);
+
+		rtxPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
+
+		sbtGen.addRayGenerationProgram(rayGenId, {});
+		sbtGen.addMissProgram(missShaderId, {});
+		sbtGen.addHitGroup(hitGroupId, {});
+
+		VkDeviceSize shaderBindingTableSize = sbtGen.computeSBTSize(raytracingProperties);
+
+		VmaAllocationCreateInfo allocCreateInfo = {};
+		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+		VkBufferCreateInfo bufferCreateInfo = {};
+		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferCreateInfo.size = shaderBindingTableSize;
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		// Allocate memory and bind it to the buffer
+		VK_CHECK(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &sbtBuffer, &sbtBufferAllocation, nullptr),
+			"RtxHybridShadows: failed to allocate buffer for shader binding table!");
+
+		sbtGen.populateSBT(device, pipeline, allocator, sbtBufferAllocation);
+	}
+private:
+	DescriptorSetGenerator descGen;
+	RayTracingPipelineGenerator rtxPipeGen;
+};
+
 class Subpass1 {
 public:
 	VkSubpassDescription subpassDescription;
@@ -183,15 +239,15 @@ public:
 		WindowApplication(std::vector<const char*>(), _instanceExtensions, _deviceExtensions, std::vector<const char*>()) {}
 private:
 	std::vector<VkFramebuffer> swapChainFramebuffers;
+	VkFramebuffer renderPass1Fbo;
 
 	VkRenderPass renderPass1;
 	VkRenderPass renderPass2;
 
 	Subpass1 subpass1;
+	RtxPass rtxPass;
 	Subpass2 subpass2;
-
-	VkFramebuffer renderPass1Fbo;
-
+	
 	VkImage diffuseColorImage;
 	VmaAllocation diffuseColorImageAllocation;
 	VkImageView diffuseColorImageView;
@@ -250,7 +306,10 @@ private:
 		gui.setStyle();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
+		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
+
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, diffuseColorImageView, cam);
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -281,6 +340,10 @@ private:
 		vkDestroyPipeline(device, subpass1.pipeline, nullptr);
 		vkDestroyPipelineLayout(device, subpass1.pipelineLayout, nullptr);
 
+		vkDestroyPipeline(device, rtxPass.pipeline, nullptr);
+		vkDestroyPipelineLayout(device, rtxPass.pipelineLayout, nullptr);
+		vmaDestroyBuffer(allocator, rtxPass.sbtBuffer, rtxPass.sbtBufferAllocation);
+
 		vkDestroyPipeline(device, subpass2.pipeline, nullptr);
 		vkDestroyPipelineLayout(device, subpass2.pipelineLayout, nullptr);
 
@@ -288,9 +351,11 @@ private:
 		vkDestroyRenderPass(device, renderPass2, nullptr);
 
 		vkDestroyDescriptorSetLayout(device, subpass1.descriptorSetLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device, rtxPass.descriptorSetLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, subpass2.descriptorSetLayout, nullptr);
 
 		vkDestroyDescriptorPool(device, subpass1.descriptorPool, nullptr);
+		vkDestroyDescriptorPool(device, rtxPass.descriptorPool, nullptr);
 		vkDestroyDescriptorPool(device, subpass2.descriptorPool, nullptr);
 	}
 
@@ -303,6 +368,7 @@ private:
 		createFramebuffers();
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, diffuseColorImageView, cam);
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -310,6 +376,7 @@ private:
 	void cleanupFinal() 
 	{	
 		gui.cleanUp(device, allocator);
+		model.cleanUpRtx(device, allocator);
 		model.cleanUp(device, allocator);
 	}
 	
@@ -479,7 +546,7 @@ private:
 			imageCreateInfo.format = colorFormat;
 			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+			imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
 			imageCreateInfo.samples = samples;
 			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -490,8 +557,6 @@ private:
 				"Failed to create color image!");
 
 			imageView = createImageView(device, image, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
-
-			transitionImageLayout(device, graphicsQueue, graphicsCommandPool, image, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1, 1);
 		};
 
 		makeColorImage(fboManager1.getFormat("diffuseColor") , fboManager1.getSampleCount("diffuseColor"), diffuseColorImage, diffuseColorImageView, diffuseColorImageAllocation);
@@ -555,6 +620,7 @@ private:
 			"failed to begin recording command buffer!");
 		
 		model.cmdTransferData(commandBuffers[index]);
+		model.cmdUpdateTlas(commandBuffers[index]);
 
 		// begin first render-pass
 		VkRenderPassBeginInfo renderPassInfo = {};
@@ -606,6 +672,7 @@ private:
 		gui.buildGui(io);
 		gui.uploadData(device, allocator);
 		model.updateMeshData();
+		model.updateTlasData();
 		cam.updateProjViewMat(io, swapChainExtent.width, swapChainExtent.height);
 
 		buildCommandBuffer(imageIndex);

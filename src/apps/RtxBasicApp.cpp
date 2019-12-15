@@ -148,8 +148,6 @@ public:
 	RTXApplication(const std::vector<const char*>& _instanceExtensions, const std::vector<const char*>& _deviceExtensions) : 
 		WindowApplication(std::vector<const char*>(), _instanceExtensions, _deviceExtensions, std::vector<const char*>()) {}
 private:
-	VkPhysicalDeviceRayTracingPropertiesNV raytracingProperties = {};
-
 	std::vector<VkFramebuffer> swapChainFramebuffers;
 
 	VkRenderPass renderPass;
@@ -197,23 +195,7 @@ private:
 		
 		createCommandBuffers();
 	}
-
-	void getRtxProperties()
-	{
-		// Query the values of shaderHeaderSize and maxRecursionDepth in current implementation
-		raytracingProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PROPERTIES_NV;
-		raytracingProperties.pNext = nullptr;
-		raytracingProperties.maxRecursionDepth = 0;
-		raytracingProperties.shaderGroupHandleSize = 0;
-		
-		VkPhysicalDeviceProperties2 props;
-		props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-		props.pNext = &raytracingProperties;
-		props.properties = {};
-		vkGetPhysicalDeviceProperties2(physicalDevice, &props);
-	}
 	
-
 	void cleanUpAfterSwapChainResize() 
 	{
 		vkDestroyImageView(device, colorImageView, nullptr);
