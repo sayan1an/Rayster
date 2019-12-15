@@ -35,5 +35,5 @@ void main()
     outNormal = vec4(fragNormal, alphaIntExtIor.x);
    
     // Depth is the distance of hit point from camera origin.
-    outDepthMatInfo = vec4(length(worldPos - ubo.viewInv[3]), alphaIntExtIor.yz, bsdfType);
+    outDepthMatInfo = vec4(length((worldPos - ubo.viewInv[3]).xyz), alphaIntExtIor.yz, bsdfType);
 }
