@@ -175,7 +175,7 @@ private:
 	bool ioCaptured = false;
 	
 	std::array<float, 50> frameTimes;
-	uint64_t time = 0;
+	uint64_t time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 	double avgFrameTime = 10;
 
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height) 

@@ -54,15 +54,27 @@ public:
 	}
 
 	void updateProjViewMat(IO &io, uint32_t screenWidth, uint32_t screenHeight) 
-	{
-		if (io.isIoCaptured())
+	{	
+		float timeDelta = io.getFrameTimes().back();
+
+		if (keyFrames.isPlaying) {
+			if (keyFrames.play(cameraPosition, cameraFocus, cameraUp, timeDelta)) {
+				cPlane = chooseCameraPlane(cameraUp);
+				setCoordinateSystem();
+				setView(projViewMat.view);
+			}
+		}
+		else if (io.isIoCaptured())
 			setView(projViewMat.view); // for gui controls
 		else {
 			projViewMat.view = getViewMatrix(io); // for kbd-mouse controls
-			if (keyboardRecordKeyframe(io)) {
-				keyFrames.addKeyFrame(projViewMat.view);
-			}
+			uint32_t keyFrameContol = keyboardKeyframe(io);
+			if (keyFrameContol == RECORD)
+				keyFrames.addKeyFrame(cameraPosition, cameraFocus, cameraUp);
+			else if (keyFrameContol == DEL)
+				keyFrames.reset();
 		}
+
 		projViewMat.proj = glm::perspective(glm::radians(fovy), screenWidth / (float)screenHeight, 0.1f, 10.0f);
 		projViewMat.proj[1][1] *= -1;
 
@@ -71,7 +83,7 @@ public:
 		
 		memcpy(uniformBuffersAllocationInfo.pMappedData, &projViewMat, sizeof(projViewMat));
 
-		keyFrames.tick++;
+		keyFrames.tick(timeDelta);
 	}
 
 	void cameraWidget()
@@ -84,6 +96,19 @@ public:
 				ImGui::Text("First person camera control- drag mouse to change viewpoint and WSAD to move");
 				ImGui::Text("Slected camera mode - "); ImGui::SameLine();
 				ImGui::Text(selectCamera % 2 == 0 ? "Trackball" : "First person");
+			}
+			if (ImGui::CollapsingHeader("Camera keyframing")) {
+				ImGui::Text("Press R to add a new keyframe");
+				ImGui::Text("Press L to load keyframes from disk");
+				ImGui::Text("Press del to remove all keyframes");
+				ImGui::Text("WallClock time - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.getWallClock()).c_str());
+				ImGui::Text("Keyframe added - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.keyFrameCount()).c_str());
+				ImGui::Text("Play keyframes"); ImGui::SameLine();
+				ImGui::RadioButton("Yes", &keyFrames.isPlaying, 1); ImGui::SameLine();
+				ImGui::RadioButton("No", &keyFrames.isPlaying, 0);
+				ImGui::Text("Play time - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.getPlayClock()).c_str());
+				ImGui::Spacing();
+				ImGui::Spacing();
 			}
 			{
 				ImGui::RadioButton("Camera position", &guiData.option0, 0); ImGui::SameLine();
@@ -116,15 +141,7 @@ public:
 				ImGui::Spacing();
 				ImGui::Spacing();
 			}
-			{
-				ImGui::Text("Keyframes - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.keyFrameCount()).c_str());
-			}
-			{
-				ImGui::RadioButton("Yes", &keyFrames.isPlaying, 1); ImGui::SameLine();
-				ImGui::RadioButton("No", &keyFrames.isPlaying, 0); ImGui::SameLine();
-
-
-			}
+		
 			cPlane = chooseCameraPlane(cameraUp);
 			setCoordinateSystem();
 		}
@@ -182,6 +199,7 @@ private:
 	enum MOVEMENT { NO_MOVEMENT = 0, MOVE_FORWARD = 1, MOVE_BACK = 2, MOVE_RIGHT = 4, MOVE_LEFT = 8 };
 
 	enum CAMERA_PLANE { XY = 0, XZ, ZY };
+	enum KEYFRAME_CTRL {RECORD = 0, DEL, NO_ACTION};
 
 	ProjectionViewMat projViewMat;
 
@@ -209,39 +227,91 @@ private:
 	{
 	public:
 		int isPlaying = 0;
-		uint64_t tick = 0;
+						
+		uint32_t addKeyFrame(const glm::vec3 &cameraPosition, const glm::vec3 &cameraFocus, const glm::vec3 &cameraUp) 
+		{	
+			time.push_back(wallClock);
+			for (int i = 0; i < 3; i++) {
+				camParams[i].push_back(static_cast<double>(cameraPosition[i]));
+				camParams[3 + i].push_back(static_cast<double>(cameraFocus[i]));
+				camParams[6 + i].push_back(static_cast<double>(cameraUp[i]));
+			}
+
+			setSpline();
+			return static_cast<uint32_t>(time.size());
+		}
+
+		void tick(const float timeDelta)
+		{	
+			if (isPlaying == 0)
+				wallClock += timeDelta;
+		}
 		
-		uint32_t addKeyFrame(const glm::mat4& m) {
-			time.push_back(static_cast<double>(tick));
-			for (uint32_t i = 0; i < 4; i++)
-				for (uint32_t j = 0; j < 4; j++)
-					viewMat[4 * i + j].push_back(static_cast<double>(m[i][j]));
+		uint64_t getWallClock() const 
+		{
+			return static_cast<uint64_t>(wallClock);
+		}
 
+		uint64_t getPlayClock() const
+		{
+			return static_cast<uint64_t>(playTime);
+		}
+		
+		bool play(glm::vec3 &camPosition, glm::vec3& camFocus, glm::vec3 &camUp, const float timeDelta)
+		{	
+			if (time.size() >= 2) {
+				for (int i = 0; i < 3; i++) {
+					camPosition[i] = static_cast<float>(splines[i](playTime));
+					camFocus[i] = static_cast<float>(splines[3 + i](playTime));
+					camUp[i] = static_cast<float>(splines[6 + i](playTime));
+				}
+
+				if (delta > 0 && playTime > time.back())
+					delta = -1.0;
+				if (delta < 0 && playTime < 0)
+					delta = 1.0f;
+
+				playTime += timeDelta * delta;
+
+				return true;
+			}
+					
+			return false;
+		}
+
+		uint32_t keyFrameCount() const 
+		{
 			return static_cast<uint32_t>(time.size());
 		}
 
-		void setSpline() {
-			for (int i = static_cast<int>(time.size()) - 1; i >= 0; i--)
-				time[i] -= time[0];
-
-			std::cout << " " << time[0] << std::endl;
-
-			for (int i = 0; i < 16; i++)
-				splines[i].set_points(time, viewMat[i]);
-		}
-
-		uint32_t keyFrameCount() const {
-			return static_cast<uint32_t>(time.size());
-		}
-		void reset() {
+		void reset() 
+		{
 			time.clear();
-			for (uint32_t i = 0; i < 16; i++)
-				viewMat[i].clear();
+			for (uint32_t i = 0; i < 9; i++)
+				camParams[i].clear();
+
+			playTime = 0;
+			wallClock = 0;
 		}
+
 	private:
 		std::vector<double> time;
-		std::array<std::vector<double>, 16> viewMat;
-		std::array<tk::spline, 16> splines;
+		std::array<std::vector<double>, 9> camParams;
+		std::array<tk::spline, 9> splines;
+		double playTime = 0;
+		double delta = 1.0;
+		double wallClock = 0;
+		void setSpline()
+		{
+			if (time.size() >= 2) {
+				for (int i = static_cast<int>(time.size()) - 1; i >= 0; i--)
+					time[i] -= time[0];
+
+				for (int i = 0; i < 9; i++)
+					splines[i].set_points(time, camParams[i]);
+			}
+		}
+		
 	} keyFrames;
 
 	struct GuiData 
@@ -459,16 +529,22 @@ private:
 		return movement;
 	}
 
-	uint32_t keyboardRecordKeyframe(const IO& io)
+	uint32_t keyboardKeyframe(const IO& io)
 	{
-		bool pressed = false;
+		uint32_t control = NO_ACTION;
 		int key, action;
 		io.getLastKeyState(key, action);
 		if (key == GLFW_KEY_R && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
 			io.getKeyboardInput(key, action);
-			pressed = action == GLFW_RELEASE && key == GLFW_KEY_R;
+			if (action == GLFW_RELEASE && key == GLFW_KEY_R)
+				control = RECORD;
+		}
+		if (key == GLFW_KEY_DELETE && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+			io.getKeyboardInput(key, action);
+			if (action == GLFW_RELEASE && key == GLFW_KEY_DELETE)
+				control = DEL;
 		}
 		
-		return pressed;
+		return control;
 	}
 };
