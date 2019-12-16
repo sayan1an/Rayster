@@ -84,7 +84,6 @@ public:
 	inline void getMouseScrollOffset(double &scrollOffset) 
 	{
 		scrollOffset = muScrollOffset;
-		muScrollOffset = 0.0;
 	}
 
 	inline int getLastKeyState(int key) const 
@@ -109,9 +108,10 @@ public:
 
 	inline void pollEvents() 
 	{
+		muScrollOffset = 0.0;
 		glfwPollEvents();
 		ioCaptured = false;
-
+		
 		avgFrameTime -= frameTimes[0];
 		std::rotate(frameTimes.begin(), frameTimes.begin() + 1, frameTimes.end());
 		using namespace std::chrono;
@@ -122,14 +122,15 @@ public:
 		avgFrameTime += frameTimes[frameTimes.size() - 1];
 	}
 
-	void frameRateWidget(const float xPos = 0, const float yPos = 0, const float max = 20) const
-	{			
-		float fpms = static_cast<float>(frameTimes.size()) / static_cast<float>(avgFrameTime);
-		ImGui::SetCursorPos(ImVec2(5 + xPos, 30 + yPos));
-		ImGui::Text(("FPS: " + std::to_string(static_cast<uint32_t>(std::floor(fpms * 1000)))).c_str());
-
-		ImGui::SetCursorPos(ImVec2(5 + xPos, 50 + yPos));
-		ImGui::PlotLines(std::to_string(static_cast<uint32_t>(max)).c_str(), &frameTimes[0], static_cast<int>(frameTimes.size()), 0, "Frame Times (ms)", 0, max, ImVec2(0, 50));
+	void frameRateWidget(const float max = 20) const
+	{	
+		if (ImGui::CollapsingHeader("FPS monitor")) {
+			float fpms = static_cast<float>(frameTimes.size()) / static_cast<float>(avgFrameTime);
+			ImGui::Text(("FPS: " + std::to_string(static_cast<uint32_t>(std::floor(fpms * 1000)))).c_str());
+			ImGui::PlotLines(std::to_string(static_cast<uint32_t>(max)).c_str(), &frameTimes[0], static_cast<int>(frameTimes.size()), 0, "Frame Times (ms)", 0, max, ImVec2(0, 50));
+			ImGui::Spacing();
+			ImGui::Spacing();
+		}
 	}
 
 	const float getAvgFrameTime() const

@@ -35,7 +35,6 @@ private:
 	void guiSetup()
 	{
 		io->frameRateWidget();
-		ImGui::SetCursorPos(ImVec2(5, 110));
 	}
 };
 

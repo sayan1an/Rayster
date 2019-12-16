@@ -48,15 +48,10 @@ private:
 	void guiSetup()
 	{
 		io->frameRateWidget();
-		ImGui::SetCursorPos(ImVec2(5, 135));
 		ImGui::SliderFloat("Light direction - x", &lightX, -1.0f, 1.0f);
-		ImGui::SetCursorPos(ImVec2(5, 160));
 		ImGui::SliderFloat("Light direction - y", &lightY, -1.0f, 1.0f);
-		ImGui::SetCursorPos(ImVec2(5, 185));
 		ImGui::SliderFloat("Light direction - z", &lightZ, -1.0f, 1.0f);
-		ImGui::SetCursorPos(ImVec2(5, 210));
 		ImGui::SliderFloat("Light power", &power, 50.0f, 500.0f);
-		ImGui::SetCursorPos(ImVec2(5, 235));
 		ImGui::SliderFloat("Light distance", &distance, 1.0f, 25.0f);
 		pcb.lightPosition = glm::normalize(glm::vec3(lightX, lightY, lightZ)) * distance;
 		pcb.power = power;

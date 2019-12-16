@@ -55,9 +55,10 @@ public:
 	void updateProjViewMat(IO &io, uint32_t screenWidth, uint32_t screenHeight) 
 	{
 		if (io.isIoCaptured())
-			return;
-
-		projViewMat.view = getViewMatrix(io);
+			setView(projViewMat.view); // for gui controls
+		else
+			projViewMat.view = getViewMatrix(io); // for kbd-mouse controls
+		
 		projViewMat.proj = glm::perspective(glm::radians(fovy), screenWidth / (float)screenHeight, 0.1f, 10.0f);
 		projViewMat.proj[1][1] *= -1;
 
@@ -65,6 +66,57 @@ public:
 		projViewMat.projInv = glm::inverse(projViewMat.proj);
 		
 		memcpy(uniformBuffersAllocationInfo.pMappedData, &projViewMat, sizeof(projViewMat));
+	}
+
+	void cameraWidget()
+	{
+		if (ImGui::CollapsingHeader("Camera controls"))
+		{	
+			if (ImGui::CollapsingHeader("Camera movement readme")) {
+				ImGui::Text("Press C to toggle between camera modes");
+				ImGui::Text("Trackball camera control- drag mouse to change viewpoint and scroll to zoom");
+				ImGui::Text("First person camera control- drag mouse to change viewpoint and WSAD to move");
+				ImGui::Text("Slected camera mode - "); ImGui::SameLine();
+				ImGui::Text(selectCamera % 2 == 0 ? "Trackball" : "First person");
+			}
+			{
+				static int option = 0;
+				ImGui::RadioButton("Camera position", &option, 0); ImGui::SameLine();
+				ImGui::RadioButton("Camera focus", &option, 1);
+				float* data = option == 0 ? &cameraPosition[0] : option == 1 ? &cameraFocus[0] : &cameraUp[0];
+				static float sliderScale = 1.0f;
+				ImGui::SliderFloat("Slider scale##1", &sliderScale, 0.1f, 100);
+				ImGui::SliderFloat3(option == 0 ? "Camera position" : "Camera focus", data, -sliderScale, sliderScale);
+				ImGui::Spacing();
+				ImGui::Spacing();
+			}
+			{
+				int option = cPlane == ZY ? 0 : cPlane == XZ ? 1 : 2;
+				ImGui::Text("Camera up vector"); ImGui::SameLine();
+				ImGui::RadioButton("X", &option, 0); ImGui::SameLine();
+				ImGui::RadioButton("Y", &option, 1); ImGui::SameLine();
+				ImGui::RadioButton("Z", &option, 2);
+				cameraUp = option == 0 ? glm::vec3(1, 0, 0) : option == 1 ? glm::vec3(0, 1, 0) : glm::vec3(0, 0, 1);
+				ImGui::Spacing();
+				ImGui::Spacing();
+			}
+			{
+				ImGui::SliderFloat("Fov", &fovy, 10, 80);
+				ImGui::Spacing();
+				ImGui::Spacing();
+			}
+			{	
+				static float sliderScale = 0.01f;
+				ImGui::SliderFloat("Slider scale##2", &sliderScale, 0.01f, 1); // ## is used to de-couple this slider from the last slider with same name
+				ImGui::SliderFloat("Linear movement speed", &distanceIncrement, 0, sliderScale);
+				ImGui::SliderFloat("Angular movement speed", &angleIncrement, 0, sliderScale);
+				ImGui::Spacing();
+				ImGui::Spacing();
+			}
+						
+			cPlane = chooseCameraPlane(cameraUp);
+			setCoordinateSystem();
+		}
 	}
 
 	Camera() 
@@ -87,7 +139,6 @@ public:
 		this->fovy = fovy;
 
 		cPlane = chooseCameraPlane(cameraUp);
-
 		setCoordinateSystem();
 	}
 
@@ -325,7 +376,6 @@ private:
 	{
 		double scrollOffset;
 		io.getMouseScrollOffset(scrollOffset);
-
 		return scrollOffset > 0 ? ZOOM_OUT : scrollOffset < 0 ? ZOOM_IN : NO_ZOOM;
 	}
 

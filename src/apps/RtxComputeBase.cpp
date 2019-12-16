@@ -47,8 +47,7 @@ private:
 	void guiSetup()
 	{
 		io->frameRateWidget();
-		ImGui::SetCursorPos(ImVec2(5, 110));
-
+		
 		if (ImGui::BeginCombo("Select", currentItem)) // The second parameter is the label previewed before opening the combo.
 		{
 			for (int n = 0; n < IM_ARRAYSIZE(items); n++)
@@ -63,9 +62,7 @@ private:
 			}
 			ImGui::EndCombo();
 		}
-		ImGui::SetCursorPos(ImVec2(5, 135));
 		ImGui::SliderFloat("Scale - Coarse", &scaleCoarse, 0.01f, 10.0f);
-		ImGui::SetCursorPos(ImVec2(5, 160));
 		ImGui::SliderFloat("Scale - Fine", &scaleFine, 0.01f, 1.0f);
 		pcb.scale = scaleCoarse * scaleFine;
 	}
