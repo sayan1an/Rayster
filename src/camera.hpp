@@ -4,6 +4,7 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include "spline.h"
 
 #include "io.hpp"
 
@@ -56,9 +57,12 @@ public:
 	{
 		if (io.isIoCaptured())
 			setView(projViewMat.view); // for gui controls
-		else
+		else {
 			projViewMat.view = getViewMatrix(io); // for kbd-mouse controls
-		
+			if (keyboardRecordKeyframe(io)) {
+				keyFrames.addKeyFrame(projViewMat.view);
+			}
+		}
 		projViewMat.proj = glm::perspective(glm::radians(fovy), screenWidth / (float)screenHeight, 0.1f, 10.0f);
 		projViewMat.proj[1][1] *= -1;
 
@@ -66,6 +70,8 @@ public:
 		projViewMat.projInv = glm::inverse(projViewMat.proj);
 		
 		memcpy(uniformBuffersAllocationInfo.pMappedData, &projViewMat, sizeof(projViewMat));
+
+		keyFrames.tick++;
 	}
 
 	void cameraWidget()
@@ -80,13 +86,11 @@ public:
 				ImGui::Text(selectCamera % 2 == 0 ? "Trackball" : "First person");
 			}
 			{
-				static int option = 0;
-				ImGui::RadioButton("Camera position", &option, 0); ImGui::SameLine();
-				ImGui::RadioButton("Camera focus", &option, 1);
-				float* data = option == 0 ? &cameraPosition[0] : option == 1 ? &cameraFocus[0] : &cameraUp[0];
-				static float sliderScale = 1.0f;
-				ImGui::SliderFloat("Slider scale##1", &sliderScale, 0.1f, 100);
-				ImGui::SliderFloat3(option == 0 ? "Camera position" : "Camera focus", data, -sliderScale, sliderScale);
+				ImGui::RadioButton("Camera position", &guiData.option0, 0); ImGui::SameLine();
+				ImGui::RadioButton("Camera focus", &guiData.option0, 1);
+				float* data = guiData.option0 == 0 ? &cameraPosition[0] : guiData.option0 == 1 ? &cameraFocus[0] : &cameraUp[0];
+				ImGui::SliderFloat("Slider scale##1", &guiData.sliderScale0, 0.1f, 100);
+				ImGui::SliderFloat3(guiData.option0 == 0 ? "Camera position" : "Camera focus", data, -guiData.sliderScale0, guiData.sliderScale0);
 				ImGui::Spacing();
 				ImGui::Spacing();
 			}
@@ -106,14 +110,21 @@ public:
 				ImGui::Spacing();
 			}
 			{	
-				static float sliderScale = 0.01f;
-				ImGui::SliderFloat("Slider scale##2", &sliderScale, 0.01f, 1); // ## is used to de-couple this slider from the last slider with same name
-				ImGui::SliderFloat("Linear movement speed", &distanceIncrement, 0, sliderScale);
-				ImGui::SliderFloat("Angular movement speed", &angleIncrement, 0, sliderScale);
+				ImGui::SliderFloat("Slider scale##2", &guiData.sliderScale1, 0.01f, 1); // ## is used to de-couple this slider from the last slider with same name
+				ImGui::SliderFloat("Linear movement speed", &distanceIncrement, 0, guiData.sliderScale1);
+				ImGui::SliderFloat("Angular movement speed", &angleIncrement, 0, guiData.sliderScale1);
 				ImGui::Spacing();
 				ImGui::Spacing();
 			}
-						
+			{
+				ImGui::Text("Keyframes - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.keyFrameCount()).c_str());
+			}
+			{
+				ImGui::RadioButton("Yes", &keyFrames.isPlaying, 1); ImGui::SameLine();
+				ImGui::RadioButton("No", &keyFrames.isPlaying, 0); ImGui::SameLine();
+
+
+			}
 			cPlane = chooseCameraPlane(cameraUp);
 			setCoordinateSystem();
 		}
@@ -193,6 +204,61 @@ private:
 	float distanceIncrement = 0.001f;
 
 	CAMERA_PLANE cPlane = XY;
+
+	class KeyFrame
+	{
+	public:
+		int isPlaying = 0;
+		uint64_t tick = 0;
+		
+		uint32_t addKeyFrame(const glm::mat4& m) {
+			time.push_back(static_cast<double>(tick));
+			for (uint32_t i = 0; i < 4; i++)
+				for (uint32_t j = 0; j < 4; j++)
+					viewMat[4 * i + j].push_back(static_cast<double>(m[i][j]));
+
+			return static_cast<uint32_t>(time.size());
+		}
+
+		void setSpline() {
+			for (int i = static_cast<int>(time.size()) - 1; i >= 0; i--)
+				time[i] -= time[0];
+
+			std::cout << " " << time[0] << std::endl;
+
+			for (int i = 0; i < 16; i++)
+				splines[i].set_points(time, viewMat[i]);
+		}
+
+		uint32_t keyFrameCount() const {
+			return static_cast<uint32_t>(time.size());
+		}
+		void reset() {
+			time.clear();
+			for (uint32_t i = 0; i < 16; i++)
+				viewMat[i].clear();
+		}
+	private:
+		std::vector<double> time;
+		std::array<std::vector<double>, 16> viewMat;
+		std::array<tk::spline, 16> splines;
+	} keyFrames;
+
+	struct GuiData 
+	{
+		int option0;
+		int option1;
+		float sliderScale0;
+		float sliderScale1;
+					
+		GuiData() {
+			option0 = 0;
+			option1 = 0;
+			sliderScale0 = 1.0f;
+			sliderScale1 = 0.01f;
+		}
+
+	} guiData;
 	
 	glm::mat4 getViewMatrix(IO& io) {
 		glm::mat4 view(1.0f);
@@ -391,5 +457,18 @@ private:
 		}
 
 		return movement;
+	}
+
+	uint32_t keyboardRecordKeyframe(const IO& io)
+	{
+		bool pressed = false;
+		int key, action;
+		io.getLastKeyState(key, action);
+		if (key == GLFW_KEY_R && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+			io.getKeyboardInput(key, action);
+			pressed = action == GLFW_RELEASE && key == GLFW_KEY_R;
+		}
+		
+		return pressed;
 	}
 };

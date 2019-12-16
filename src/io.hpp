@@ -86,14 +86,10 @@ public:
 		scrollOffset = muScrollOffset;
 	}
 
-	inline int getLastKeyState(int key) const 
+	inline void getLastKeyState(int& key, int& action) const
 	{
-		return glfwGetKey(window, key);
-	}
-
-	inline int getLastMouseBtnState(int key) const
-	{
-		return glfwGetMouseButton(window, key);
+		key = kbLastKey;
+		action = kbLastAction;
 	}
 
 	inline int windowShouldClose() 
@@ -109,6 +105,8 @@ public:
 	inline void pollEvents() 
 	{
 		muScrollOffset = 0.0;
+		kbLastKey = kbKey;
+		kbLastAction = kbAction;
 		glfwPollEvents();
 		ioCaptured = false;
 		
@@ -166,6 +164,8 @@ private:
 
 	int kbKey = 0;
 	int kbAction = 0;
+	int kbLastKey = 0;
+	int kbLastAction = 0;
 
 	int muKey = 0;
 	int muAction = 0;

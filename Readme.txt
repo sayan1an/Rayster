@@ -6,6 +6,7 @@ D:\vcpkg\installed\x86-windows\include // this is for assimp binaries
 D:\projects\VkExperiment\external\tinyobjloader
 D:\projects\VkExperiment\external\stb
 D:\projects\VkExperiment\external\glm
+D:\projects\VkExperiment\external\spline\src
 C:\VulkanSDK\1.1.106.0\Include
 D:\projects\VkExperiment\external\VulkanMemoryAllocator\src
 
