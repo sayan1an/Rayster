@@ -258,13 +258,16 @@ private:
 		uint32_t addKeyFrame(const glm::vec3 &cameraPosition, const glm::vec3 &cameraFocus, const glm::vec3 &cameraUp) 
 		{	
 			keyFrameTimeList.clear();
+			for (const auto& t : time)
+				keyFrameTimeList.push_back(std::to_string(static_cast<uint64_t>(t)));
+
 			for (const auto & t : time) {
-				if (t > wallClock) {
+				if (t > wallClock - wallTimeOffset) {
 					WARN(false, "Camera: Could not add keyframe key-frame time must be in ascending order");
 					return static_cast<uint32_t>(time.size());
 				}
-				keyFrameTimeList.push_back(std::to_string(static_cast<uint64_t>(t)));
 			}
+			
 			if (time.size() == 0)
 				wallTimeOffset = wallClock;
 
@@ -333,6 +336,12 @@ private:
 					WARN_DBG_ONLY(false, "Camera: Could not load keyframes from file - " + filename + ". Unique Id mismatch!");
 				}
 
+				wallClock = time.back();
+				wallTimeOffset = 0;
+				keyFrameTimeList.clear();
+				for (const auto& t : time)
+					keyFrameTimeList.push_back(std::to_string(static_cast<uint64_t>(t)));
+				
 				is.close();
 			}
 			else {
