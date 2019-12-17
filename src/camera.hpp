@@ -265,9 +265,11 @@ private:
 				}
 				keyFrameTimeList.push_back(std::to_string(static_cast<uint64_t>(t)));
 			}
-			keyFrameTimeList.push_back(std::to_string(static_cast<uint64_t>(wallClock)));
+			if (time.size() == 0)
+				wallTimeOffset = wallClock;
 
-			time.push_back(wallClock);
+			keyFrameTimeList.push_back(std::to_string(static_cast<uint64_t>(wallClock - wallTimeOffset)));
+			time.push_back(wallClock - wallTimeOffset);
 			for (int i = 0; i < 3; i++) {
 				camParams[i].push_back(static_cast<double>(cameraPosition[i]));
 				camParams[3 + i].push_back(static_cast<double>(cameraFocus[i]));
@@ -378,6 +380,7 @@ private:
 
 	private:
 		std::vector<double> time;
+		double wallTimeOffset = 0;
 		std::array<std::vector<double>, 9> camParams;
 		std::array<tk::spline, 9> splines;
 		
@@ -385,13 +388,12 @@ private:
 		double delta = 1.0;
 		double wallClock = 0;
 		
+		
 		const uint64_t uniqueId = 0xf1e7ce;
+
 		void setSpline()
 		{
 			if (time.size() >= 2) {
-				for (int i = static_cast<int>(time.size()) - 1; i >= 0; i--)
-					time[i] -= time[0];
-
 				for (int i = 0; i < 9; i++)
 					splines[i].set_points(time, camParams[i]);
 			}
