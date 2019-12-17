@@ -91,6 +91,11 @@ public:
 
 		keyFrames.tick(timeDelta);
 	}
+	
+	void changeKeyFrameFileName(const std::string& newFileName)
+	{
+		keyFrameFileName = newFileName;
+	}
 
 	void cameraWidget()
 	{
@@ -110,49 +115,59 @@ public:
 				ImGui::Text("Press L to load keyframes from file - "); ImGui::SameLine(); ImGui::Text(keyFrameFileName.c_str());
 				ImGui::Text("Press S to save keyframes to file - "); ImGui::SameLine(); ImGui::Text(keyFrameFileName.c_str());
 				ImGui::Text("Press del to remove all keyframes");
-				ImGui::Text("WallClock time - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.getWallClock()).c_str());
-				ImGui::Text("Keyframe added - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.keyFrameCount()).c_str());
+				ImGui::Text("WallClock time - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.getWallClock()).c_str()); ImGui::SameLine();
+				ImGui::Text("Play time - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.getPlayClock()).c_str());
 				ImGui::Text("Play keyframes"); ImGui::SameLine();
 				ImGui::RadioButton("Yes", &keyFrames.isPlaying, 1); ImGui::SameLine();
 				ImGui::RadioButton("No", &keyFrames.isPlaying, 0);
-				ImGui::Text("Play time - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.getPlayClock()).c_str());
+				ImGui::Text("Keyframes added - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.keyFrameCount()).c_str());
+				if (ImGui::CollapsingHeader("Keyframe list")) {
+					ImGui::Separator();
+					for (auto& s : keyFrames.keyFrameTimeList)
+						ImGui::Text(s.c_str());
+					if (keyFrames.keyFrameTimeList.size() < 1)
+						ImGui::Text("None");
+					ImGui::Separator();
+				}
 				ImGui::Spacing();
 				ImGui::Spacing();
 			}
-			{
-				ImGui::RadioButton("Camera position", &guiData.option0, 0); ImGui::SameLine();
-				ImGui::RadioButton("Camera focus", &guiData.option0, 1);
-				float* data = guiData.option0 == 0 ? &cameraPosition[0] : guiData.option0 == 1 ? &cameraFocus[0] : &cameraUp[0];
-				ImGui::SliderFloat("Slider scale##1", &guiData.sliderScale0, 0.1f, 100);
-				ImGui::SliderFloat3(guiData.option0 == 0 ? "Camera position" : "Camera focus", data, -guiData.sliderScale0, guiData.sliderScale0);
-				ImGui::Spacing();
-				ImGui::Spacing();
+			if (ImGui::CollapsingHeader("Camera parameters")) {
+				{
+					ImGui::RadioButton("Camera position", &guiData.option0, 0); ImGui::SameLine();
+					ImGui::RadioButton("Camera focus", &guiData.option0, 1);
+					float* data = guiData.option0 == 0 ? &cameraPosition[0] : guiData.option0 == 1 ? &cameraFocus[0] : &cameraUp[0];
+					ImGui::SliderFloat("Slider scale##1", &guiData.sliderScale0, 0.1f, 100);
+					ImGui::SliderFloat3(guiData.option0 == 0 ? "Camera position" : "Camera focus", data, -guiData.sliderScale0, guiData.sliderScale0);
+					ImGui::Spacing();
+					ImGui::Spacing();
+				}
+				{
+					int option = cPlane == ZY ? 0 : cPlane == XZ ? 1 : 2;
+					ImGui::Text("Camera up vector"); ImGui::SameLine();
+					ImGui::RadioButton("X", &option, 0); ImGui::SameLine();
+					ImGui::RadioButton("Y", &option, 1); ImGui::SameLine();
+					ImGui::RadioButton("Z", &option, 2);
+					cameraUp = option == 0 ? glm::vec3(1, 0, 0) : option == 1 ? glm::vec3(0, 1, 0) : glm::vec3(0, 0, 1);
+					ImGui::Spacing();
+					ImGui::Spacing();
+				}
+				{
+					ImGui::SliderFloat("Fov", &fovy, 10, 80);
+					ImGui::Spacing();
+					ImGui::Spacing();
+				}
+				{
+					ImGui::SliderFloat("Slider scale##2", &guiData.sliderScale1, 0.01f, 1); // ## is used to de-couple this slider from the last slider with same name
+					ImGui::SliderFloat("Linear movement speed", &distanceIncrement, 0, guiData.sliderScale1);
+					ImGui::SliderFloat("Angular movement speed", &angleIncrement, 0, guiData.sliderScale1);
+					ImGui::Spacing();
+					ImGui::Spacing();
+				}
+
+				cPlane = chooseCameraPlane(cameraUp);
+				setCoordinateSystem();
 			}
-			{
-				int option = cPlane == ZY ? 0 : cPlane == XZ ? 1 : 2;
-				ImGui::Text("Camera up vector"); ImGui::SameLine();
-				ImGui::RadioButton("X", &option, 0); ImGui::SameLine();
-				ImGui::RadioButton("Y", &option, 1); ImGui::SameLine();
-				ImGui::RadioButton("Z", &option, 2);
-				cameraUp = option == 0 ? glm::vec3(1, 0, 0) : option == 1 ? glm::vec3(0, 1, 0) : glm::vec3(0, 0, 1);
-				ImGui::Spacing();
-				ImGui::Spacing();
-			}
-			{
-				ImGui::SliderFloat("Fov", &fovy, 10, 80);
-				ImGui::Spacing();
-				ImGui::Spacing();
-			}
-			{	
-				ImGui::SliderFloat("Slider scale##2", &guiData.sliderScale1, 0.01f, 1); // ## is used to de-couple this slider from the last slider with same name
-				ImGui::SliderFloat("Linear movement speed", &distanceIncrement, 0, guiData.sliderScale1);
-				ImGui::SliderFloat("Angular movement speed", &angleIncrement, 0, guiData.sliderScale1);
-				ImGui::Spacing();
-				ImGui::Spacing();
-			}
-		
-			cPlane = chooseCameraPlane(cameraUp);
-			setCoordinateSystem();
 		}
 	}
 
@@ -238,15 +253,19 @@ private:
 	{
 	public:
 		int isPlaying = 0;
+		std::vector<std::string> keyFrameTimeList;
 						
 		uint32_t addKeyFrame(const glm::vec3 &cameraPosition, const glm::vec3 &cameraFocus, const glm::vec3 &cameraUp) 
 		{	
+			keyFrameTimeList.clear();
 			for (const auto & t : time) {
 				if (t > wallClock) {
 					WARN(false, "Camera: Could not add keyframe key-frame time must be in ascending order");
 					return static_cast<uint32_t>(time.size());
 				}
+				keyFrameTimeList.push_back(std::to_string(static_cast<uint64_t>(t)));
 			}
+			keyFrameTimeList.push_back(std::to_string(static_cast<uint64_t>(wallClock)));
 
 			time.push_back(wallClock);
 			for (int i = 0; i < 3; i++) {
@@ -347,7 +366,8 @@ private:
 		}
 
 		void reset() 
-		{
+		{	
+			keyFrameTimeList.clear();
 			time.clear();
 			for (uint32_t i = 0; i < 9; i++)
 				camParams[i].clear();

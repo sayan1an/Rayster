@@ -281,7 +281,8 @@ static void loadMedievalHouse(Model& model, Camera& cam)
 */
 
 static void loadMedievalHouse(Model& model, Camera& cam)
-{
+{	
+	cam.changeKeyFrameFileName(ROOT + "/models/medievalHouse/medievalHouse.bin");
 	loadModelTiny((ROOT + "/models/medievalHouse/medievalHouse.obj").c_str(), model);
 }
 
@@ -293,6 +294,7 @@ static void loadSpaceship(Model& model, Camera& cam)
 			-0.136134f, -0.0511957f, -0.989367f, 3.82439f, 
 			0, 0, 0, 1 }, 5, 60);
 	cam.setAngleIncrement(0.01f);
+	cam.changeKeyFrameFileName(ROOT + "/models/spaceship/spaceship.bin");
 
 	auto changeTexCoord = [](Mesh* mesh)
 	{
@@ -457,6 +459,8 @@ static void loadSpaceship(Model& model, Camera& cam)
 
 static void loadDefault(Model &model, Camera &cam)
 {	
+	cam.changeKeyFrameFileName(ROOT + "/models/default/defailt.bin");
+
 	const std::vector<std::string> MODEL_PATHS = { ROOT + "/models/default/meshes/chalet.obj", ROOT + "/models/default/meshes/deer.obj", ROOT + "/models/default/meshes/cat.obj" };
 	const std::vector<std::string> TEXTURE_PATHS = { ROOT + "/models/default/textures/chalet.jpg", ROOT + "/models/default/textures/ubiLogo.jpg" };
 	
