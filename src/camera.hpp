@@ -5,6 +5,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include "spline.h"
+#include "cereal/archives/binary.hpp"
+#include "cereal/types/vector.hpp"
 
 #include "io.hpp"
 
@@ -73,6 +75,10 @@ public:
 				keyFrames.addKeyFrame(cameraPosition, cameraFocus, cameraUp);
 			else if (keyFrameContol == DEL)
 				keyFrames.reset();
+			else if (keyFrameContol == SAVE)
+				keyFrames.saveKeyFrames(keyFrameFileName);
+			else if (keyFrameContol == LOAD)
+				keyFrames.loadKeyFrames(keyFrameFileName);
 		}
 
 		projViewMat.proj = glm::perspective(glm::radians(fovy), screenWidth / (float)screenHeight, 0.1f, 10.0f);
@@ -96,10 +102,13 @@ public:
 				ImGui::Text("First person camera control- drag mouse to change viewpoint and WSAD to move");
 				ImGui::Text("Slected camera mode - "); ImGui::SameLine();
 				ImGui::Text(selectCamera % 2 == 0 ? "Trackball" : "First person");
+				ImGui::Spacing();
+				ImGui::Spacing();
 			}
 			if (ImGui::CollapsingHeader("Camera keyframing")) {
 				ImGui::Text("Press R to add a new keyframe");
-				ImGui::Text("Press L to load keyframes from disk");
+				ImGui::Text("Press L to load keyframes from file - "); ImGui::SameLine(); ImGui::Text(keyFrameFileName.c_str());
+				ImGui::Text("Press S to save keyframes to file - "); ImGui::SameLine(); ImGui::Text(keyFrameFileName.c_str());
 				ImGui::Text("Press del to remove all keyframes");
 				ImGui::Text("WallClock time - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.getWallClock()).c_str());
 				ImGui::Text("Keyframe added - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.keyFrameCount()).c_str());
@@ -199,7 +208,7 @@ private:
 	enum MOVEMENT { NO_MOVEMENT = 0, MOVE_FORWARD = 1, MOVE_BACK = 2, MOVE_RIGHT = 4, MOVE_LEFT = 8 };
 
 	enum CAMERA_PLANE { XY = 0, XZ, ZY };
-	enum KEYFRAME_CTRL {RECORD = 0, DEL, NO_ACTION};
+	enum KEYFRAME_CTRL {RECORD = 0, DEL, SAVE, LOAD, NO_ACTION};
 
 	ProjectionViewMat projViewMat;
 
@@ -223,6 +232,8 @@ private:
 
 	CAMERA_PLANE cPlane = XY;
 
+	std::string keyFrameFileName = "default.bin";
+
 	class KeyFrame
 	{
 	public:
@@ -230,6 +241,13 @@ private:
 						
 		uint32_t addKeyFrame(const glm::vec3 &cameraPosition, const glm::vec3 &cameraFocus, const glm::vec3 &cameraUp) 
 		{	
+			for (const auto & t : time) {
+				if (t > wallClock) {
+					WARN(false, "Camera: Could not add keyframe key-frame time must be in ascending order");
+					return static_cast<uint32_t>(time.size());
+				}
+			}
+
 			time.push_back(wallClock);
 			for (int i = 0; i < 3; i++) {
 				camParams[i].push_back(static_cast<double>(cameraPosition[i]));
@@ -255,6 +273,50 @@ private:
 		uint64_t getPlayClock() const
 		{
 			return static_cast<uint64_t>(playTime);
+		}
+
+		void saveKeyFrames(const std::string &filename) 
+		{	
+			if (time.size() < 2) {
+				WARN_DBG_ONLY(false, "Camera: Could not save keframes - number of keyframes must be more than or equal to 2.");
+				return;
+			}
+
+			std::ofstream os(filename, std::ios::binary);
+			if (os.is_open()) {
+				cereal::BinaryOutputArchive archive(os);
+
+				archive(time, camParams[0], camParams[1], camParams[2],
+					camParams[3], camParams[4], camParams[5],
+					camParams[6], camParams[7], camParams[8], uniqueId);
+
+				os.close();
+			}
+			else {
+				WARN_DBG_ONLY(false, "Camera: Could not save keyframes to file - " + filename);
+			}
+		}
+
+		void loadKeyFrames(const std::string &filename)
+		{
+			std::ifstream is(filename, std::ios::binary);
+			if (is.is_open()) {
+				cereal::BinaryInputArchive archive(is);
+				uint64_t uId = 0;
+				archive(time, camParams[0], camParams[1], camParams[2],
+					camParams[3], camParams[4], camParams[5],
+					camParams[6], camParams[7], camParams[8], uId);
+
+				if (uId != uniqueId) {
+					reset();
+					WARN_DBG_ONLY(false, "Camera: Could not load keyframes from file - " + filename + ". Unique Id mismatch!");
+				}
+
+				is.close();
+			}
+			else {
+				WARN_DBG_ONLY(false, "Camera: Could not load keyframes from file - " + filename);
+			}
 		}
 		
 		bool play(glm::vec3 &camPosition, glm::vec3& camFocus, glm::vec3 &camUp, const float timeDelta)
@@ -298,9 +360,12 @@ private:
 		std::vector<double> time;
 		std::array<std::vector<double>, 9> camParams;
 		std::array<tk::spline, 9> splines;
+		
 		double playTime = 0;
 		double delta = 1.0;
 		double wallClock = 0;
+		
+		const uint64_t uniqueId = 0xf1e7ce;
 		void setSpline()
 		{
 			if (time.size() >= 2) {
@@ -539,10 +604,20 @@ private:
 			if (action == GLFW_RELEASE && key == GLFW_KEY_R)
 				control = RECORD;
 		}
-		if (key == GLFW_KEY_DELETE && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+		else if (key == GLFW_KEY_DELETE && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
 			io.getKeyboardInput(key, action);
 			if (action == GLFW_RELEASE && key == GLFW_KEY_DELETE)
 				control = DEL;
+		}
+		else if (key == GLFW_KEY_S && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+			io.getKeyboardInput(key, action);
+			if (action == GLFW_RELEASE && key == GLFW_KEY_S)
+				control = SAVE;
+		}
+		else if (key == GLFW_KEY_L && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+			io.getKeyboardInput(key, action);
+			if (action == GLFW_RELEASE && key == GLFW_KEY_L)
+				control = LOAD;
 		}
 		
 		return control;

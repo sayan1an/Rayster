@@ -20,3 +20,6 @@
 [submodule "external/spline"]
 	path = external/spline
 	url = https://github.com/ttk592/spline.git
+[submodule "external/cereal"]
+	path = external/cereal
+	url = https://github.com/USCiLab/cereal.git
