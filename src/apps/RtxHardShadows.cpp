@@ -36,6 +36,7 @@ class NewGui : public Gui
 {
 public:
 	const IO* io;
+	Camera* cam;
 	PushConstantBlock pcb;
 private:
 
@@ -48,6 +49,7 @@ private:
 	void guiSetup()
 	{
 		io->frameRateWidget();
+		cam->cameraWidget();
 		ImGui::SliderFloat("Light direction - x", &lightX, -1.0f, 1.0f);
 		ImGui::SliderFloat("Light direction - y", &lightY, -1.0f, 1.0f);
 		ImGui::SliderFloat("Light direction - z", &lightZ, -1.0f, 1.0f);
@@ -217,6 +219,7 @@ private:
 		createFramebuffers();
 
 		gui.io = &io;
+		gui.cam = &cam;
 		gui.setStyle();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass, 0);
 
@@ -468,7 +471,7 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-/*
+
 int main() 
 {
 	{	
@@ -488,7 +491,7 @@ int main()
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}*/
+}
 
 
 

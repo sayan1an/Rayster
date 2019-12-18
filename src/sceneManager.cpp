@@ -504,8 +504,8 @@ static void loadDefault(Model &model, Camera &cam)
 
 extern void loadScene(Model& model, Camera& cam, const std::string& name)
 {	
-	loadMedievalHouse(model, cam);
-	//loadSpaceship(model, cam);
+	//loadMedievalHouse(model, cam);
+	loadSpaceship(model, cam);
 	//loadDefault(model, cam);
 
 	/*if (name.compare("default") == 0)

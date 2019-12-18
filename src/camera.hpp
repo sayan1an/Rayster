@@ -113,7 +113,7 @@ public:
 			if (ImGui::CollapsingHeader("Camera keyframing")) {
 				ImGui::Text("Press R to add a new keyframe");
 				ImGui::Text("Press L to load keyframes from file - "); ImGui::SameLine(); ImGui::Text(keyFrameFileName.c_str());
-				ImGui::Text("Press S to save keyframes to file - "); ImGui::SameLine(); ImGui::Text(keyFrameFileName.c_str());
+				ImGui::Text("Press P to save keyframes to file - "); ImGui::SameLine(); ImGui::Text(keyFrameFileName.c_str());
 				ImGui::Text("Press del to remove all keyframes");
 				ImGui::Text("WallClock time - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.getWallClock()).c_str()); ImGui::SameLine();
 				ImGui::Text("Play time - "); ImGui::SameLine(); ImGui::Text(std::to_string(keyFrames.getPlayClock()).c_str());
@@ -314,6 +314,7 @@ private:
 					camParams[3], camParams[4], camParams[5],
 					camParams[6], camParams[7], camParams[8], uniqueId);
 
+				os.flush();
 				os.close();
 			}
 			else {
@@ -342,6 +343,7 @@ private:
 				for (const auto& t : time)
 					keyFrameTimeList.push_back(std::to_string(static_cast<uint64_t>(t)));
 				
+				setSpline();
 				is.close();
 			}
 			else {
@@ -640,9 +642,9 @@ private:
 			if (action == GLFW_RELEASE && key == GLFW_KEY_DELETE)
 				control = DEL;
 		}
-		else if (key == GLFW_KEY_S && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+		else if (key == GLFW_KEY_P && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
 			io.getKeyboardInput(key, action);
-			if (action == GLFW_RELEASE && key == GLFW_KEY_S)
+			if (action == GLFW_RELEASE && key == GLFW_KEY_P)
 				control = SAVE;
 		}
 		else if (key == GLFW_KEY_L && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
