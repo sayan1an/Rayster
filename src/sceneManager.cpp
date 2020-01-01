@@ -41,7 +41,7 @@ static std::string get_path(const std::string& file)
 	return dir;
 }
 
-static Mesh* loadMeshTiny(const char* meshPath)
+static Mesh* loadMeshTiny(const char* meshPath, bool invertNormal = false)
 {	
 	std::cout << "Loading Model...";
 
@@ -70,9 +70,9 @@ static Mesh* loadMeshTiny(const char* meshPath)
 
 			if (!attrib.normals.empty() && index.normal_index >= 0)
 				vertex.normal = {
-					attrib.normals[3 * index.normal_index + 0],
-					attrib.normals[3 * index.normal_index + 1],
-					attrib.normals[3 * index.normal_index + 2]
+					attrib.normals[3 * index.normal_index + 0] * (invertNormal ? -1.0f : 1.0f),
+					attrib.normals[3 * index.normal_index + 1] * (invertNormal ? -1.0f : 1.0f),
+					attrib.normals[3 * index.normal_index + 2] * (invertNormal ? -1.0f : 1.0f)
 			};
 			else
 				vertex.normal = { 0.0f, 1.0f, 0.0f };
@@ -120,7 +120,7 @@ static Mesh* loadMeshTiny(const char* meshPath)
 		}
 
 		for (auto& v : mesh->vertices)
-			v.normal = glm::normalize(v.normal);
+			v.normal = glm::normalize(v.normal) * (invertNormal ? -1.0f : 1.0f);
 	}
 
 	std::cout << "Done." << std::endl;
@@ -307,9 +307,14 @@ static void loadSpaceship(Model& model, Camera& cam)
 			+ std::string((i < 10) ? "0" : "") + std::to_string(i) + ".obj";
 		Mesh* mesh = loadMeshTiny(meshFile.c_str());
 		changeTexCoord(mesh);
+		
 		model.addMesh(mesh);
 	}
-	
+
+	Mesh* mesh = loadMeshTiny((ROOT + "/models/spaceship/meshes/quad.obj").c_str(), true);
+	changeTexCoord(mesh);
+	uint32_t quadLightIndex = model.addMesh(mesh) - 1;
+		
 	// color textures
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f))); // default diffuse color , 0
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f))); // default specular color, 1
@@ -329,8 +334,6 @@ static void loadSpaceship(Model& model, Camera& cam)
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.4f, 1.5f, 1.0f, 1.0f), true)); // 2
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.01f, 1.5f, 1.0f, 1.0f), true)); // 3
 	
-	enum BRDF_TYPE { DIFFUSE, BECKMANN, GGX, DIELECTRIC, AREA };
-
 	std::vector<NamedMaterial> materials;
 	NamedMaterial m = { "RoughAluminium", 0, 2, 0, GGX };
 	materials.push_back(m);
@@ -350,23 +353,26 @@ static void loadSpaceship(Model& model, Camera& cam)
 	materials.push_back(m);
 	m = { "Backdrop", 10, 1, 0, DIFFUSE };
 	materials.push_back(m);
+	m = { "AreaLight", 4, 1, 0, AREA };
+	materials.push_back(m);
 
 	for (const auto& material : materials)
 		model.addMaterial(material.diffuseTextureIdx, material.specularTextureIdx, material.alphaIntExtIorTextureIdx, material.materialType);
 
-	auto addInstance = [&materials, &model](std::string matName, uint32_t meshIdx)
+	auto addInstance = [&materials, &model](std::string matName, uint32_t meshIdx, float scale = 1.0f, float translate = 0.0f)
 	{	
 		uint32_t matIdx = 0;
 		for (const auto& material : materials) {
 			if (material.name.compare(matName) == 0) {
-				glm::mat4 tf = glm::identity<glm::mat4>();
+				glm::mat4 tf = glm::identity<glm::mat4>() * scale;
+				tf = glm::translate<float>(tf, glm::vec3(0.0, translate, 0.0));
 				model.addInstance(meshIdx, tf, matIdx);
 				break;
 			}
 			matIdx++;
 		}
 	};
-
+	
 	addInstance("Backdrop", 50);
 	addInstance("RoughAluminium", 42);
 	addInstance("Leather", 44);
@@ -374,7 +380,7 @@ static void loadSpaceship(Model& model, Camera& cam)
 	addInstance("RoughAluminium", 40);
 	addInstance("RoughAluminium", 72);
 	addInstance("RoughSteel", 33);
-	addInstance("Black", 43);
+	//addInstance("AreaLight", 43); // screen inside spaceship
 	addInstance("Leather", 28);
 	addInstance("RedLeather", 55);
 	addInstance("DarkPlastic", 53);
@@ -385,7 +391,7 @@ static void loadSpaceship(Model& model, Camera& cam)
 	addInstance("RoughAluminium", 27);
 	addInstance("RoughSteel", 64);
 	addInstance("RoughSteel", 58);
-	addInstance("Black", 80);
+	//addInstance("AreaLight", 80); // small headlight
 	addInstance("RoughAluminium", 67);
 	addInstance("RoughAluminium", 60);
 	addInstance("RoughSteel", 26);
@@ -454,6 +460,7 @@ static void loadSpaceship(Model& model, Camera& cam)
 	addInstance("RoughAluminium", 56);
 	addInstance("BrightPinkLeather", 0);
 	addInstance("RedLeather", 22);
+	addInstance("AreaLight", quadLightIndex, 1.0f, 2.0f);
 }
 
 

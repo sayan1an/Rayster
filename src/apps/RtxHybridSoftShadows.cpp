@@ -25,6 +25,7 @@
 #include "../appBase.hpp"
 #include "../generator.h"
 #include "../gui.h"
+#include "../lightSources.h"
 
 struct PushConstantBlock
 {
@@ -259,6 +260,7 @@ private:
 	VkImageView rtxOutImageView;
 
 	Model model;
+	AreaLightSources areaSources;
 
 	std::vector<VkCommandBuffer> commandBuffers;
 
@@ -284,6 +286,7 @@ private:
 		fboManager2.addColorAttachment("swapchain", swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT, swapChainImageViews.data(), static_cast<uint32_t>(swapChainImageViews.size()));
 
 		loadScene(model, cam, "spaceship");
+		areaSources.init(&model);
 		subpass1.createSubpassDescription(device, fboManager1);
 		subpass2.createSubpassDescription(device, fboManager2);
 		createRenderPass();

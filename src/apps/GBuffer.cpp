@@ -36,6 +36,7 @@ class NewGui : public Gui
 {	
 public:
 	const IO* io;
+	Camera* cam;
 	PushConstantBlock pcb;
 private:
 	
@@ -47,6 +48,7 @@ private:
 	void guiSetup()
 	{
 		io->frameRateWidget();
+		cam->cameraWidget();
 		if (ImGui::BeginCombo("Select", currentItem)) // The second parameter is the label previewed before opening the combo.
 		{
 			for (int n = 0; n < IM_ARRAYSIZE(items); n++)
@@ -235,6 +237,7 @@ private:
 		createFramebuffers();
 
 		gui.io = &io;
+		gui.cam = &cam;
 		gui.setStyle();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass, 1);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
@@ -549,4 +552,5 @@ int main()
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}*/
+}
+*/

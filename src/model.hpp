@@ -36,6 +36,9 @@
 #define STATIC_INSTANCE_BINDING_ID	1
 #define DYNAMIC_INSTANCE_BINDING_ID 2 
 
+// Do not shuffle the order, otherwise shaders must updated 
+enum BRDF_TYPE { DIFFUSE, BECKMANN, GGX, DIELECTRIC, AREA };
+
 struct Material
 {
 	uint32_t diffuseTextureIdx;
@@ -75,7 +78,7 @@ namespace std
 // Per instance data, not meant for draw time updates
 struct InstanceData_static 
 {
-	glm::uvec4 data; // diffuse texture index, specular texture index, alpha_intIor_extIor texture index, Material brdf type
+	glm::uvec4 data; // material index, primitive start offset, 0, 0
 };
 
 // Per instance data, update at drawtime
@@ -452,7 +455,7 @@ public:
 	{
 		for (auto& instance : instanceData_dynamic) {
 			instance.model = glm::translate<float>(instance.model, glm::vec3(0.0, 0.0, 0.0));
-			//instance.model = glm::rotate<float>(instance.model, 0.001f, glm::vec3(0, 1, 0));
+			instance.model = glm::rotate<float>(instance.model, 0.001f, glm::vec3(0, 1, 0));
 			instance.modelIT = glm::transpose(glm::inverse(instance.model));
 		}
 		memcpy(mappedDynamicInstancePtr, instanceData_dynamic.data(), sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size());
@@ -599,6 +602,8 @@ public:
 		return as_topLevel.getDescriptorTlasInfo();
 	}
 private:
+	friend class AreaLightSources;
+
 	std::vector<Material> materials; // store matrials
 	std::vector<Mesh *> meshes; // ideally store unique meshes
 	std::vector<Vertex> vertices; // concatenate vertices from all meshes
