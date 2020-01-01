@@ -84,12 +84,11 @@ public:
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/01_raygen.spv");
-		uint32_t missShaderId = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/01_miss.spv");
+		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RtxHybridSoftShadows/01_raygen.spv");
+		uint32_t missShaderId = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxHybridSoftShadows/01_miss.spv");
 		uint32_t hitGroupId = rtxPipeGen.startHitGroup();
 
-		// close hit shader is not required since it is a noop shader
-		//rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/01_close.spv");
+		//rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RtxHybridSoftShadows/01_close.spv");
 		rtxPipeGen.endHitGroup();
 		rtxPipeGen.setMaxRecursionDepth(1);
 		rtxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_RAYGEN_BIT_NV, 0, sizeof(PushConstantBlock) });
@@ -218,9 +217,9 @@ private:
 	GraphicsPipelineGenerator gfxPipeGen;
 };
 
-class RtxHybridHardShadows : public WindowApplication {
+class RtxHybridSoftShadows : public WindowApplication {
 public:
-	RtxHybridHardShadows(const std::vector<const char*>& _instanceExtensions, const std::vector<const char*>& _deviceExtensions) :
+	RtxHybridSoftShadows(const std::vector<const char*>& _instanceExtensions, const std::vector<const char*>& _deviceExtensions) :
 		WindowApplication(std::vector<const char*>(), _instanceExtensions, _deviceExtensions, std::vector<const char*>()) {}
 private:
 	std::vector<VkFramebuffer> swapChainFramebuffers;
@@ -666,13 +665,13 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-/*
+
 int main() 
 {
 	{	
 		std::vector<const char*> deviceExtensions = { VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME };
 		std::vector<const char*> instanceExtensions = { VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
-		RtxHybridHardShadows app(instanceExtensions, deviceExtensions);
+		RtxHybridSoftShadows app(instanceExtensions, deviceExtensions);
 
 		try {
 			app.run(1280, 720, false);
@@ -686,5 +685,5 @@ int main()
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}*/
+}
 

@@ -31,7 +31,7 @@ compileList.append(("./RtxHardShadows/01_raygen.rgen", "./RtxHardShadows/01_rayg
 compileList.append(("./RtxHardShadows/01_miss.rmiss", "./RtxHardShadows/01_miss.spv"))
 compileList.append(("./RtxHardShadows/02_miss.rmiss", "./RtxHardShadows/02_miss.spv"))
 compileList.append(("./RtxHardShadows/01_close.rchit", "./RtxHardShadows/01_close.spv"))
-compileList.append(("./RtxHardShadows/02_close.rchit", "./RtxHardShadows/02_close.spv"))
+#compileList.append(("./RtxHardShadows/02_close.rchit", "./RtxHardShadows/02_close.spv"))
 compileList.append(("./RtxHardShadows/gShow.vert", "./RtxHardShadows/gShowVert.spv"))
 compileList.append(("./RtxHardShadows/gShow.frag", "./RtxHardShadows/gShowFrag.spv"))
 
@@ -42,8 +42,12 @@ compileList.append(("./RtxHybridHardShadows/gShow.vert", "./RtxHybridHardShadows
 compileList.append(("./RtxHybridHardShadows/gShow.frag", "./RtxHybridHardShadows/gShowFrag.spv"))
 compileList.append(("./RtxHybridHardShadows/01_raygen.rgen", "./RtxHybridHardShadows/01_raygen.spv"))
 compileList.append(("./RtxHybridHardShadows/01_miss.rmiss", "./RtxHybridHardShadows/01_miss.spv"))
-compileList.append(("./RtxHybridHardShadows/01_close.rchit", "./RtxHybridHardShadows/01_close.spv"))
 
+compileList.append(("./RtxHybridSoftShadows/gShow.vert", "./RtxHybridSoftShadows/gShowVert.spv"))
+compileList.append(("./RtxHybridSoftShadows/gShow.frag", "./RtxHybridSoftShadows/gShowFrag.spv"))
+compileList.append(("./RtxHybridSoftShadows/01_raygen.rgen", "./RtxHybridSoftShadows/01_raygen.spv"))
+compileList.append(("./RtxHybridSoftShadows/01_miss.rmiss", "./RtxHybridSoftShadows/01_miss.spv"))
+compileList.append(("./RtxHybridSoftShadows/01_close.rchit", "./RtxHybridSoftShadows/01_close.spv"))
 
 try:
     for shader in compileList:
