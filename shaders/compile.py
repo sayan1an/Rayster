@@ -47,7 +47,8 @@ compileList.append(("./RtxHybridSoftShadows/gShow.vert", "./RtxHybridSoftShadows
 compileList.append(("./RtxHybridSoftShadows/gShow.frag", "./RtxHybridSoftShadows/gShowFrag.spv"))
 compileList.append(("./RtxHybridSoftShadows/01_raygen.rgen", "./RtxHybridSoftShadows/01_raygen.spv"))
 compileList.append(("./RtxHybridSoftShadows/01_miss.rmiss", "./RtxHybridSoftShadows/01_miss.spv"))
-compileList.append(("./RtxHybridSoftShadows/01_close.rchit", "./RtxHybridSoftShadows/01_close.spv"))
+compileList.append(("./RtxHybridSoftShadows/02_miss.rmiss", "./RtxHybridSoftShadows/02_miss.spv"))
+compileList.append(("./RtxHybridSoftShadows/02_close.rchit", "./RtxHybridSoftShadows/02_close.spv"))
 
 try:
     for shader in compileList:

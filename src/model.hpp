@@ -78,7 +78,7 @@ namespace std
 // Per instance data, not meant for draw time updates
 struct InstanceData_static 
 {
-	glm::uvec4 data; // material index, primitive start offset, 0, 0
+	glm::uvec4 data; // material index, primitive start offset, radiance if a light source, 0
 };
 
 // Per instance data, update at drawtime
@@ -238,7 +238,7 @@ public:
 	}
 	
 	// When non-default materialIndex is provided, it will override the per vertex material.
-	uint32_t addInstance(uint32_t meshIdx, glm::mat4 &transform, uint32_t materialIndex = 0xffffffff)
+	uint32_t addInstance(uint32_t meshIdx, glm::mat4 &transform, uint32_t materialIndex = 0xffffffff, uint32_t radiance = 0)
 	{
 		CHECK(meshIdx < meshes.size(), "Model: This mesh does not exsist");
 
@@ -249,7 +249,27 @@ public:
 			indexOffset += static_cast<uint32_t>(meshes[i]->indices.size());
 		
 		InstanceData_static instanceDataStatic;
-		instanceDataStatic.data = glm::uvec4(materialIndex, indexOffset, 0, 0);
+		instanceDataStatic.data = glm::uvec4(materialIndex, indexOffset, radiance, 0);
+
+		// When radiance is greater than 0, ensure the matrial type is AREA (or other emitter type)
+		if (radiance > 0) {
+			if (materialIndex >= 0xffffffff) {
+				const Mesh* mesh = meshes[meshIdx];
+
+				for (const auto& v : mesh->vertices) {
+					if (materials[v.materialIndex].materialType != AREA) {
+						WARN(false, "Model: Material type must be AREA when radiance param is non zero!");
+						materials[materialIndex].materialType = AREA;
+					}
+				}
+			}
+			else {
+				if (materials[materialIndex].materialType != AREA) {
+					WARN(false, "Model: Material type must be AREA (or other emitter type) when radiance param is non zero!");
+					materials[materialIndex].materialType = AREA;
+				}
+			}
+		}
 		
 		// assumes instances have meshIdx in groups i.e. aaa-bbbbb-ccccc-dddddd. 
 		uint32_t firstInstance = 0;

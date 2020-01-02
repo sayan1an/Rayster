@@ -86,28 +86,33 @@ public:
 				
 		uint32_t globalInstanceIdx = 0;
 		for (const auto& instance : model->instanceData_static) {
-			if (instance.data.x >= 0xffffffff) {
-				CHECK(false, "AreaLightSources::init() - Not implemented");
+			
+			const Mesh* mesh = nullptr;
+			
+			if (instance.data.z > 0 && instance.data.x >= 0xffffffff) {
+				uint32_t meshIdx = model->meshPointers[globalInstanceIdx];
+				mesh = model->meshes[meshIdx];
 			}
-			else {
+			else if (instance.data.z > 0) {
 				uint32_t materialIdx = instance.data.x;
 				Material mat = model->materials[materialIdx];
 
 				if (mat.materialType == AREA) {
 					uint32_t meshIdx = model->meshPointers[globalInstanceIdx];
-					const Mesh* mesh = model->meshes[meshIdx];
-					
-					for (uint32_t i = 0, primitiveIdx = 0; i < mesh->indices.size(); i += 3, primitiveIdx++) {
-						dPdf.add(computeArea(mesh->vertices[mesh->indices[i]].pos,
-							mesh->vertices[mesh->indices[i + 1]].pos,
-							mesh->vertices[mesh->indices[i + 2]].pos));
-						triangleIdxs.push_back(globalInstanceIdx << 16 | primitiveIdx);
-					}
+					mesh = model->meshes[meshIdx];
 				}
+			}
+
+			for (uint32_t i = 0, primitiveIdx = 0; mesh != nullptr && i < mesh->indices.size(); i += 3, primitiveIdx++) {
+				dPdf.add(computeArea(mesh->vertices[mesh->indices[i]].pos,
+					mesh->vertices[mesh->indices[i + 1]].pos,
+					mesh->vertices[mesh->indices[i + 2]].pos));
+				triangleIdxs.push_back(globalInstanceIdx << 16 | primitiveIdx);
 			}
 
 			globalInstanceIdx++;
 		}
+
 		lightVertices.resize(triangleIdxs.size() * 3);
 
 		createBuffer(device, allocator, queue, commandPool);
@@ -150,9 +155,7 @@ public:
 			lightVertices[lightIndex] = model->instanceData_dynamic[instanceIdx].model * glm::vec4(mesh->vertices[mesh->indices[primitiveIdx]].pos, 1.0f);
 			lightVertices[lightIndex + 1] = model->instanceData_dynamic[instanceIdx].model * glm::vec4(mesh->vertices[mesh->indices[primitiveIdx + 1]].pos, 1.0f);
 			lightVertices[lightIndex + 2] = model->instanceData_dynamic[instanceIdx].model * glm::vec4(mesh->vertices[mesh->indices[primitiveIdx + 2]].pos, 1.0f);
-			//glm::vec4 centroid = lightVertices[lightIndex] + lightVertices[lightIndex + 1] + lightVertices[lightIndex + 2];
-			//centroid /= 3;
-			//std::cout << centroid.x << " " << centroid.y << " " << centroid.z << std::endl;
+			
 			lightIndex += 3;
 		}
 

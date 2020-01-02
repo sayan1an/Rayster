@@ -353,20 +353,20 @@ static void loadSpaceship(Model& model, Camera& cam)
 	materials.push_back(m);
 	m = { "Backdrop", 10, 1, 0, DIFFUSE };
 	materials.push_back(m);
-	m = { "AreaLight", 4, 1, 0, AREA };
+	m = { "AreaLight", 1, 1, 0, AREA };
 	materials.push_back(m);
 
 	for (const auto& material : materials)
 		model.addMaterial(material.diffuseTextureIdx, material.specularTextureIdx, material.alphaIntExtIorTextureIdx, material.materialType);
 
-	auto addInstance = [&materials, &model](std::string matName, uint32_t meshIdx, float scale = 1.0f, float translate = 0.0f)
+	auto addInstance = [&materials, &model](std::string matName, uint32_t meshIdx, float scale = 1.0f, float translate = 0.0f, uint32_t radiance = 0)
 	{	
 		uint32_t matIdx = 0;
 		for (const auto& material : materials) {
 			if (material.name.compare(matName) == 0) {
 				glm::mat4 tf = glm::identity<glm::mat4>() * scale;
 				tf = glm::translate<float>(tf, glm::vec3(0.0, translate, 0.0));
-				model.addInstance(meshIdx, tf, matIdx);
+				model.addInstance(meshIdx, tf, matIdx, radiance);
 				break;
 			}
 			matIdx++;
@@ -460,7 +460,7 @@ static void loadSpaceship(Model& model, Camera& cam)
 	addInstance("RoughAluminium", 56);
 	addInstance("BrightPinkLeather", 0);
 	addInstance("RedLeather", 22);
-	addInstance("AreaLight", quadLightIndex, 1.0f, 2.0f);
+	addInstance("AreaLight", quadLightIndex, 1.0f, 2.0f, 1);
 }
 
 

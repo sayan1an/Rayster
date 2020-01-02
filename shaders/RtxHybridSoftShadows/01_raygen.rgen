@@ -14,7 +14,9 @@ layout(binding = 6, set = 0) uniform CameraProperties
     mat4 viewInv;
     mat4 projInv;
 } cam;
+
 layout(binding = 7, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 8, set = 0) readonly buffer DiscretePdf { float bins[]; } discretePdf;
 
 layout (push_constant) uniform pcBlock {
 	vec3 lightPosition;
@@ -22,6 +24,7 @@ layout (push_constant) uniform pcBlock {
 } pcb;
 
 layout(location = 0) rayPayloadNV uint hit;
+layout(location = 1) rayPayloadNV vec4 radiance;
 
 const float pi = 3.141592653589793;
 
@@ -86,6 +89,71 @@ vec4 shadowRayPointLight(vec3 lightPosition, vec3 viewDir, vec3 origin, vec4 sur
 	return (diffuseColor + specularColor) * hit  / (distance * distance);
 }
 
+vec4 shadowRayAreaLight(vec3 lightPosition, vec3 viewDir, vec3 origin, vec4 surfaceNormal, float bsdfType, vec4 diffRef, vec4 specRef)
+{
+	float distance = length(lightPosition - origin);
+	vec3 lightDir = (lightPosition - origin) / distance;
+	
+	float cos = dot(lightDir, surfaceNormal.xyz);	
+	
+	if (cos < 0)
+		return vec4(0, 0, 0, 1);
+
+	radiance = vec4(-lightDir, 1);
+	traceNV(topLevelAS, gl_RayFlagsOpaqueNV, gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
+		, 1, 0, 1, origin, 0.01f, lightDir, 10000.0f, 1);
+
+	vec4 specularColor = bsdfType > 0.5f ? specRef * ggxBrdf(viewDir, lightDir, surfaceNormal.xyz, surfaceNormal.w) : vec4(0, 0, 0, 1);
+	vec4 diffuseColor = diffRef * cos / pi;
+		
+	return (diffuseColor + specularColor) * radiance  / (distance * distance);
+}
+
+uint wang_hash(uint seed)
+{
+    seed = (seed ^ 61) ^ (seed >> 16);
+    seed *= 9;
+    seed = seed ^ (seed >> 4);
+    seed *= 0x27d4eb2d;
+    seed = seed ^ (seed >> 15);
+    return seed;
+}
+
+vec3 rand(uint seed)
+{	
+	vec3 ret;
+    // Xorshift algorithm from George Marsaglia's paper
+    seed ^= (seed << 13);
+    seed ^= (seed >> 17);
+    seed ^= (seed << 5);
+    
+	ret.x = seed / 4294967296.0;
+
+	seed ^= (seed << 13);
+    seed ^= (seed >> 17);
+    seed ^= (seed << 5);
+    
+	ret.y = seed / 4294967296.0;
+
+	seed ^= (seed << 13);
+    seed ^= (seed >> 17);
+    seed ^= (seed << 5);
+    
+	ret.z = seed / 4294967296.0;
+
+	return ret;
+}
+
+vec3 randomTriplet(uint seed) 
+{	
+	vec3 triplet = rand(wang_hash(seed));
+
+	triplet.y = 1.0 - sqrt(triplet.y);
+	triplet.z = (1.0 - triplet.y) * (1.0 - triplet.z);
+
+	return triplet;
+}
+
 void main()
 {	
 	const ivec2 pixel = ivec2(gl_LaunchIDNV.xy);
@@ -110,10 +178,15 @@ void main()
 	
 		// for shadow rays
 		origin = origin + (other.x - 0.05f) * viewDir;
-		//color = shadowRayPointLight(pcb.lightPosition, -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor, specularColor);
-		vec4 lc = (lightVertices.v[0] + lightVertices.v[1] + lightVertices.v[2]) / 3;
-		color = shadowRayPointLight(lc.xyz, -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor, specularColor);
-		color *= pcb.power;
+		color = shadowRayPointLight(pcb.lightPosition, -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor, specularColor);
+		for (uint i = 0; i < 256; i++) {
+			vec3 randTrip = randomTriplet(pixel.x * 5000 + pixel.y);
+			uint index = randTrip.x > 0.5 ? 0 : 3;
+			
+			color += shadowRayAreaLight((lightVertices.v[index] * randTrip.y + lightVertices.v[index + 1] * randTrip.z + lightVertices.v[index + 2] * (1 - randTrip.y - randTrip.z)).xyz,
+				 -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor, specularColor);
+		}
+		color *= pcb.power / 256;
 	}
 
 	imageStore(outImage, pixel, color);
