@@ -455,7 +455,7 @@ public:
 	{
 		for (auto& instance : instanceData_dynamic) {
 			instance.model = glm::translate<float>(instance.model, glm::vec3(0.0, 0.0, 0.0));
-			instance.model = glm::rotate<float>(instance.model, 0.001f, glm::vec3(0, 1, 0));
+			//instance.model = glm::rotate<float>(instance.model, 0.001f, glm::vec3(0, 1, 0));
 			instance.modelIT = glm::transpose(glm::inverse(instance.model));
 		}
 		memcpy(mappedDynamicInstancePtr, instanceData_dynamic.data(), sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size());

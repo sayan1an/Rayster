@@ -73,7 +73,7 @@ public:
 	VmaAllocation sbtBufferAllocation;
 	ShaderBindingTableGenerator sbtGen;
 
-	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator, const Model& model, FboManager &fboMgr, const Camera& cam)
+	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator, const Model& model, FboManager &fboMgr, const Camera& cam, const AreaLightSources &areaSource)
 	{
 		descGen.bindTLAS({ 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, model.getDescriptorTlas());
 		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("diffuseColor"), VK_IMAGE_LAYOUT_GENERAL });
@@ -82,6 +82,7 @@ public:
 		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("other"), VK_IMAGE_LAYOUT_GENERAL });
 		descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("rtxOut"), VK_IMAGE_LAYOUT_GENERAL });
 		descGen.bindBuffer({ 6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, cam.getDescriptorBufferInfo());
+		descGen.bindBuffer({ 7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.getDescriptorBufferInfo());
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -286,7 +287,7 @@ private:
 		fboManager2.addColorAttachment("swapchain", swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT, swapChainImageViews.data(), static_cast<uint32_t>(swapChainImageViews.size()));
 
 		loadScene(model, cam, "spaceship");
-		areaSources.init(&model);
+		areaSources.init(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, &model);
 		subpass1.createSubpassDescription(device, fboManager1);
 		subpass2.createSubpassDescription(device, fboManager2);
 		createRenderPass();
@@ -302,7 +303,7 @@ private:
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
-		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam);
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources);
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -363,7 +364,7 @@ private:
 		createFramebuffers();
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
-		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam);
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources);
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -373,6 +374,7 @@ private:
 		gui.cleanUp(device, allocator);
 		model.cleanUpRtx(device, allocator);
 		model.cleanUp(device, allocator);
+		areaSources.cleanUp(allocator);
 	}
 	
 	void createRenderPass()
@@ -592,6 +594,7 @@ private:
 		
 		model.cmdTransferData(commandBuffers[index]);
 		model.cmdUpdateTlas(commandBuffers[index]);
+		areaSources.cmdTransferData(commandBuffers[index]);
 
 		// begin first render-pass
 		VkRenderPassBeginInfo renderPassInfo = {};
@@ -660,6 +663,7 @@ private:
 		gui.uploadData(device, allocator);
 		model.updateMeshData();
 		model.updateTlasData();
+		areaSources.updateData();
 		cam.updateProjViewMat(io, swapChainExtent.width, swapChainExtent.height);
 
 		buildCommandBuffer(imageIndex);
