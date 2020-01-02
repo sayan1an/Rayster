@@ -391,7 +391,7 @@ static void loadSpaceship(Model& model, Camera& cam)
 	addInstance("RoughAluminium", 27);
 	addInstance("RoughSteel", 64);
 	addInstance("RoughSteel", 58);
-	//addInstance("AreaLight", 80); // small headlight
+	//addInstance("AreaLight", 80, 1.0f, 0.0f, 1); // small headlight
 	addInstance("RoughAluminium", 67);
 	addInstance("RoughAluminium", 60);
 	addInstance("RoughSteel", 26);

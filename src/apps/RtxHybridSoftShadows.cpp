@@ -31,6 +31,7 @@ struct PushConstantBlock
 {
 	glm::vec3 lightPosition;
 	float power;
+	uint32_t discretePdfSize;
 };
 
 class NewGui : public Gui
@@ -309,6 +310,7 @@ private:
 		gui.io = &io;
 		gui.cam = &cam;
 		gui.setStyle();
+		gui.pcb.discretePdfSize = areaSources.dPdf.size();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);

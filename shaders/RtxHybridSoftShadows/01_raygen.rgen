@@ -21,6 +21,7 @@ layout(binding = 8, set = 0) readonly buffer DiscretePdf { float bins[]; } discr
 layout (push_constant) uniform pcBlock {
 	vec3 lightPosition;
 	float power;
+	uint discretePdfSize;
 } pcb;
 
 layout(location = 0) rayPayloadNV uint hit;
@@ -147,7 +148,7 @@ vec3 rand(uint seed)
 vec3 randomTriplet(uint seed) 
 {	
 	vec3 triplet = rand(wang_hash(seed));
-
+	
 	triplet.y = 1.0 - sqrt(triplet.y);
 	triplet.z = (1.0 - triplet.y) * (1.0 - triplet.z);
 
@@ -179,14 +180,20 @@ void main()
 		// for shadow rays
 		origin = origin + (other.x - 0.05f) * viewDir;
 		color = shadowRayPointLight(pcb.lightPosition, -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor, specularColor);
-		for (uint i = 0; i < 256; i++) {
-			vec3 randTrip = randomTriplet(pixel.x * 5000 + pixel.y);
-			uint index = randTrip.x > 0.5 ? 0 : 3;
+
+		for (uint i = 0; i < 4; i++) {
+			vec3 randTrip = randomTriplet(pixel.x * 5000 + pixel.y + i);
+			
+			uint index = 0;
+			for (uint j = 0; j < pcb.discretePdfSize; j++)
+				index = discretePdf.bins[j] > randTrip.x ? j : index; 
 			
 			color += shadowRayAreaLight((lightVertices.v[index] * randTrip.y + lightVertices.v[index + 1] * randTrip.z + lightVertices.v[index + 2] * (1 - randTrip.y - randTrip.z)).xyz,
-				 -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor, specularColor);
+				-viewDir.xyz, origin.xyz, normal, other.w, diffuseColor, specularColor) / (discretePdf.bins[index + 1] - discretePdf.bins[index]);
+
 		}
-		color *= pcb.power / 256;
+
+		color *= pcb.power / 4;
 	}
 
 	imageStore(outImage, pixel, color);

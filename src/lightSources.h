@@ -53,6 +53,11 @@ public:
 		vmaDestroyBuffer(allocator, dCdfBuffer, dCdfBufferAllocation);
 	}
 
+	uint32_t size()
+	{	
+		return static_cast<uint32_t>(dCdfNormalized.size() - 1);
+	}
+
 	DiscretePdf()
 	{
 		dCdf.reserve(100);
@@ -102,11 +107,13 @@ public:
 					mesh = model->meshes[meshIdx];
 				}
 			}
+			
+			glm::mat3 l2w = glm::mat3(model->instanceData_dynamic[globalInstanceIdx].model);
 
 			for (uint32_t i = 0, primitiveIdx = 0; mesh != nullptr && i < mesh->indices.size(); i += 3, primitiveIdx++) {
-				dPdf.add(computeArea(mesh->vertices[mesh->indices[i]].pos,
-					mesh->vertices[mesh->indices[i + 1]].pos,
-					mesh->vertices[mesh->indices[i + 2]].pos));
+				dPdf.add(computeArea(l2w * (mesh->vertices[mesh->indices[i]].pos),
+					l2w * (mesh->vertices[mesh->indices[i + 1]].pos),
+					l2w * (mesh->vertices[mesh->indices[i + 2]].pos)));
 				triangleIdxs.push_back(globalInstanceIdx << 16 | primitiveIdx);
 			}
 
@@ -152,6 +159,8 @@ public:
 			uint32_t meshIdx = model->meshPointers[instanceIdx];
 			const Mesh* mesh = model->meshes[meshIdx];
 			
+			//std::cout << determinant(model->instanceData_dynamic[instanceIdx].model) << std::endl;
+
 			lightVertices[lightIndex] = model->instanceData_dynamic[instanceIdx].model * glm::vec4(mesh->vertices[mesh->indices[primitiveIdx]].pos, 1.0f);
 			lightVertices[lightIndex + 1] = model->instanceData_dynamic[instanceIdx].model * glm::vec4(mesh->vertices[mesh->indices[primitiveIdx + 1]].pos, 1.0f);
 			lightVertices[lightIndex + 2] = model->instanceData_dynamic[instanceIdx].model * glm::vec4(mesh->vertices[mesh->indices[primitiveIdx + 2]].pos, 1.0f);
@@ -192,9 +201,9 @@ private:
 	VkBuffer lightVerticesBuffer;
 	VmaAllocation lightVerticesBufferAllocation;
 
-	inline float computeArea(const glm::vec3 v0, const glm::vec3 v1, const glm::vec3 v2)
-	{
-		return glm::cross(v0 - v1, v0 - v2).length() * 0.5f;
+	inline float computeArea(const glm::vec3 &v0, const glm::vec3 &v1, const glm::vec3 &v2)
+	{	
+		return glm::length(glm::cross(v0 - v1, v0 - v2)) * 0.5f;
 	}
 
 	void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool)
