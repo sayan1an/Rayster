@@ -90,6 +90,7 @@ public:
 		CHECK(model->materials.size() > 0, "AreaLightSources::init() - Model (Materials) are not initialized");
 				
 		uint32_t globalInstanceIdx = 0;
+		uint32_t areaLightPrimitiveOffsetCounter = 0;
 		for (const auto& instance : model->instanceData_static) {
 			
 			const Mesh* mesh = nullptr;
@@ -117,6 +118,12 @@ public:
 				triangleIdxs.push_back(globalInstanceIdx << 16 | primitiveIdx);
 			}
 
+			// Verify whether primitive offsets for the area emitters are correct
+			if (mesh != nullptr) {
+				CHECK(areaLightPrimitiveOffsetCounter == (instance.data.z >> 8), "AreaLightSources: areaLight primitive offsets are incorrect.");
+				areaLightPrimitiveOffsetCounter += static_cast<uint32_t>(mesh->indices.size());
+			}
+			
 			globalInstanceIdx++;
 		}
 
@@ -164,6 +171,12 @@ public:
 			lightVertices[lightIndex] = model->instanceData_dynamic[instanceIdx].model * glm::vec4(mesh->vertices[mesh->indices[primitiveIdx]].pos, 1.0f);
 			lightVertices[lightIndex + 1] = model->instanceData_dynamic[instanceIdx].model * glm::vec4(mesh->vertices[mesh->indices[primitiveIdx + 1]].pos, 1.0f);
 			lightVertices[lightIndex + 2] = model->instanceData_dynamic[instanceIdx].model * glm::vec4(mesh->vertices[mesh->indices[primitiveIdx + 2]].pos, 1.0f);
+			
+			// also save un normalized normal as it also gives the area i.e area = length(normal) * 0.5
+			glm::vec3 normal = glm::cross(glm::vec3(lightVertices[lightIndex] - lightVertices[lightIndex + 1]), glm::vec3(lightVertices[lightIndex] - lightVertices[lightIndex + 2]));
+			lightVertices[lightIndex].w = normal.x;
+			lightVertices[lightIndex + 1].w = normal.y;
+			lightVertices[lightIndex + 2].w = normal.z;
 			
 			lightIndex += 3;
 		}

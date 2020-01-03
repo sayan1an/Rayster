@@ -78,7 +78,7 @@ namespace std
 // Per instance data, not meant for draw time updates
 struct InstanceData_static 
 {
-	glm::uvec4 data; // material index, primitive start offset, radiance if a light source, 0
+	glm::uvec4 data; // material index, primitive start offset, area light offset | bool whether a light source, 0
 };
 
 // Per instance data, update at drawtime
@@ -241,8 +241,8 @@ public:
 	uint32_t addInstance(uint32_t meshIdx, glm::mat4 &transform, uint32_t materialIndex = 0xffffffff, uint32_t radiance = 0)
 	{
 		CHECK(meshIdx < meshes.size(), "Model: This mesh does not exsist");
-
 		CHECK(materialIndex >= 0xffffffff || materialIndex < materials.size(), "Model: This material does not exsist");
+		CHECK(radiance < 256, "Model: Radiance value should be less than 256, since we have 8 bits to represent radiance.");
 
 		uint32_t indexOffset = 0;
 		for (uint32_t i = 0; i < meshIdx; i++)
@@ -251,10 +251,11 @@ public:
 		InstanceData_static instanceDataStatic;
 		instanceDataStatic.data = glm::uvec4(materialIndex, indexOffset, radiance, 0);
 
-		// When radiance is greater than 0, ensure the matrial type is AREA (or other emitter type)
-		if (radiance > 0) {
+		// When the instance is of type light source, ensure the matrial type is AREA (or other emitter type)
+		if (radiance) {
+			const Mesh* mesh = nullptr;
 			if (materialIndex >= 0xffffffff) {
-				const Mesh* mesh = meshes[meshIdx];
+				mesh = meshes[meshIdx];
 
 				for (const auto& v : mesh->vertices) {
 					if (materials[v.materialIndex].materialType != AREA) {
@@ -262,12 +263,22 @@ public:
 						materials[materialIndex].materialType = AREA;
 					}
 				}
+
+				instanceDataStatic.data.z = instanceDataStatic.data.z | (areaLightPrimitiveOffsetCounter << 8);
+				areaLightPrimitiveOffsetCounter += static_cast<uint32_t>(mesh->indices.size());
 			}
 			else {
 				if (materials[materialIndex].materialType != AREA) {
 					WARN(false, "Model: Material type must be AREA (or other emitter type) when radiance param is non zero!");
-					materials[materialIndex].materialType = AREA;
+					materials[materialIndex].materialType = AREA; // TODO :: change to appropriate emiiter type in future
 				}
+				if (materials[materialIndex].materialType == AREA)
+					mesh = meshes[meshIdx];
+			}
+
+			if (mesh) {
+				instanceDataStatic.data.z = instanceDataStatic.data.z | (areaLightPrimitiveOffsetCounter << 8);
+				areaLightPrimitiveOffsetCounter += static_cast<uint32_t>(mesh->indices.size());
 			}
 		}
 		
@@ -657,6 +668,8 @@ private:
 	TextureGenerator hdrTexGen = TextureGenerator("Model: HDR texture");;
 	VkImage hdrTextureImage;
 	VmaAllocation hdrTextureImageAllocation;
+
+	uint32_t areaLightPrimitiveOffsetCounter = 0;
 
 	/** RTX Data **/
 	TopLevelAccelerationStructure as_topLevel;

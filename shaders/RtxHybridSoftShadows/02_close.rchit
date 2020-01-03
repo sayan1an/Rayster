@@ -2,6 +2,7 @@
 #extension GL_NV_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : enable
 
+layout(binding = 7, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
 layout(binding = 9, set = 0) readonly buffer StaticInstanceData { uvec4 i[]; } staticInstanceData;
 layout(binding = 10, set = 0) readonly buffer Material { uvec4 textureIdx[]; } materials;
 layout(binding = 11, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
@@ -47,6 +48,7 @@ void main()
 
    radiance = vec4(0, 0, 0, 1);
 
+   // check whether the primitive is an emiiter (generic) source
    if (staticInstanceDataUnit.z > 0) {
       ivec3 ind = ivec3(indices.i[3 * gl_PrimitiveID + staticInstanceDataUnit.y], indices.i[3 * gl_PrimitiveID + staticInstanceDataUnit.y + 1],
                     indices.i[3 * gl_PrimitiveID + staticInstanceDataUnit.y + 2]);
@@ -55,6 +57,7 @@ void main()
       uint materialIdx = staticInstanceDataUnit.x == 0xffffffff ? v0.materialIdx : staticInstanceDataUnit.x;
       uvec4 textureIdxUnit = materials.textureIdx[materialIdx];
 
+      // check whether the primitive is an area-emiiter
       if (textureIdxUnit.w == 4) {
          const vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
          
@@ -63,9 +66,17 @@ void main()
          
          vec3 color = v0.color * barycentricCoords.x + v1.color * barycentricCoords.y + v2.color * barycentricCoords.z;
          vec2 texCoord = v0.texCoord * barycentricCoords.x + v1.texCoord * barycentricCoords.y + v2.texCoord * barycentricCoords.z;
-         vec3 normal = normalize(transpose(mat3(gl_WorldToObjectNV)) * (v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z));
-  
-         radiance = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)) * vec4(color, 1.0f) * staticInstanceDataUnit.z * abs(dot(lightDir, normal)); // diffuse texture
+         uint primitiveIndex = 3 * gl_PrimitiveID + (staticInstanceDataUnit.z >> 8);
+         // shNormal
+         //vec3 normal = normalize(transpose(mat3(gl_WorldToObjectNV)) * (v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z));
+         // geoNormal        
+         vec3 normal = vec3(lightVertices.v[primitiveIndex].w, lightVertices.v[primitiveIndex + 1].w, lightVertices.v[primitiveIndex + 2].w);
+
+         float area = length(normal);
+         normal /= area;
+         area *= 0.5f;
+        
+         radiance = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)) * vec4(color, 1.0f) * (staticInstanceDataUnit.z & 0xff) * area * abs(dot(lightDir, normal)); // diffuse texture
       }
    }
 }
