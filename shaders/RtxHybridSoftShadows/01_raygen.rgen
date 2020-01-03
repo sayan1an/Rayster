@@ -30,6 +30,8 @@ layout(location = 1) rayPayloadNV vec4 radiance;
 
 const float pi = 3.141592653589793;
 
+uint XorshiftState;
+
 float ggxDist(const vec3 h, const vec3 n, float alpha) {
     float cosine_sq = dot(h, n);
     cosine_sq *= cosine_sq;
@@ -121,34 +123,29 @@ uint wang_hash(uint seed)
     return seed;
 }
 
-vec3 rand(uint seed)
+void xorshift()
+{
+	XorshiftState ^= (XorshiftState << 13);
+    XorshiftState ^= (XorshiftState >> 17);
+    XorshiftState ^= (XorshiftState << 5);
+}
+
+vec3 rand()
 {	
 	vec3 ret;
-    // Xorshift algorithm from George Marsaglia's paper
-    seed ^= (seed << 13);
-    seed ^= (seed >> 17);
-    seed ^= (seed << 5);
-    
-	ret.x = seed / 4294967296.0;
-
-	seed ^= (seed << 13);
-    seed ^= (seed >> 17);
-    seed ^= (seed << 5);
-    
-	ret.y = seed / 4294967296.0;
-
-	seed ^= (seed << 13);
-    seed ^= (seed >> 17);
-    seed ^= (seed << 5);
-    
-	ret.z = seed / 4294967296.0;
+	xorshift();    
+	ret.x = XorshiftState / 4294967296.0;
+	xorshift();
+    ret.y = XorshiftState / 4294967296.0;
+	xorshift();
+	ret.z = XorshiftState / 4294967296.0;
 
 	return ret;
 }
 
-vec3 randomTriplet(uint seed) 
+vec3 randomTriplet()
 {	
-	vec3 triplet = rand(wang_hash(seed));
+	vec3 triplet = rand();
 	
 	triplet.y = 1.0 - sqrt(triplet.y);
 	triplet.z = (1.0 - triplet.y) * (1.0 - triplet.z);
@@ -182,8 +179,10 @@ void main()
 		origin = origin + (other.x - 0.05f) * viewDir;
 		color = shadowRayPointLight(pcb.lightPosition, -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor, specularColor);
 
+		XorshiftState = wang_hash(pixel.x * 5000 + pixel.y);
+
 		for (uint i = 0; i < pcb.numSamples; i++) {
-			vec3 randTrip = randomTriplet(pixel.x * 5000 + pixel.y + i);
+			vec3 randTrip = randomTriplet();
 			uint index = 0;
 			// This is ridiculus, TODO:: find better solution
 			for (uint j = 0; j < pcb.discretePdfSize; j++)

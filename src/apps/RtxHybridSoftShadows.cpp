@@ -32,7 +32,7 @@ struct PushConstantBlock
 	glm::vec3 lightPosition;
 	float power;
 	uint32_t discretePdfSize;
-	uint32_t numSamples = 4;
+	uint32_t numSamples;
 };
 
 class NewGui : public Gui
@@ -48,6 +48,7 @@ private:
 	float lightZ = 1;
 	float power = 100;
 	float distance = 10;
+	int numSamples = 4;
 
 	void guiSetup()
 	{
@@ -58,8 +59,10 @@ private:
 		ImGui::SliderFloat("Light direction - z", &lightZ, -1.0f, 1.0f);
 		ImGui::SliderFloat("Light power", &power, 50.0f, 500.0f);
 		ImGui::SliderFloat("Light distance", &distance, 1.0f, 25.0f);
+		ImGui::SliderInt("MC Samples", &numSamples, 1, 256);
 		pcb.lightPosition = glm::normalize(glm::vec3(lightX, lightY, lightZ)) * distance;
 		pcb.power = power;
+		pcb.numSamples = static_cast<uint32_t>(numSamples);
 	}
 };
 
