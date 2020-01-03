@@ -71,11 +71,11 @@ void main()
 
   vec3 color = v0.color * barycentricCoords.x + v1.color * barycentricCoords.y + v2.color * barycentricCoords.z;
   vec2 texCoord = v0.texCoord * barycentricCoords.x + v1.texCoord * barycentricCoords.y + v2.texCoord * barycentricCoords.z;
-  vec4 normal = transpose(gl_WorldToObjectNV) * (v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z);
+  vec3 normal = normalize(transpose(mat3(gl_WorldToObjectNV)) * (v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z));
   
   vec4 alphaIntExtIor = texture(hdrTexSampler, vec3(texCoord, textureIdxUnit.z)); // alphaIntExtIor texture
   payload.diffuseColor = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)) * vec4(color, 1.0f); // diffuse texture
   payload.specularColor = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.y)); // specular texture
-  payload.normal = vec4(normal.xyz, alphaIntExtIor.x);
+  payload.normal = vec4(normal, alphaIntExtIor.x);
   payload.other = vec4(gl_HitTNV, alphaIntExtIor.yz, textureIdxUnit.w);
 }

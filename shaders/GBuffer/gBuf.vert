@@ -39,7 +39,7 @@ void main()
     worldPos = modelTransform * vec4(inPosition, 1.0);
     gl_Position = ubo.proj * ubo.view * worldPos;
     fragColor = inColor;
-    fragNormal = (modelTransformIT * vec4(inNormal, 0)).xyz;
+    fragNormal = normalize((modelTransformIT * vec4(inNormal, 0)).xyz);
     fragTexCoord = inTexCoord;
     uint materialIndex = inData.x == 0xffffffff ? materialIdx : inData.x;
     fragData = materials.textureIds[materialIndex];

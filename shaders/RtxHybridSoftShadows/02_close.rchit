@@ -63,9 +63,9 @@ void main()
          
          vec3 color = v0.color * barycentricCoords.x + v1.color * barycentricCoords.y + v2.color * barycentricCoords.z;
          vec2 texCoord = v0.texCoord * barycentricCoords.x + v1.texCoord * barycentricCoords.y + v2.texCoord * barycentricCoords.z;
-         vec4 normal = transpose(gl_WorldToObjectNV) * (v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z);
-    
-         radiance = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)) * vec4(color, 1.0f) * staticInstanceDataUnit.z * abs(dot(lightDir, normal.xyz)); // diffuse texture
+         vec3 normal = normalize(transpose(mat3(gl_WorldToObjectNV)) * (v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z));
+  
+         radiance = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)) * vec4(color, 1.0f) * staticInstanceDataUnit.z * abs(dot(lightDir, normal)); // diffuse texture
       }
    }
 }

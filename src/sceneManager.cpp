@@ -1,5 +1,6 @@
 #include "sceneManager.h"
 //#include <assimp/Importer.hpp> 
+#include <glm/gtc/matrix_transform.hpp>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
@@ -364,8 +365,9 @@ static void loadSpaceship(Model& model, Camera& cam)
 		uint32_t matIdx = 0;
 		for (const auto& material : materials) {
 			if (material.name.compare(matName) == 0) {
-				glm::mat4 tf = glm::identity<glm::mat4>() * scale;
+				glm::mat4 tf = glm::identity<glm::mat4>();
 				tf = glm::translate<float>(tf, glm::vec3(0.0, translate, 0.0));
+				tf = glm::scale(tf, glm::vec3(scale));
 				model.addInstance(meshIdx, tf, matIdx, radiance);
 				break;
 			}
@@ -460,7 +462,7 @@ static void loadSpaceship(Model& model, Camera& cam)
 	addInstance("RoughAluminium", 56);
 	addInstance("BrightPinkLeather", 0);
 	addInstance("RedLeather", 22);
-	addInstance("AreaLight", quadLightIndex, 1.0f, 2.0f, 1);
+	addInstance("AreaLight", quadLightIndex, 0.5f, 2.0f, 1);
 }
 
 

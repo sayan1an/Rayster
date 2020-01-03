@@ -193,7 +193,7 @@ void main()
 
 		}
 
-		color *= pcb.power / 4;
+		color *= pcb.power * 0.1 / 4;
 	}
 
 	imageStore(outImage, pixel, color);
