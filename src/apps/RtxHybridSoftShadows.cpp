@@ -46,7 +46,7 @@ private:
 	float lightX = 1;
 	float lightY = 1;
 	float lightZ = 1;
-	float power = 100;
+	float power = 10;
 	float distance = 10;
 	int numSamples = 4;
 
@@ -57,7 +57,7 @@ private:
 		ImGui::SliderFloat("Light direction - x", &lightX, -1.0f, 1.0f);
 		ImGui::SliderFloat("Light direction - y", &lightY, -1.0f, 1.0f);
 		ImGui::SliderFloat("Light direction - z", &lightZ, -1.0f, 1.0f);
-		ImGui::SliderFloat("Light power", &power, 50.0f, 500.0f);
+		ImGui::SliderFloat("Light power", &power, 1.0f, 100.0f);
 		ImGui::SliderFloat("Light distance", &distance, 1.0f, 25.0f);
 		ImGui::SliderInt("MC Samples", &numSamples, 1, 256);
 		pcb.lightPosition = glm::normalize(glm::vec3(lightX, lightY, lightZ)) * distance;

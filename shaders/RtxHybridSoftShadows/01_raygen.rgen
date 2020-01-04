@@ -32,6 +32,11 @@ const float pi = 3.141592653589793;
 
 uint XorshiftState;
 
+struct XorwowState {
+  uint a, b, c, d;
+  uint counter;
+} xorwowState;
+
 float ggxDist(const vec3 h, const vec3 n, float alpha) {
     float cosine_sq = dot(h, n);
     cosine_sq *= cosine_sq;
@@ -123,23 +128,46 @@ uint wang_hash(uint seed)
     return seed;
 }
 
-void xorshift()
+uint xorshift()
 {
 	XorshiftState ^= (XorshiftState << 13);
     XorshiftState ^= (XorshiftState >> 17);
     XorshiftState ^= (XorshiftState << 5);
+
+	return XorshiftState;
+}
+
+uint xorwow()
+{
+	uint t = xorwowState.d;
+
+	uint s = xorwowState.a;
+	xorwowState.d = xorwowState.c;
+	xorwowState.c = xorwowState.b;
+	xorwowState.b = s;
+
+	t ^= (t >> 2);
+	t ^= (t << 1);
+	t ^= (s ^ (s << 4));
+	xorwowState.a = t;
+
+	xorwowState.counter += 362437;
+	return t + xorwowState.counter;
 }
 
 vec3 rand()
 {	
 	vec3 ret;
-	xorshift();    
-	ret.x = XorshiftState / 4294967296.0;
-	xorshift();
-    ret.y = XorshiftState / 4294967296.0;
-	xorshift();
-	ret.z = XorshiftState / 4294967296.0;
-
+	
+	ret.x = xorshift() / 4294967296.0;     
+    ret.y = xorshift() / 4294967296.0;
+	ret.z = xorshift() / 4294967296.0;
+	
+	/*
+	ret.x = xorwow() / 4294967296.0;     
+    ret.y = xorwow() / 4294967296.0;
+	ret.z = xorwow() / 4294967296.0;
+	*/
 	return ret;
 }
 
@@ -181,7 +209,13 @@ void main()
 		color = shadowRayPointLight(pcb.lightPosition, -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor, specularColor);
 
 		XorshiftState = wang_hash(pixel.x * 5000 + pixel.y);
-
+		/*
+		xorwowState.a = wang_hash(pixel.x * 5000 + pixel.y);
+		xorwowState.b = wang_hash(pixel.x * 5000 + pixel.y + 1);
+		xorwowState.c = wang_hash(pixel.x * 5000 + pixel.y + 2);
+		xorwowState.d = wang_hash(pixel.x * 5000 + pixel.y + 3);
+		xorwowState.counter = wang_hash(pixel.x * 5000 + pixel.y + 4);
+		*/
 		for (uint i = 0; i < pcb.numSamples; i++) {
 			vec3 randTrip = randomTriplet();
 			uint index = 0;

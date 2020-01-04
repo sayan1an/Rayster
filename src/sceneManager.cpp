@@ -313,7 +313,7 @@ static void loadSpaceship(Model& model, Camera& cam)
 	}
 
 	Mesh* mesh = loadMeshTiny((ROOT + "/models/spaceship/meshes/quad.obj").c_str(), true);
-	changeTexCoord(mesh);
+	//changeTexCoord(mesh);
 	uint32_t quadLightIndex = model.addMesh(mesh) - 1;
 		
 	// color textures
@@ -328,6 +328,7 @@ static void loadSpaceship(Model& model, Camera& cam)
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.025f, 0.025f, 0.025f, 1.0f))); // 8
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f))); // 9
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.1f, 0.1f, 0.1f, 1.0f))); // 10
+	model.addLdrTexture(Image2d(ROOT + "/models/spaceship/light.jpg"));
 
 	// alpha, intIor, extIor texture
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.1f, 1.0f, 1.0f, 1.0f), true)); // 0
@@ -348,13 +349,13 @@ static void loadSpaceship(Model& model, Camera& cam)
 	materials.push_back(m);
 	m = { "BrightPinkLeather", 7, 1, 2, BECKMANN };
 	materials.push_back(m);
-	m = { "Glass", 0, 1, 3, DIELECTRIC };
+	m = { "Glass", 10, 1, 3, DIELECTRIC };
 	materials.push_back(m);
 	m = { "DarkRubber", 8, 1, 2, GGX };
 	materials.push_back(m);
 	m = { "Backdrop", 10, 1, 0, DIFFUSE };
 	materials.push_back(m);
-	m = { "AreaLight", 1, 1, 0, AREA };
+	m = { "AreaLight", 11, 1, 0, AREA };
 	materials.push_back(m);
 
 	for (const auto& material : materials)
@@ -458,12 +459,11 @@ static void loadSpaceship(Model& model, Camera& cam)
 	addInstance("RoughSteel", 3);
 	addInstance("RoughAluminium", 2);
 	addInstance("RoughSteel", 51);
-	addInstance("AreaLight", quadLightIndex, 0.5f, 5.0f, 1);
 	addInstance("Glass", 1);
 	addInstance("RoughAluminium", 56);
 	addInstance("BrightPinkLeather", 0);
 	addInstance("RedLeather", 22);
-	//addInstance("AreaLight", quadLightIndex, 0.5f, 2.0f, 1);
+	addInstance("AreaLight", quadLightIndex, 0.5f, 2.0f, 1);
 }
 
 
