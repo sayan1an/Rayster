@@ -160,10 +160,11 @@ void main()
 	const vec4 other = imageLoad(otherImage, pixel).rgba;
 
 	vec4 color = vec4(0, 0, 0, 1);
+	// If the primary intersection is a light source
 	if (other.w > 3.5 && other.w < 4.5)
 		color = diffuseColor;
-
-	else {
+	// primary hit point is valid
+	else if (other.w > -0.5f){
 		const vec4 specularColor = imageLoad(specularImage, pixel).rgba;
 		const vec4 normal = imageLoad(normalImage, pixel).rgba;
 

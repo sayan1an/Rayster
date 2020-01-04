@@ -690,7 +690,6 @@ private:
 	}
 };
 
-
 int main() 
 {
 	{	
