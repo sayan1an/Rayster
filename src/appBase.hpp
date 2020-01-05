@@ -384,7 +384,7 @@ protected:
 			recreateSwapChain();
 			return 0xffffffff;
 		}
-
+		
 		CHECK_DBG_ONLY(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR, "WindowApplication: failed to acquire swap chain image!");
 		
 		return imageIndex;
@@ -442,8 +442,7 @@ private:
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapChain;
 	
-
-	const int MAX_FRAMES_IN_FLIGHT = 2;
+	const int MAX_FRAMES_IN_FLIGHT = 1; // Increase only when overlapping frames are possible i.e each parallel frame operates on its own buffer
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
 	std::vector<VkFence> inFlightFences;

@@ -1065,6 +1065,11 @@ public:
 
 		return descriptorBufferInfo;
 	}
+
+	uint32_t getNextUint32_t()
+	{
+		return uniformUInt32Distribution(generator);
+	}
 private:
 	VkBuffer stateMemory;
 	VmaAllocation stateMemoryAllocation;

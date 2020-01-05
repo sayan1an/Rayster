@@ -440,7 +440,7 @@ private:
 			dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 			dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 			dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-			
+
 			dependencies[1].srcSubpass = 0;
 			dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
 			dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -488,9 +488,9 @@ private:
 			dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
 			dependencies[0].dstSubpass = 0;
 			dependencies[0].srcStageMask = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV;
-			dependencies[0].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 			dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-			dependencies[0].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+			dependencies[0].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 			dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 			dependencies[1].srcSubpass = 0;
@@ -652,13 +652,13 @@ private:
 		VkDeviceSize missStride = rtxPass.sbtGen.getMissEntrySize();
 		VkDeviceSize hitGroupOffset = rtxPass.sbtGen.getHitGroupOffset();
 		VkDeviceSize hitGroupStride = rtxPass.sbtGen.getHitGroupEntrySize();
-		
+						
 		vkCmdTraceRaysNV(commandBuffers[index], rtxPass.sbtBuffer, rayGenOffset,
 			rtxPass.sbtBuffer, missOffset, missStride,
 			rtxPass.sbtBuffer, hitGroupOffset, hitGroupStride,
 			VK_NULL_HANDLE, 0, 0, swapChainExtent.width,
 			swapChainExtent.height, 1);
-
+				
 		// begin second render-pass
 		renderPassInfo.renderPass = renderPass2;
 		renderPassInfo.framebuffer = swapChainFramebuffers[index];
@@ -680,7 +680,7 @@ private:
 		VK_CHECK_DBG_ONLY(vkEndCommandBuffer(commandBuffers[index]),
 			"failed to record command buffer!");
 	}
-
+	
 	void drawFrame() {
 		uint32_t imageIndex = frameBegin();
 		if (imageIndex == 0xffffffff)
@@ -695,7 +695,6 @@ private:
 
 		buildCommandBuffer(imageIndex);
 		submitRenderCmd(commandBuffers[imageIndex]);
-
 		frameEnd(imageIndex);
 	}
 };

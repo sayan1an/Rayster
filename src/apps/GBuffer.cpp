@@ -517,7 +517,7 @@ private:
 		VK_CHECK_DBG_ONLY(vkEndCommandBuffer(commandBuffers[index]),
 			"GBufferApp: failed to record command buffer!");
 	}
-
+	
 	void drawFrame() {
 		uint32_t imageIndex = frameBegin();
 		if (imageIndex == 0xffffffff)
