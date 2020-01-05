@@ -38,7 +38,7 @@ public:
 		return descriptorBufferInfo;
 	}
 	
-	void createBuffers(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool)
+	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool)
 	{	
 		CHECK(dCdf.size() > 1, "DiscretePdf: Cannot create buffer.");
 		CHECK(dCdfNormalized.size() > 1, "DiscretePdf: Cannot create buffer.");
@@ -82,7 +82,7 @@ class AreaLightSources
 public:
 	DiscretePdf dPdf;
 
-	void init(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const Model *_model)
+	void init(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const Model *_model)
 	{
 		model = _model;
 
@@ -130,7 +130,7 @@ public:
 		lightVertices.resize(triangleIdxs.size() * 3);
 
 		createBuffer(device, allocator, queue, commandPool);
-		dPdf.createBuffers(physicalDevice, device, allocator, queue, commandPool);
+		dPdf.createBuffers(device, allocator, queue, commandPool);
 	}
 
 	void cmdTransferData(const VkCommandBuffer& cmdBuffer)

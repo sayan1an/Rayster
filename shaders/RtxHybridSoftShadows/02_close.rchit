@@ -9,7 +9,7 @@ layout(binding = 11, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
 layout(binding = 12, set = 0) readonly buffer Indices { uint i[]; } indices;
 layout(binding = 13, set = 0) uniform sampler2DArray ldrTexSampler;
 
-layout(location = 1) rayPayloadInNV vec4 radiance;
+layout(location = 1) rayPayloadInNV vec3 radiance;
 hitAttributeNV vec3 attribs;
 
 struct Vertex 
@@ -44,9 +44,9 @@ Vertex unpackVertex(uint index)
 void main()
 {  
    uvec4 staticInstanceDataUnit = staticInstanceData.i[gl_InstanceID];
-   vec3 lightDir = radiance.xyz;
+   vec3 lightDir = radiance;
 
-   radiance = vec4(0, 0, 0, 1);
+   radiance = vec3(0, 0, 0);
 
    // check whether the primitive is an emiiter (generic) source
    if (staticInstanceDataUnit.z > 0) {
@@ -76,7 +76,7 @@ void main()
          normal /= area;
          area *= 0.5f;
         
-         radiance = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)) * vec4(color, 1.0f) * (staticInstanceDataUnit.z & 0xff) * area * abs(dot(lightDir, normal)); // diffuse texture
+         radiance = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)).xyz * color * (staticInstanceDataUnit.z & 0xff) * area * abs(dot(lightDir, normal)); // diffuse texture
       }
    }
 }

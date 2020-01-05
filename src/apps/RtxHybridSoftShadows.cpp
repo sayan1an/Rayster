@@ -26,6 +26,7 @@
 #include "../generator.h"
 #include "../gui.h"
 #include "../lightSources.h"
+#include <cstdlib>
 
 struct PushConstantBlock
 {
@@ -33,6 +34,7 @@ struct PushConstantBlock
 	float power;
 	uint32_t discretePdfSize;
 	uint32_t numSamples;
+	uint32_t seed;
 };
 
 class NewGui : public Gui
@@ -44,7 +46,7 @@ public:
 private:
 
 	float lightX = 1;
-	float lightY = 1;
+	float lightY = -1;
 	float lightZ = 1;
 	float power = 10;
 	float distance = 10;
@@ -54,15 +56,16 @@ private:
 	{
 		io->frameRateWidget();
 		cam->cameraWidget();
-		ImGui::SliderFloat("Light direction - x", &lightX, -1.0f, 1.0f);
-		ImGui::SliderFloat("Light direction - y", &lightY, -1.0f, 1.0f);
-		ImGui::SliderFloat("Light direction - z", &lightZ, -1.0f, 1.0f);
-		ImGui::SliderFloat("Light power", &power, 1.0f, 100.0f);
-		ImGui::SliderFloat("Light distance", &distance, 1.0f, 25.0f);
-		ImGui::SliderInt("MC Samples", &numSamples, 1, 256);
+		ImGui::SliderFloat("Emitter direction - x", &lightX, -1.0f, 1.0f);
+		ImGui::SliderFloat("Emitter direction - y", &lightY, -1.0f, 1.0f);
+		ImGui::SliderFloat("Emitter direction - z", &lightZ, -1.0f, 1.0f);
+		ImGui::SliderFloat("Emitter power", &power, 1.0f, 100.0f);
+		ImGui::SliderFloat("Emitter distance", &distance, 1.0f, 25.0f);
+		ImGui::SliderInt("MC Samples", &numSamples, 1, 64);
 		pcb.lightPosition = glm::normalize(glm::vec3(lightX, lightY, lightZ)) * distance;
 		pcb.power = power;
 		pcb.numSamples = static_cast<uint32_t>(numSamples);
+		pcb.seed = static_cast<uint32_t>(rand());
 	}
 };
 
@@ -78,7 +81,9 @@ public:
 	VmaAllocation sbtBufferAllocation;
 	ShaderBindingTableGenerator sbtGen;
 
-	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator, const Model& model, FboManager &fboMgr, const Camera& cam, const AreaLightSources &areaSource)
+	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator, 
+		const Model& model, FboManager &fboMgr, const Camera& cam, const AreaLightSources &areaSource,
+		const RandomGenerator &randGen)
 	{
 		descGen.bindTLAS({ 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, model.getDescriptorTlas());
 		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("diffuseColor"), VK_IMAGE_LAYOUT_GENERAL });
@@ -94,7 +99,7 @@ public:
 		descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getVertexDescriptorBufferInfo());
 		descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getIndexDescriptorBufferInfo());
 		descGen.bindImage({ 13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, { model.ldrTextureSampler,  model.ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-
+		descGen.bindBuffer({ 14, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, randGen.getDescriptorBufferInfo());
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -285,6 +290,7 @@ private:
 	FboManager fboManager2;
 
 	NewGui gui;
+	RandomGenerator randGen;
 
 	PFN_vkCmdTraceRaysNV vkCmdTraceRaysNV = nullptr;
 
@@ -303,7 +309,7 @@ private:
 		fboManager2.addColorAttachment("swapchain", swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT, swapChainImageViews.data(), static_cast<uint32_t>(swapChainImageViews.size()));
 
 		loadScene(model, cam, "spaceship");
-		areaSources.init(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, &model);
+		areaSources.init(device, allocator, graphicsQueue, graphicsCommandPool, &model);
 		subpass1.createSubpassDescription(device, fboManager1);
 		subpass2.createSubpassDescription(device, fboManager2);
 		createRenderPass();
@@ -316,11 +322,12 @@ private:
 		gui.setStyle();
 		gui.pcb.discretePdfSize = areaSources.dPdf.size();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
+		randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
-		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources);
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -349,6 +356,8 @@ private:
 			vkDestroyFramebuffer(device, framebuffer, nullptr);
 		}
 
+		randGen.cleanUp(allocator);
+		
 		vkFreeCommandBuffers(device, graphicsCommandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
 		vkDestroyPipeline(device, subpass1.pipeline, nullptr);
@@ -378,10 +387,11 @@ private:
 		createRenderPass();
 		
 		createColorResources();
+		randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		createFramebuffers();
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
-		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources);
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -710,4 +720,3 @@ int main()
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-

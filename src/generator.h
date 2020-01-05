@@ -31,6 +31,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string>
 #include <vector>
 #include <map>
+#include <random>
+#include <chrono>
 
 class FboManager
 {
@@ -1017,4 +1019,63 @@ private:
 	/// is provided by the device and is the same for all categories.
 	VkDeviceSize m_progIdSize = 0;
 	VkDeviceSize m_sbtSize = 0;
+};
+
+class RandomGenerator
+{
+public:
+	RandomGenerator()
+	{	
+		using namespace std::chrono;
+		microseconds ms = duration_cast<microseconds>(system_clock::now().time_since_epoch());
+		uint64_t t = ms.count();
+
+		generator.seed(t & 0xffffffff);
+		uniformUInt32Distribution = std::uniform_int_distribution<uint32_t>();
+
+		data = nullptr;
+		allocSizeBytes = 0;
+		stateMemory = VK_NULL_HANDLE;
+		stateMemoryAllocation = VK_NULL_HANDLE;
+	}
+
+	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkExtent2D canvasExtent)
+	{	
+		data = new XorShiftState[static_cast<uint64_t>(canvasExtent.width) * canvasExtent.height];
+		allocSizeBytes = sizeof(XorShiftState) * canvasExtent.width * canvasExtent.height;
+		
+		uint32_t allocSizeInUnit32 = allocSizeBytes / (sizeof(uint32_t));
+		for (uint32_t i = 0; i < allocSizeInUnit32; i++)
+			(static_cast<uint32_t*>(data))[i] = uniformUInt32Distribution(generator);
+
+		createBuffer(device, allocator, queue, commandPool, stateMemory, stateMemoryAllocation, allocSizeBytes, data, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	}
+
+	void cleanUp(const VmaAllocator& allocator)
+	{
+		vmaDestroyBuffer(allocator, stateMemory, stateMemoryAllocation);
+	}
+
+	VkDescriptorBufferInfo getDescriptorBufferInfo() const
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = stateMemory;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		return descriptorBufferInfo;
+	}
+private:
+	VkBuffer stateMemory;
+	VmaAllocation stateMemoryAllocation;
+
+	void* data;
+	uint32_t allocSizeBytes;
+
+	std::default_random_engine generator;
+	std::uniform_int_distribution<uint32_t> uniformUInt32Distribution;
+
+	struct XorShiftState {
+		uint32_t a;
+	};
 };
