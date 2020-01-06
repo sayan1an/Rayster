@@ -486,7 +486,7 @@ public:
 	{
 		for (auto& instance : instanceData_dynamic) {
 			instance.model = glm::translate<float>(instance.model, glm::vec3(0.0, 0.0, 0.0));
-			//instance.model = glm::rotate<float>(instance.model, 0.001f, glm::vec3(0, 1, 0));
+			instance.model = glm::rotate<float>(instance.model, 0.001f, glm::vec3(0, 1, 0));
 			instance.modelIT = glm::transpose(glm::inverse(instance.model));
 		}
 		memcpy(mappedDynamicInstancePtr, instanceData_dynamic.data(), sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size());
@@ -562,7 +562,7 @@ public:
 			indexOffsetInBytes += static_cast<VkDeviceSize>(mesh->indices.size() * sizeof(uint32_t));
 		}
 
-		as_topLevel.create(device, allocator, static_cast<uint32_t>(instanceData_dynamic.size()));
+		as_topLevel.create(device, allocator, static_cast<uint32_t>(instanceData_dynamic.size()), false);
 		updateTlasData();
 		as_topLevel.cmdBuild(cmdBuf, static_cast<uint32_t>(instanceData_dynamic.size()), false);
 		endSingleTimeCommands(device, queue, commandPool, cmdBuf);
@@ -570,7 +570,7 @@ public:
 
 	void cmdUpdateTlas(const VkCommandBuffer& cmdBuf)
 	{
-		as_topLevel.cmdBuild(cmdBuf, static_cast<uint32_t>(instanceData_dynamic.size()), true);
+		as_topLevel.cmdBuild(cmdBuf, static_cast<uint32_t>(instanceData_dynamic.size()), false);
 	}
 
 	void updateTlasData() 
