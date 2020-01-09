@@ -43,6 +43,7 @@ public:
 	const IO* io;
 	Camera* cam;
 	PushConstantBlock pcb;
+	int denoise = 0;
 private:
 
 	float lightX = 1;
@@ -62,6 +63,9 @@ private:
 		ImGui::SliderFloat("Emitter power", &power, 1.0f, 100.0f);
 		ImGui::SliderFloat("Emitter distance", &distance, 1.0f, 25.0f);
 		ImGui::SliderInt("MC Samples", &numSamples, 1, 64);
+		ImGui::Text("Denoise"); ImGui::SameLine();
+		ImGui::RadioButton("No", &denoise, 0); ImGui::SameLine();
+		ImGui::RadioButton("Yes", &denoise, 1);
 		pcb.lightPosition = glm::normalize(glm::vec3(lightX, lightY, lightZ)) * distance;
 		pcb.power = power;
 		pcb.numSamples = static_cast<uint32_t>(numSamples);
@@ -185,7 +189,7 @@ public:
 		gfxPipeGen.addVertexInputState(bindingDescription, attributeDescription);
 		gfxPipeGen.addViewportState(swapChainExtent);
 		gfxPipeGen.addColorBlendAttachmentState(4);
-		
+				
 		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 0, &pipeline, &pipelineLayout);
 	}
 private:
@@ -210,7 +214,8 @@ public:
 	{
 		colorAttachmentRef = fboMgr.getAttachmentReference("swapchain", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("rtxOut", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-			
+		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("compOut", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+		
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpassDescription.colorAttachmentCount = 1;
@@ -222,14 +227,16 @@ public:
 	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, FboManager &fboMgr) 
 	{
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("rtxOut"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("compOut"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
-				
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/gShowVert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/gShowFrag.spv");
+			
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxHybridSoftShadows/gShowVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxHybridSoftShadows/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
 		gfxPipeGen.addDepthStencilState(VK_FALSE, VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
-	
+		gfxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(int) });
+
 		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 0, &pipeline, &pipelineLayout);
 	}
 
@@ -281,6 +288,10 @@ private:
 	VmaAllocation rtxOutImageAllocation;
 	VkImageView rtxOutImageView;
 
+	VkImage compOutImage;
+	VmaAllocation compOutImageAllocation;
+	VkImageView compOutImageView;
+
 	Model model;
 	AreaLightSources areaSources;
 
@@ -303,9 +314,11 @@ private:
 		fboManager1.addColorAttachment("specularColor", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &specularColorImageView);
 		fboManager1.addColorAttachment("normal", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &normalImageView, 1, {0.0f, 0.0f, 0.0f, 0.0f});
 		fboManager1.addColorAttachment("other", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &otherInfoImageView, 1, {-1.0f, 0.0f, 0.0f, -1.0f});
-		fboManager1.addColorAttachment("rtxOut", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &rtxOutImageView);
-
-		fboManager2.addColorAttachment("rtxOut", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &rtxOutImageView);
+		fboManager1.addColorAttachment("rtxOut", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &rtxOutImageView);
+		fboManager1.addColorAttachment("compOut", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &compOutImageView);
+		
+		fboManager2.addColorAttachment("compOut", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &compOutImageView);
+		fboManager2.addColorAttachment("rtxOut", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &rtxOutImageView);
 		fboManager2.addColorAttachment("swapchain", swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT, swapChainImageViews.data(), static_cast<uint32_t>(swapChainImageViews.size()));
 
 		loadScene(model, cam, "spaceship");
@@ -350,6 +363,9 @@ private:
 
 		vkDestroyImageView(device, rtxOutImageView, nullptr);
 		vmaDestroyImage(allocator, rtxOutImage, rtxOutImageAllocation);
+
+		vkDestroyImageView(device, compOutImageView, nullptr);
+		vmaDestroyImage(allocator, compOutImage, compOutImageAllocation);
 
 		vkDestroyFramebuffer(device, renderPass1Fbo, nullptr);
 		for (auto framebuffer : swapChainFramebuffers) {
@@ -428,6 +444,7 @@ private:
 			attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 			attachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
 			fboManager1.updateAttachmentDescription("rtxOut", attachment);
+			fboManager1.updateAttachmentDescription("compOut", attachment);
 
 			std::array<VkSubpassDescription, 1> subpassDesc = { subpass1.subpassDescription };
 
@@ -474,6 +491,7 @@ private:
 			attachment.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
 			attachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
 			fboManager2.updateAttachmentDescription("rtxOut", attachment);
+			fboManager2.updateAttachmentDescription("compOut", attachment);
 			
 			attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -512,7 +530,7 @@ private:
 			renderPassInfo.pSubpasses = subpassDesc.data();
 			renderPassInfo.dependencyCount = 2;
 			renderPassInfo.pDependencies = dependencies.data();
-
+			
 			VK_CHECK(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass2),
 				"failed to create render pass 2!");
 		}
@@ -594,6 +612,7 @@ private:
 		makeColorImage(fboManager1.getFormat("depth"), fboManager1.getSampleCount("depth"), VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthImage, depthImageView, depthImageAllocation);
 
 		makeColorImage(fboManager2.getFormat("rtxOut"), fboManager2.getSampleCount("rtxOut"), VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, rtxOutImage, rtxOutImageView, rtxOutImageAllocation);
+		makeColorImage(fboManager2.getFormat("compOut"), fboManager2.getSampleCount("compOut"), VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, compOutImage, compOutImageView, compOutImageAllocation);
 	}
 	
 	void createCommandBuffers()
@@ -671,6 +690,7 @@ private:
 			
 		vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipeline);
 		vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipelineLayout, 0, 1, &subpass2.descriptorSet, 0, nullptr);
+		vkCmdPushConstants(commandBuffers[index], subpass2.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(int), &gui.denoise);
 		vkCmdDraw(commandBuffers[index], 3, 1, 0, 0);
 			
 		gui.cmdDraw(commandBuffers[index]);

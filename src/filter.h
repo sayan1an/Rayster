@@ -4,7 +4,7 @@
 
 class CrossBilateralFilter
 {
-	void createPipeline()
+	void createPipeline(const VkImageView &inDiffuseColor, const VkImageView &inNormal, const VkImageView &inNoisyImage, const VkImageView &out)
 	{
 
 	}
