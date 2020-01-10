@@ -1,0 +1,19 @@
+#version 450
+
+layout (local_size_x = 16, local_size_y = 16) in;
+layout (binding = 0, rgba8) uniform readonly image2D inDiffuseColor;
+layout (binding = 1, rgba8) uniform readonly image2D inSpecularColor;
+layout (binding = 2, rgba32f) uniform readonly image2D inNormal;
+layout (binding = 3, rgba32f) uniform readonly image2D inNoisyImage;
+layout (binding = 4, rgba32f) uniform image2D outDenoisedImage;
+
+layout (push_constant) uniform pcBlock {
+	uint filterSize;
+} pcb;
+
+void main()
+{	
+	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
+	vec4 rgba  = imageLoad(inDiffuseColor, pixel).rgba;
+	imageStore(outDenoisedImage, ivec2(gl_GlobalInvocationID.xy), rgba);
+}

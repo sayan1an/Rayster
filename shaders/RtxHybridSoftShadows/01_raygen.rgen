@@ -6,7 +6,7 @@ layout(binding = 1, set = 0, rgba8) uniform readonly image2D diffuseImage;
 layout(binding = 2, set = 0, rgba8) uniform readonly image2D specularImage;
 layout(binding = 3, set = 0, rgba32f) uniform readonly image2D normalImage;
 layout(binding = 4, set = 0, rgba32f) uniform readonly image2D otherImage;
-layout(binding = 5, set = 0, rgba8) uniform image2D outImage;
+layout(binding = 5, set = 0, rgba32f) uniform image2D outImage;
 layout(binding = 6, set = 0) uniform CameraProperties 
 {
 	mat4 view;

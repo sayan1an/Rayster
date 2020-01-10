@@ -50,6 +50,8 @@ compileList.append(("./RtxHybridSoftShadows/01_miss.rmiss", "./RtxHybridSoftShad
 compileList.append(("./RtxHybridSoftShadows/02_miss.rmiss", "./RtxHybridSoftShadows/02_miss.spv"))
 compileList.append(("./RtxHybridSoftShadows/02_close.rchit", "./RtxHybridSoftShadows/02_close.spv"))
 
+compileList.append(("./Filters/crossBilateralFilter.comp", "./Filters/crossBilateralFilter.spv"))
+
 try:
     for shader in compileList:
         output = subprocess.Popen([glslangValidator, "-V", shader[0], "-o", shader[1] ], stdout=subprocess.PIPE).communicate()[0]

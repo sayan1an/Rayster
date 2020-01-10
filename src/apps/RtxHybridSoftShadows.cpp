@@ -26,6 +26,7 @@
 #include "../generator.h"
 #include "../gui.h"
 #include "../lightSources.h"
+#include "../filter.h"
 #include <cstdlib>
 
 struct PushConstantBlock
@@ -214,7 +215,7 @@ public:
 	{
 		colorAttachmentRef = fboMgr.getAttachmentReference("swapchain", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("rtxOut", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("compOut", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("filterOut", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 		
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -227,7 +228,7 @@ public:
 	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, FboManager &fboMgr) 
 	{
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("rtxOut"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("compOut"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("filterOut"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 			
 		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxHybridSoftShadows/gShowVert.spv");
@@ -288,12 +289,13 @@ private:
 	VmaAllocation rtxOutImageAllocation;
 	VkImageView rtxOutImageView;
 
-	VkImage compOutImage;
-	VmaAllocation compOutImageAllocation;
-	VkImageView compOutImageView;
+	VkImage filterOutImage;
+	VmaAllocation filterOutImageAllocation;
+	VkImageView filterOutImageView;
 
 	Model model;
 	AreaLightSources areaSources;
+	CrossBilateralFilter crossBilateralFilter;
 
 	std::vector<VkCommandBuffer> commandBuffers;
 
@@ -315,9 +317,9 @@ private:
 		fboManager1.addColorAttachment("normal", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &normalImageView, 1, {0.0f, 0.0f, 0.0f, 0.0f});
 		fboManager1.addColorAttachment("other", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &otherInfoImageView, 1, {-1.0f, 0.0f, 0.0f, -1.0f});
 		fboManager1.addColorAttachment("rtxOut", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &rtxOutImageView);
-		fboManager1.addColorAttachment("compOut", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &compOutImageView);
+		fboManager1.addColorAttachment("filterOut", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &filterOutImageView);
 		
-		fboManager2.addColorAttachment("compOut", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &compOutImageView);
+		fboManager2.addColorAttachment("filterOut", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &filterOutImageView);
 		fboManager2.addColorAttachment("rtxOut", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &rtxOutImageView);
 		fboManager2.addColorAttachment("swapchain", swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT, swapChainImageViews.data(), static_cast<uint32_t>(swapChainImageViews.size()));
 
@@ -341,6 +343,8 @@ private:
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);
+		crossBilateralFilter.createPipeline(device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"),
+			fboManager1.getImageView("normal"), fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -364,8 +368,8 @@ private:
 		vkDestroyImageView(device, rtxOutImageView, nullptr);
 		vmaDestroyImage(allocator, rtxOutImage, rtxOutImageAllocation);
 
-		vkDestroyImageView(device, compOutImageView, nullptr);
-		vmaDestroyImage(allocator, compOutImage, compOutImageAllocation);
+		vkDestroyImageView(device, filterOutImageView, nullptr);
+		vmaDestroyImage(allocator, filterOutImage, filterOutImageAllocation);
 
 		vkDestroyFramebuffer(device, renderPass1Fbo, nullptr);
 		for (auto framebuffer : swapChainFramebuffers) {
@@ -373,6 +377,7 @@ private:
 		}
 
 		randGen.cleanUp(allocator);
+		crossBilateralFilter.cleanUp(device);
 		
 		vkFreeCommandBuffers(device, graphicsCommandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
@@ -408,6 +413,8 @@ private:
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);
+		crossBilateralFilter.createPipeline(device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"),
+			fboManager1.getImageView("normal"), fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -444,7 +451,7 @@ private:
 			attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 			attachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
 			fboManager1.updateAttachmentDescription("rtxOut", attachment);
-			fboManager1.updateAttachmentDescription("compOut", attachment);
+			fboManager1.updateAttachmentDescription("filterOut", attachment);
 
 			std::array<VkSubpassDescription, 1> subpassDesc = { subpass1.subpassDescription };
 
@@ -491,7 +498,7 @@ private:
 			attachment.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
 			attachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
 			fboManager2.updateAttachmentDescription("rtxOut", attachment);
-			fboManager2.updateAttachmentDescription("compOut", attachment);
+			fboManager2.updateAttachmentDescription("filterOut", attachment);
 			
 			attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -612,7 +619,7 @@ private:
 		makeColorImage(fboManager1.getFormat("depth"), fboManager1.getSampleCount("depth"), VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthImage, depthImageView, depthImageAllocation);
 
 		makeColorImage(fboManager2.getFormat("rtxOut"), fboManager2.getSampleCount("rtxOut"), VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, rtxOutImage, rtxOutImageView, rtxOutImageAllocation);
-		makeColorImage(fboManager2.getFormat("compOut"), fboManager2.getSampleCount("compOut"), VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, compOutImage, compOutImageView, compOutImageAllocation);
+		makeColorImage(fboManager2.getFormat("filterOut"), fboManager2.getSampleCount("filterOut"), VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, filterOutImage, filterOutImageView, filterOutImageAllocation);
 	}
 	
 	void createCommandBuffers()
@@ -677,7 +684,9 @@ private:
 			rtxPass.sbtBuffer, hitGroupOffset, hitGroupStride,
 			VK_NULL_HANDLE, 0, 0, swapChainExtent.width,
 			swapChainExtent.height, 1);
-				
+		
+		crossBilateralFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
+
 		// begin second render-pass
 		renderPassInfo.renderPass = renderPass2;
 		renderPassInfo.framebuffer = swapChainFramebuffers[index];
