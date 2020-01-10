@@ -437,7 +437,7 @@ private:
 			attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 			attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			attachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
 			fboManager1.updateAttachmentDescription("diffuseColor", attachment);
 			fboManager1.updateAttachmentDescription("specularColor", attachment);
 			fboManager1.updateAttachmentDescription("normal", attachment);
