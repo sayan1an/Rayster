@@ -12,7 +12,25 @@ layout (binding = 4, rgba32f) uniform image2D outDenoisedImage;
 layout (push_constant) uniform pcBlock {
 	uint imageWidth;
 	uint imageHeight;
+	float filterSize;
+	int mode;
 } pcb;
+
+#define SQRT_2_PI (2.5066282)
+
+float gauss1D(float x, float sigma)
+{
+	return exp(-0.5 * x * x / (sigma * sigma)) / (SQRT_2_PI * sigma); 
+}
+
+float gauss1Dv2(float xSq, float sigma)
+{
+	return exp(-0.5 * xSq  / (sigma * sigma)) / (SQRT_2_PI * sigma); 
+}
+
+#define max(a,b) ((a>b)?a:b)
+#define min(a,b) ((a<b)?a:b)
+#define clamp(x,start,end) (min(max(x, start), end)) 
 
 shared vec3 sIntensity[CBF_I_TILE_WIDTH][CBF_I_TILE_WIDTH];
 shared vec3 dColor[CBF_I_TILE_WIDTH][CBF_I_TILE_WIDTH];
@@ -47,15 +65,21 @@ void main()
 	vec3 accum = vec3(0,0,0);
 
 	if ((ty < CBF_O_TILE_WIDTH) && (tx < CBF_O_TILE_WIDTH)){
-		vec3 normal = sNormal[ty + CBF_MASK_WIDTH / 2][tx + CBF_MASK_WIDTH / 2]; //center pixel of the convoultion kernel
-		vec3 dCol = dColor[ty + CBF_MASK_WIDTH / 2][tx + CBF_MASK_WIDTH / 2];
+		uint centerX = CBF_MASK_WIDTH / 2;
+		uint centerY = CBF_MASK_WIDTH / 2;
+		vec3 normal = sNormal[ty + centerY][tx + centerX]; //center pixel of the convoultion kernel
+		vec3 dCol = dColor[ty + centerY][tx + centerX];
+		vec3 intensity = sIntensity[ty + centerY][tx + centerX];
 		float totalWeight = 0;
 		for (uint i = 0; i < CBF_MASK_WIDTH; i++)
 			for(uint j = 0; j < CBF_MASK_WIDTH; j++) {
-				float weight = dot(normal, sNormal[i+ty][j+tx]) * (dot(dCol, dColor[i+ty][j+tx]) > 0.99 ? 1.0 : 0.0);
-				weight *= weight;
+				vec3 neighbourIntensity = sIntensity[i+ty][j+tx];
+				float pixelDistanceSq = (i - centerY) * (i - centerY) + (j - centerX) * (j - centerX); 
+				float weight = gauss1Dv2(pixelDistanceSq, pcb.filterSize);
+				weight *= (pcb.mode > FILTER_MODE_UNILATERAL) ? gauss1D(length(intensity - neighbourIntensity), pcb.filterSize) : 1;
+				weight *= (pcb.mode > FILTER_MODE_BILATERAL) ? clamp(dot(normal, sNormal[i+ty][j+tx]), 0, 1) * (dot(dCol, dColor[i+ty][j+tx]) > 0.99 ? 1.0 : 0.0) : 1;
 				totalWeight += weight;
-				accum +=  weight * sIntensity[i+ty][j+tx];
+				accum +=  weight * neighbourIntensity;
 			}
 
 		accum /= totalWeight;
