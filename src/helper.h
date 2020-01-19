@@ -59,6 +59,10 @@ static const bool enableValidationLayers = false;
 #define ROUND_UP(v, powerOf2Alignment) (((v) + (powerOf2Alignment)-1) & ~((powerOf2Alignment)-1))
 #endif
 
+#ifndef IS_POWER_2
+#define IS_POWER_2(x) ((x) > 0 && ((x) & ((x)-1)) == 0)
+#endif
+
 #ifndef PRINT_VECTOR4
 #define PRINT_VECTOR4(v) (std::cout << "(" << (v).x << ", " << (v).y << ", " << (v).z << ", " << (v).w << ")" << std::endl)
 #endif
@@ -255,3 +259,4 @@ VkFormat findDepthFormat(VkPhysicalDevice& physicalDevice);
 SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
 QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
 void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, const void* srcData, VkBufferUsageFlags bufferUsageFlags);
+uint32_t queryComputeSharedMemSize(const VkPhysicalDevice& device);

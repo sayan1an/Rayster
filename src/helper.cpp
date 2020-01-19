@@ -360,3 +360,11 @@ extern QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, cons
 
 	return indices;
 }
+
+extern uint32_t queryComputeSharedMemSize(const VkPhysicalDevice& device)
+{
+	VkPhysicalDeviceProperties physicalDeviceProperties;
+	vkGetPhysicalDeviceProperties(device, &physicalDeviceProperties);
+
+	return physicalDeviceProperties.limits.maxComputeSharedMemorySize;
+}

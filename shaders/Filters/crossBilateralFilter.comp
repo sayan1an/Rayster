@@ -1,6 +1,8 @@
 #version 450
+#extension GL_GOOGLE_include_directive : enable
+#include "crossBilateralFilterParam.h"
 
-layout (local_size_x = 16, local_size_y = 16) in;
+layout (local_size_x = CBF_I_TILE_WIDTH, local_size_y = CBF_I_TILE_WIDTH) in;
 layout (binding = 0, rgba8) uniform readonly image2D inDiffuseColor;
 layout (binding = 1, rgba8) uniform readonly image2D inSpecularColor;
 layout (binding = 2, rgba32f) uniform readonly image2D inNormal;
@@ -8,12 +10,59 @@ layout (binding = 3, rgba32f) uniform readonly image2D inNoisyImage;
 layout (binding = 4, rgba32f) uniform image2D outDenoisedImage;
 
 layout (push_constant) uniform pcBlock {
-	uint filterSize;
+	uint imageWidth;
+	uint imageHeight;
 } pcb;
+
+shared vec3 sIntensity[CBF_I_TILE_WIDTH][CBF_I_TILE_WIDTH];
+shared vec3 dColor[CBF_I_TILE_WIDTH][CBF_I_TILE_WIDTH];
+shared vec3 sNormal[CBF_I_TILE_WIDTH][CBF_I_TILE_WIDTH];
 
 void main()
 {	
-	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
-	vec4 rgba  = imageLoad(inDiffuseColor, pixel).rgba;
-	imageStore(outDenoisedImage, ivec2(gl_GlobalInvocationID.xy), rgba);
+	uint tx = gl_LocalInvocationID.x;
+	uint ty = gl_LocalInvocationID.y;
+	uint row_o = gl_WorkGroupID.y * CBF_O_TILE_WIDTH + ty;
+	uint col_o = gl_WorkGroupID.x * CBF_O_TILE_WIDTH + tx;
+	uint row_i = row_o - CBF_MASK_WIDTH / 2;
+	uint col_i = col_o - CBF_MASK_WIDTH / 2;
+	
+	if ((row_i >= 0) && (row_i < pcb.imageHeight) &&
+	   (col_i >= 0) && (col_i < pcb.imageWidth)) {
+
+		ivec2 pixel = ivec2(col_i, row_i);
+		sIntensity[ty][tx] = imageLoad(inNoisyImage, pixel).rgb;
+		dColor[ty][tx] = normalize(imageLoad(inDiffuseColor, pixel).rgb);
+		sNormal[ty][tx] = imageLoad(inNormal, pixel).rgb;
+	}
+	else {
+		sIntensity[ty][tx] = vec3(0.0f, 0.0f, 0.0f);
+		sNormal[ty][tx] = vec3(0.0f, 0.0f, 0.0f);
+		dColor[ty][tx] = vec3(0.0f, 0.0f, 0.0f);
+	}
+
+	memoryBarrierShared();
+	barrier();
+
+	vec3 accum = vec3(0,0,0);
+
+	if ((ty < CBF_O_TILE_WIDTH) && (tx < CBF_O_TILE_WIDTH)){
+		vec3 normal = sNormal[ty + CBF_MASK_WIDTH / 2][tx + CBF_MASK_WIDTH / 2]; //center pixel of the convoultion kernel
+		vec3 dCol = dColor[ty + CBF_MASK_WIDTH / 2][tx + CBF_MASK_WIDTH / 2];
+		float totalWeight = 0;
+		for (uint i = 0; i < CBF_MASK_WIDTH; i++)
+			for(uint j = 0; j < CBF_MASK_WIDTH; j++) {
+				float weight = dot(normal, sNormal[i+ty][j+tx]) * (dot(dCol, dColor[i+ty][j+tx]) > 0.99 ? 1.0 : 0.0);
+				weight *= weight;
+				totalWeight += weight;
+				accum +=  weight * sIntensity[i+ty][j+tx];
+			}
+
+		accum /= totalWeight;
+		
+		if ((row_o < pcb.imageHeight) && (col_o < pcb.imageWidth)) {
+			ivec2 pixel = ivec2(col_o, row_o);
+			imageStore(outDenoisedImage, ivec2(pixel), vec4(accum, 1));
+		}
+	}
 }
