@@ -51,6 +51,7 @@ compileList.append(("./RtxHybridSoftShadows/02_miss.rmiss", "./RtxHybridSoftShad
 compileList.append(("./RtxHybridSoftShadows/02_close.rchit", "./RtxHybridSoftShadows/02_close.spv"))
 
 compileList.append(("./Filters/crossBilateralFilter.comp", "./Filters/crossBilateralFilter.spv"))
+compileList.append(("./Filters/temporalFilter.comp", "./Filters/temporalFilter.spv"))
 
 try:
     for shader in compileList:

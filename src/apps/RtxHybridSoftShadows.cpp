@@ -43,6 +43,7 @@ class NewGui : public Gui
 public:
 	const IO* io;
 	Camera* cam;
+	CrossBilateralFilter* filter;
 	PushConstantBlock pcb;
 	int denoise = 0;
 private:
@@ -67,6 +68,7 @@ private:
 		ImGui::Text("Denoise"); ImGui::SameLine();
 		ImGui::RadioButton("No", &denoise, 0); ImGui::SameLine();
 		ImGui::RadioButton("Yes", &denoise, 1);
+		filter->cbfWidget();
 		pcb.lightPosition = glm::normalize(glm::vec3(lightX, lightY, lightZ)) * distance;
 		pcb.power = power;
 		pcb.numSamples = static_cast<uint32_t>(numSamples);
@@ -296,6 +298,7 @@ private:
 	Model model;
 	AreaLightSources areaSources;
 	CrossBilateralFilter crossBilateralFilter;
+	TemporalFilter temporalFilter;
 
 	std::vector<VkCommandBuffer> commandBuffers;
 
@@ -334,6 +337,7 @@ private:
 
 		gui.io = &io;
 		gui.cam = &cam;
+		gui.filter = &crossBilateralFilter;
 		gui.setStyle();
 		gui.pcb.discretePdfSize = areaSources.dPdf.size();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
@@ -345,6 +349,7 @@ private:
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);
 		crossBilateralFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"),
 			fboManager1.getImageView("normal"), fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
+		temporalFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -378,6 +383,7 @@ private:
 
 		randGen.cleanUp(allocator);
 		crossBilateralFilter.cleanUp(device);
+		temporalFilter.cleanUp(device);
 		
 		vkFreeCommandBuffers(device, graphicsCommandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
@@ -415,6 +421,7 @@ private:
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);
 		crossBilateralFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"),
 			fboManager1.getImageView("normal"), fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
+		temporalFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -685,8 +692,9 @@ private:
 			VK_NULL_HANDLE, 0, 0, swapChainExtent.width,
 			swapChainExtent.height, 1);
 		
-		crossBilateralFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
-
+		//crossBilateralFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
+		temporalFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
+		
 		// begin second render-pass
 		renderPassInfo.renderPass = renderPass2;
 		renderPassInfo.framebuffer = swapChainFramebuffers[index];
