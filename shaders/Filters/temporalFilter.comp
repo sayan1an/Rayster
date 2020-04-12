@@ -12,5 +12,5 @@ void main()
 {	
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
 	vec4 rgba = imageLoad(inNoisyImage, pixel).rgba;
-	imageStore(outDenoisedImage, pixel, rgba);
+	//imageStore(outDenoisedImage, pixel, rgba);
 }

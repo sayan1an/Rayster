@@ -118,6 +118,95 @@ extern void createBuffer(const VkDevice& device, const VmaAllocator& allocator, 
 	vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
 }
 
+extern void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation, 
+	const VkExtent2D& extent, const VkImageUsageFlagBits& usage, const std::vector<VkDeviceSize>& bufferSizes, const std::vector<const void*>& srcData, 
+	const VkFormat format, const VkSampleCountFlagBits& sampleCount, const uint32_t mipLevels)
+{
+	uint32_t layers = static_cast<uint32_t>(bufferSizes.size());
+
+	CHECK_DBG_ONLY(layers == srcData.size(), "Failed to create image: invalid layer sizes.");
+
+	VkDeviceSize bufferSize = 0;
+	for (const auto& size : bufferSizes)
+		bufferSize += size;
+
+	VkBuffer stagingBuffer;
+	VmaAllocation stagingBufferAllocation;
+
+	VkBufferCreateInfo bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.size = bufferSize;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo allocCreateInfo = {};
+	allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+	VK_CHECK(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr),
+		"Failed to create image: failed to create staging buffer for texture image!");
+
+	void* data;
+	vmaMapMemory(allocator, stagingBufferAllocation, &data);
+	VkDeviceSize bufferOffset = 0;
+
+	for (uint32_t i = 0; i < layers; i++) {
+		byte* start = static_cast<byte*>(data);
+		memcpy(&start[bufferOffset], srcData[i], static_cast<size_t>(bufferSizes[i]));
+		bufferOffset += bufferSizes[i];
+	}
+	vmaUnmapMemory(allocator, stagingBufferAllocation);
+
+	std::vector<VkBufferImageCopy> bufferCopyRegions;
+	bufferOffset = 0;
+	for (uint32_t layer = 0; layer < layers; layer++) {
+		VkBufferImageCopy bufferCopyRegion = {};
+		bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		bufferCopyRegion.imageSubresource.mipLevel = 0;
+		bufferCopyRegion.imageSubresource.baseArrayLayer = layer;
+		bufferCopyRegion.imageSubresource.layerCount = 1;
+		bufferCopyRegion.imageExtent.width = extent.width;
+		bufferCopyRegion.imageExtent.height = extent.height;
+		bufferCopyRegion.imageExtent.depth = 1;
+		bufferCopyRegion.bufferOffset = bufferOffset;
+
+		bufferCopyRegions.push_back(bufferCopyRegion);
+
+		// Increase offset into staging buffer for next level / face
+		bufferOffset += bufferSizes[layer];
+	}
+
+	VkImageCreateInfo imageCreateInfo = {};
+	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageCreateInfo.extent.width = extent.width;
+	imageCreateInfo.extent.height = extent.height;
+	imageCreateInfo.extent.depth = 1;
+	imageCreateInfo.mipLevels = mipLevels;
+	imageCreateInfo.arrayLayers = layers;
+	imageCreateInfo.format = format;
+	imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | usage;
+	imageCreateInfo.samples = sampleCount;
+	imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	VK_CHECK(vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &image, &imageAllocation, nullptr),
+		"Failed to create image!");
+
+	transitionImageLayout(device, queue, commandPool, image, format,
+		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels, layers);
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
+
+	vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		static_cast<uint32_t>(bufferCopyRegions.size()), bufferCopyRegions.data());
+
+	endSingleTimeCommands(device, queue, commandPool, commandBuffer);
+	//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
+
+	vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
+}
+
 extern VkImageView createImageView(const VkDevice& device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, uint32_t layerCount) 
 {
 	VkImageViewCreateInfo viewInfo = {};

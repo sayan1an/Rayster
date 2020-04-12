@@ -258,5 +258,8 @@ VkFormat findSupportedFormat(VkPhysicalDevice& physicalDevice, const std::vector
 VkFormat findDepthFormat(VkPhysicalDevice& physicalDevice);
 SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
 QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
+void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
+	const VkExtent2D& extent, const VkImageUsageFlagBits& usage, const std::vector<VkDeviceSize>& bufferSizes, const std::vector<const void*>& srcData,
+	const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT, const uint32_t mipLevels = 1);
 void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, const void* srcData, VkBufferUsageFlags bufferUsageFlags);
 uint32_t queryComputeSharedMemSize(const VkPhysicalDevice& device);

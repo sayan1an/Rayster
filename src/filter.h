@@ -98,6 +98,11 @@ public:
 		filterPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
 	}
 
+	void createBuffers(const VkExtent2D& screenExtent)
+	{
+
+	}
+
 	void cmdDispatch(const VkCommandBuffer& cmdBuf, const VkExtent2D& screenExtent, const uint32_t filterSize = 9)
 	{
 		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
@@ -141,4 +146,8 @@ private:
 	{
 		uint32_t frameIndex;
 	} pcb;
+
+	VkImage accumImage;
+	VmaAllocation accumImageAllocation;
+	VkImageView accumImageView;
 };

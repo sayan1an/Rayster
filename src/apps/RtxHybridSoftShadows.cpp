@@ -250,6 +250,7 @@ private:
 	GraphicsPipelineGenerator gfxPipeGen;
 };
 
+
 class RtxHybridSoftShadows : public WindowApplication {
 public:
 	RtxHybridSoftShadows(const std::vector<const char*>& _instanceExtensions, const std::vector<const char*>& _deviceExtensions) :
@@ -287,11 +288,13 @@ private:
 	VmaAllocation depthImageAllocation;
 	VkImageView depthImageView;
 
+	// Output buffer for rtx pass and input for subpass 2 and filters
 	VkImage rtxOutImage;
 	VmaAllocation rtxOutImageAllocation;
 	VkImageView rtxOutImageView;
 
-	VkImage filterOutImage;
+	// Output buffer for all filters and input for subpass 2
+	VkImage filterOutImage; 
 	VmaAllocation filterOutImageAllocation;
 	VkImageView filterOutImageView;
 
@@ -302,8 +305,8 @@ private:
 
 	std::vector<VkCommandBuffer> commandBuffers;
 
-	FboManager fboManager1;
-	FboManager fboManager2;
+	FboManager fboManager1; // For subpass 1
+	FboManager fboManager2; // For subpass 2
 
 	NewGui gui;
 	RandomGenerator randGen;
@@ -692,7 +695,7 @@ private:
 			VK_NULL_HANDLE, 0, 0, swapChainExtent.width,
 			swapChainExtent.height, 1);
 		
-		//crossBilateralFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
+		crossBilateralFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
 		temporalFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
 		
 		// begin second render-pass
