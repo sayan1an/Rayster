@@ -87,6 +87,8 @@ extern void copyBuffer(const VkDevice& device, const VkQueue& queue, const VkCom
 
 extern void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer &buffer, VmaAllocation &bufferAllocation, VkDeviceSize bufferSize, const void *srcData, VkBufferUsageFlags bufferUsageFlags)
 {
+	CHECK_DBG_ONLY(srcData != nullptr, "createBuffer: data source cannot be null.");
+
 	VkBuffer stagingBuffer;
 	VmaAllocation stagingBufferAllocation;
 
@@ -118,24 +120,64 @@ extern void createBuffer(const VkDevice& device, const VmaAllocator& allocator, 
 	vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
 }
 
-extern void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation, 
-	const VkExtent2D& extent, const VkImageUsageFlagBits& usage, const std::vector<VkDeviceSize>& bufferSizes, const std::vector<const void*>& srcData, 
-	const VkFormat format, const VkSampleCountFlagBits& sampleCount, const uint32_t mipLevels)
+extern void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
+	const VkExtent2D& extent, const VkImageUsageFlagBits& usage, const VkFormat format, const VkSampleCountFlagBits& sampleCount)
 {
-	uint32_t layers = static_cast<uint32_t>(bufferSizes.size());
+	VkImageCreateInfo imageCreateInfo = {};
+	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageCreateInfo.extent.width = extent.width;
+	imageCreateInfo.extent.height = extent.height;
+	imageCreateInfo.extent.depth = 1;
+	imageCreateInfo.mipLevels = 1;
+	imageCreateInfo.arrayLayers = 1;
+	imageCreateInfo.format = format;
+	imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageCreateInfo.usage = usage;
+	imageCreateInfo.samples = sampleCount;
+	imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	CHECK_DBG_ONLY(layers == srcData.size(), "Failed to create image: invalid layer sizes.");
+	VmaAllocationCreateInfo allocCreateInfo = {};
+	allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-	VkDeviceSize bufferSize = 0;
-	for (const auto& size : bufferSizes)
-		bufferSize += size;
+	VK_CHECK(vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &image, &imageAllocation, nullptr),
+		"Failed to create image!");
+}
 
+extern VkDeviceSize imageFormatToBytes(VkFormat format)
+{
+	switch (format) {
+		case VK_FORMAT_R8G8B8A8_UNORM:
+			return 4 * sizeof(unsigned char);
+		case VK_FORMAT_R32G32B32A32_SFLOAT:
+			return 4 * sizeof(float);
+		default:
+			CHECK_DBG_ONLY(false, "imageFormatToBytes : Unrecognised image format.");
+	}
+
+	return 0;
+}
+
+extern void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation, 
+	const VkExtent2D& extent, const VkImageUsageFlagBits& usage, const std::vector<const void*>& layerData, 
+	const VkFormat format, const VkSampleCountFlagBits& sampleCount, const uint32_t mipLevels)
+{	
+	bool srcDataCheck = true;
+	for (const auto& data : layerData)
+		srcDataCheck = srcDataCheck && (data != nullptr);
+
+	uint32_t layers = static_cast<uint32_t>(layerData.size());
 	VkBuffer stagingBuffer;
 	VmaAllocation stagingBufferAllocation;
 
+	CHECK_DBG_ONLY(layers > 0 && srcDataCheck, "createImage: data source cannot be null.");
+
+	VkDeviceSize imageSizeBytes = extent.height * (extent.width * imageFormatToBytes(format));
+
 	VkBufferCreateInfo bufferCreateInfo = {};
 	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferCreateInfo.size = bufferSize;
+	bufferCreateInfo.size = layers * imageSizeBytes;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -147,17 +189,14 @@ extern void createImage(const VkDevice& device, const VmaAllocator& allocator, c
 
 	void* data;
 	vmaMapMemory(allocator, stagingBufferAllocation, &data);
-	VkDeviceSize bufferOffset = 0;
-
+	
 	for (uint32_t i = 0; i < layers; i++) {
 		byte* start = static_cast<byte*>(data);
-		memcpy(&start[bufferOffset], srcData[i], static_cast<size_t>(bufferSizes[i]));
-		bufferOffset += bufferSizes[i];
+		memcpy(&start[i * imageSizeBytes], layerData[i], static_cast<size_t>(imageSizeBytes));
 	}
 	vmaUnmapMemory(allocator, stagingBufferAllocation);
 
 	std::vector<VkBufferImageCopy> bufferCopyRegions;
-	bufferOffset = 0;
 	for (uint32_t layer = 0; layer < layers; layer++) {
 		VkBufferImageCopy bufferCopyRegion = {};
 		bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -167,12 +206,9 @@ extern void createImage(const VkDevice& device, const VmaAllocator& allocator, c
 		bufferCopyRegion.imageExtent.width = extent.width;
 		bufferCopyRegion.imageExtent.height = extent.height;
 		bufferCopyRegion.imageExtent.depth = 1;
-		bufferCopyRegion.bufferOffset = bufferOffset;
+		bufferCopyRegion.bufferOffset = layer * imageSizeBytes;
 
 		bufferCopyRegions.push_back(bufferCopyRegion);
-
-		// Increase offset into staging buffer for next level / face
-		bufferOffset += bufferSizes[layer];
 	}
 
 	VkImageCreateInfo imageCreateInfo = {};
@@ -202,7 +238,6 @@ extern void createImage(const VkDevice& device, const VmaAllocator& allocator, c
 		static_cast<uint32_t>(bufferCopyRegions.size()), bufferCopyRegions.data());
 
 	endSingleTimeCommands(device, queue, commandPool, commandBuffer);
-	//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
 
 	vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
 }

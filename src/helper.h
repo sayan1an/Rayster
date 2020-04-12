@@ -95,20 +95,6 @@ struct Image2d
 	VkFormat format = VK_FORMAT_UNDEFINED;
 	std::string path;
 
-	uint32_t size() const
-	{
-		switch (format) {
-			case VK_FORMAT_R8G8B8A8_UNORM:
-				return height * width * 4 * sizeof(unsigned char);
-			case VK_FORMAT_R32G32B32A32_SFLOAT:
-				return height * width * 4 * sizeof(float);
-			default:
-				CHECK(false, "Image2d : Unrecognised texture format.");
-		}
-
-		return 0;
-	}
-
 	uint32_t mipLevels() const
 	{	
 		if (forceMipLevelToOne)
@@ -258,8 +244,14 @@ VkFormat findSupportedFormat(VkPhysicalDevice& physicalDevice, const std::vector
 VkFormat findDepthFormat(VkPhysicalDevice& physicalDevice);
 SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
 QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
+VkDeviceSize imageFormatToBytes(VkFormat format);
+// create image without initialization
 void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
-	const VkExtent2D& extent, const VkImageUsageFlagBits& usage, const std::vector<VkDeviceSize>& bufferSizes, const std::vector<const void*>& srcData,
-	const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT, const uint32_t mipLevels = 1);
+	const VkExtent2D& extent, const VkImageUsageFlagBits& usage, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT);
+// create image with initialization
+void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
+	const VkExtent2D& extent, const VkImageUsageFlagBits& usage, const std::vector<const void*>& srcData, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, 
+	const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT, const uint32_t mipLevels = 1);
+// create buffer with initialization
 void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, const void* srcData, VkBufferUsageFlags bufferUsageFlags);
 uint32_t queryComputeSharedMemSize(const VkPhysicalDevice& device);

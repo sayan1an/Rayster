@@ -241,21 +241,17 @@ private:
 
 	void createTextureImage(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage &textureImage, VmaAllocation &textureImageAllocation, uint32_t mipLevels)
 	{	
-		std::vector<VkDeviceSize> layerSizes;
 		std::vector<const void*> layerData;
 		VkExtent2D extent = { textureCache[0].width,  textureCache[0].height };
 
-		for (auto& texture : textureCache) {
-			layerSizes.push_back(texture.size());
+		for (auto& texture : textureCache)
 			layerData.push_back(texture.pixels);
-		}
-				
-		createImage(device, allocator, queue, commandPool, textureImage, textureImageAllocation, extent, VK_IMAGE_USAGE_SAMPLED_BIT, layerSizes, layerData, textureCache[0].format, VK_SAMPLE_COUNT_1_BIT, mipLevels);
+						
+		createImage(device, allocator, queue, commandPool, textureImage, textureImageAllocation, extent, VK_IMAGE_USAGE_SAMPLED_BIT, layerData, textureCache[0].format, VK_SAMPLE_COUNT_1_BIT, mipLevels);
 		
-		for (auto& texture : textureCache) {
+		for (auto& texture : textureCache)
 			texture.cleanUp();
-		}
-		
+				
 		generateMipmaps(physicalDevice, device, queue, commandPool, textureImage,
 			textureCache[0].format, extent, mipLevels, static_cast<uint32_t>(textureCache.size()));
 	}
