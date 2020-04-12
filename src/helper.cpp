@@ -1,6 +1,8 @@
 #include "helper.h"
 #include "vk_mem_alloc.h"
 
+#include <array>
+
 extern std::vector<char> readFile(const std::string& filename) 
 {
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
@@ -120,8 +122,22 @@ extern void createBuffer(const VkDevice& device, const VmaAllocator& allocator, 
 	vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
 }
 
+extern VkDeviceSize imageFormatToBytes(VkFormat format)
+{
+	switch (format) {
+	case VK_FORMAT_R8G8B8A8_UNORM:
+		return 4 * sizeof(unsigned char);
+	case VK_FORMAT_R32G32B32A32_SFLOAT:
+		return 4 * sizeof(float);
+	default:
+		CHECK_DBG_ONLY(false, "imageFormatToBytes : Unrecognised image format.");
+	}
+
+	return 0;
+}
+
 extern void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
-	const VkExtent2D& extent, const VkImageUsageFlagBits& usage, const VkFormat format, const VkSampleCountFlagBits& sampleCount)
+	const VkExtent2D& extent, const VkImageUsageFlags& usage, const VkFormat format, const VkSampleCountFlagBits& sampleCount)
 {
 	VkImageCreateInfo imageCreateInfo = {};
 	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -145,22 +161,19 @@ extern void createImage(const VkDevice& device, const VmaAllocator& allocator, c
 		"Failed to create image!");
 }
 
-extern VkDeviceSize imageFormatToBytes(VkFormat format)
-{
-	switch (format) {
-		case VK_FORMAT_R8G8B8A8_UNORM:
-			return 4 * sizeof(unsigned char);
-		case VK_FORMAT_R32G32B32A32_SFLOAT:
-			return 4 * sizeof(float);
-		default:
-			CHECK_DBG_ONLY(false, "imageFormatToBytes : Unrecognised image format.");
-	}
+extern void createImageP(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
+	const VkExtent2D& extent, const VkImageUsageFlags& usage, const VkFormat format, const VkSampleCountFlagBits& sampleCount, const uint64_t pattern, const uint32_t layers, const uint32_t mipLevels)
+{	
+	VkDeviceSize imageSizeBytes = extent.height * (extent.width * imageFormatToBytes(format));
+	VkDeviceSize nUint64_t = static_cast<VkDeviceSize>(imageSizeBytes / sizeof(uint64_t)) + 1;
+	std::vector<uint64_t> data(nUint64_t, pattern);
+	std::vector<const void*> layerData(layers, static_cast<const void*>(data.data()));
 
-	return 0;
+	createImageD(device, allocator, queue, commandPool, image, imageAllocation, extent, usage, layerData, format, sampleCount, mipLevels);
 }
 
-extern void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation, 
-	const VkExtent2D& extent, const VkImageUsageFlagBits& usage, const std::vector<const void*>& layerData, 
+extern void createImageD(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation, 
+	const VkExtent2D& extent, const VkImageUsageFlags& usage, const std::vector<const void*>& layerData, 
 	const VkFormat format, const VkSampleCountFlagBits& sampleCount, const uint32_t mipLevels)
 {	
 	bool srcDataCheck = true;

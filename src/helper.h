@@ -247,10 +247,13 @@ QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, const VkSur
 VkDeviceSize imageFormatToBytes(VkFormat format);
 // create image without initialization
 void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
-	const VkExtent2D& extent, const VkImageUsageFlagBits& usage, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT);
+	const VkExtent2D& extent, const VkImageUsageFlags& usage, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT);
 // create image with initialization
-void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
-	const VkExtent2D& extent, const VkImageUsageFlagBits& usage, const std::vector<const void*>& srcData, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, 
+void createImageP(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
+	const VkExtent2D& extent, const VkImageUsageFlags& usage, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT,
+	const uint64_t pattern = 0, const uint32_t layers = 1, const uint32_t mipLevels = 1);
+void createImageD(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
+	const VkExtent2D& extent, const VkImageUsageFlags& usage, const std::vector<const void*>& srcData, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, 
 	const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT, const uint32_t mipLevels = 1);
 // create buffer with initialization
 void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, const void* srcData, VkBufferUsageFlags bufferUsageFlags);

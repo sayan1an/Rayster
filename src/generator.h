@@ -247,7 +247,7 @@ private:
 		for (auto& texture : textureCache)
 			layerData.push_back(texture.pixels);
 						
-		createImage(device, allocator, queue, commandPool, textureImage, textureImageAllocation, extent, VK_IMAGE_USAGE_SAMPLED_BIT, layerData, textureCache[0].format, VK_SAMPLE_COUNT_1_BIT, mipLevels);
+		createImageD(device, allocator, queue, commandPool, textureImage, textureImageAllocation, extent, VK_IMAGE_USAGE_SAMPLED_BIT, layerData, textureCache[0].format, VK_SAMPLE_COUNT_1_BIT, mipLevels);
 		
 		for (auto& texture : textureCache)
 			texture.cleanUp();
