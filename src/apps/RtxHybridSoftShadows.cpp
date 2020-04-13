@@ -701,7 +701,8 @@ private:
 			"failed to record command buffer!");
 	}
 	
-	void drawFrame() {
+	void drawFrame() 
+	{
 		uint32_t imageIndex = frameBegin();
 		if (imageIndex == 0xffffffff)
 			return;
