@@ -347,7 +347,8 @@ private:
 		randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
-
+		temporalFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
+		
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);
 		crossBilateralFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"),
@@ -386,7 +387,7 @@ private:
 
 		randGen.cleanUp(allocator);
 		crossBilateralFilter.cleanUp(device);
-		temporalFilter.cleanUp(device);
+		temporalFilter.cleanUp(device, allocator);
 		
 		vkFreeCommandBuffers(device, graphicsCommandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
@@ -419,6 +420,7 @@ private:
 		createColorResources();
 		randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		createFramebuffers();
+		temporalFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);

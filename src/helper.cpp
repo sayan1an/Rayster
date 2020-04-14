@@ -249,7 +249,6 @@ extern void createImageD(const VkDevice& device, const VmaAllocator& allocator, 
 
 	vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		static_cast<uint32_t>(bufferCopyRegions.size()), bufferCopyRegions.data());
-
 	endSingleTimeCommands(device, queue, commandPool, commandBuffer);
 
 	vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
@@ -360,9 +359,11 @@ extern void cmdTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage imag
 		sourceStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 		destinationStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 	}
-
 	else {
-		CHECK(false, "Unsupported layout transition!");
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = 0;
+		sourceStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+		destinationStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 	}
 
 	vkCmdPipelineBarrier(
