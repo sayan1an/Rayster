@@ -94,7 +94,7 @@ public:
 		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 	}
 	
-	void cbfWidget()
+	void widget()
 	{	
 		if (ImGui::CollapsingHeader("CrossBilateralFilter")) {
 			ImGui::Text("Mode:"); ImGui::SameLine();
@@ -162,7 +162,7 @@ public:
 		buffersUpdated = true;
 	}
 
-	void cmdDispatch(const VkCommandBuffer& cmdBuf, const VkExtent2D& screenExtent, const uint32_t filterSize = 9)
+	void cmdDispatch(const VkCommandBuffer& cmdBuf, const VkExtent2D& screenExtent)
 	{	
 		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 		vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
@@ -170,7 +170,9 @@ public:
 		pcb.frameIndex++;
 		vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstantBlock), &pcb);
 		vkCmdDispatch(cmdBuf, 1 + (screenExtent.width - 1) / 16, 1 + (screenExtent.height - 1) / 16, 1);
-		std::cout << pcb.frameIndex << std::endl;
+
+		if (reset == 1)
+			pcb.frameIndex = 0;
 	}
 
 	void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
@@ -185,21 +187,41 @@ public:
 		buffersUpdated = false;
 	}
 
-	void temporalFilterWidget()
+	void widget()
 	{
 		if (ImGui::CollapsingHeader("TemporalFilter")) {
-			
+			ImGui::Text("Filter type"); ImGui::SameLine();
+			int isExp = pcb.isExponential & 1;
+			ImGui::RadioButton("Uniform##UID_TemporalFilter", &isExp, 0); ImGui::SameLine();
+			ImGui::RadioButton("Exponential##UID_TemporalFilter", &isExp, 1);
+			if (isExp == 1) {
+
+				
+			}
+			else {
+				ImGui::Text("Reset"); ImGui::SameLine();
+				ImGui::RadioButton("No##UID_TemporalFilter", &reset, 0); ImGui::SameLine();
+				ImGui::RadioButton("Yes##UID_TemporalFilter", &reset, 1);
+			}
+
+			if (isExp > 0)
+				pcb.frameIndex = 0;
+
+			pcb.isExponential = (pcb.isExponential & 0xfffffffe) | (isExp & 1);
 		}
 	}
 
 	TemporalFilter()
 	{
 		pcb.frameIndex = 0;
+		pcb.isExponential = 0;
 
 		buffersUpdated = false;
 		accumImage = VK_NULL_HANDLE;
 		accumImageAllocation = VK_NULL_HANDLE;
 		accumImageView = VK_NULL_HANDLE;
+
+		reset = 1;
 	}
 private:
 	VkPipeline pipeline;
@@ -215,6 +237,7 @@ private:
 	struct PushConstantBlock
 	{
 		uint32_t frameIndex;
+		uint32_t isExponential;
 	} pcb;
 
 	VkImage accumImage;
@@ -222,4 +245,5 @@ private:
 	VkImageView accumImageView;
 
 	bool buffersUpdated;
+	int reset;
 };

@@ -43,7 +43,8 @@ class NewGui : public Gui
 public:
 	const IO* io;
 	Camera* cam;
-	CrossBilateralFilter* filter;
+	CrossBilateralFilter* cFilter;
+	TemporalFilter* tFilter;
 	PushConstantBlock pcb;
 	int denoise = 0;
 private:
@@ -68,7 +69,8 @@ private:
 		ImGui::Text("Denoise"); ImGui::SameLine();
 		ImGui::RadioButton("No", &denoise, 0); ImGui::SameLine();
 		ImGui::RadioButton("Yes", &denoise, 1);
-		filter->cbfWidget();
+		//cFilter->widget();
+		tFilter->widget();
 		pcb.lightPosition = glm::normalize(glm::vec3(lightX, lightY, lightZ)) * distance;
 		pcb.power = power;
 		pcb.numSamples = static_cast<uint32_t>(numSamples);
@@ -340,7 +342,8 @@ private:
 
 		gui.io = &io;
 		gui.cam = &cam;
-		gui.filter = &crossBilateralFilter;
+		gui.cFilter = &crossBilateralFilter;
+		gui.tFilter = &temporalFilter;
 		gui.setStyle();
 		gui.pcb.discretePdfSize = areaSources.dPdf.size();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
@@ -677,7 +680,7 @@ private:
 			VK_NULL_HANDLE, 0, 0, swapChainExtent.width,
 			swapChainExtent.height, 1);
 		
-		crossBilateralFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
+		//crossBilateralFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
 		temporalFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
 		
 		// begin second render-pass

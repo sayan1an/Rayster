@@ -7,12 +7,15 @@ layout (binding = 2, rgba32f) uniform image2D outDenoisedImage;
 
 layout (push_constant) uniform pcBlock {
 	uint frameIndex;
+	uint isExponential;
 } pcb;
 
 void main()
 {	
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
 	vec4 rgba = imageLoad(inNoisyImage, pixel).rgba;
-	vec4 accum = (imageLoad(accumImage, pixel).rgba * (pcb.frameIndex - 1) + rgba) / pcb.frameIndex;
+	float decay = ((pcb.isExponential & 1) == 1) ? 0.5 : (pcb.frameIndex - 1.0) / (pcb.frameIndex);
+	vec4 accum = imageLoad(accumImage, pixel).rgba * decay + rgba * (1 - decay);
 	imageStore(outDenoisedImage, pixel, accum);
+	imageStore(accumImage, pixel, accum);
 }
