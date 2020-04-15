@@ -14,7 +14,7 @@ void main()
 {	
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
 	vec4 rgba = imageLoad(inNoisyImage, pixel).rgba;
-	float decay = ((pcb.isExponential & 1) == 1) ? 0.5 : (pcb.frameIndex - 1.0) / (pcb.frameIndex);
+	float decay = ((pcb.isExponential & 1) == 1) ? (pcb.isExponential >> 1) / 10000.0 : (pcb.frameIndex - 1.0) / (pcb.frameIndex);
 	vec4 accum = imageLoad(accumImage, pixel).rgba * decay + rgba * (1 - decay);
 	imageStore(outDenoisedImage, pixel, accum);
 	imageStore(accumImage, pixel, accum);

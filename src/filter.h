@@ -194,9 +194,11 @@ public:
 			int isExp = pcb.isExponential & 1;
 			ImGui::RadioButton("Uniform##UID_TemporalFilter", &isExp, 0); ImGui::SameLine();
 			ImGui::RadioButton("Exponential##UID_TemporalFilter", &isExp, 1);
-			if (isExp == 1) {
+			if (isExp & 1) {
+				ImGui::SliderInt("Coarse##UID_TemporalFilter", &coarseExp, 1, 99);
+				ImGui::SliderInt("Fine##UID_TemporalFilter", &fineExp, 1, 99);
 
-				
+				pcb.isExponential = (coarseExp * 100 + fineExp) << 1;
 			}
 			else {
 				ImGui::Text("Reset"); ImGui::SameLine();
@@ -222,6 +224,8 @@ public:
 		accumImageView = VK_NULL_HANDLE;
 
 		reset = 1;
+		coarseExp = 95;
+		fineExp = 99;
 	}
 private:
 	VkPipeline pipeline;
@@ -246,4 +250,6 @@ private:
 
 	bool buffersUpdated;
 	int reset;
+	int coarseExp;
+	int fineExp;
 };
