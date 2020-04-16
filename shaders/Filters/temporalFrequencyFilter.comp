@@ -1,0 +1,26 @@
+#version 450
+
+layout (local_size_x = 16, local_size_y = 16) in;
+layout (binding = 0, rgba32f) uniform readonly image2D inNoisyImage;
+layout (binding = 1, rgba32f) uniform image2DArray accumImage;
+layout (binding = 2, rgba32f) uniform image2D outDenoisedImage;
+
+layout (push_constant) uniform pcBlock {
+	uint frameIndex;
+	uint temporalSamples;
+} pcb;
+
+
+void main()
+{	
+	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
+	vec4 rgba = imageLoad(inNoisyImage, pixel).rgba;
+	imageStore(accumImage, ivec3(pixel, pcb.frameIndex %  pcb.temporalSamples), rgba);
+
+	vec4 filteredPix = vec4(0);
+	for (uint i = 0; i < pcb.temporalSamples; i++) {
+		filteredPix += imageLoad(accumImage, ivec3(pixel, i)).rgba;
+	}
+
+	imageStore(outDenoisedImage, pixel, filteredPix / pcb.temporalSamples);
+}

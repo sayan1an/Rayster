@@ -53,7 +53,7 @@ compileList.append(("./RtxHybridSoftShadows/02_close.rchit", "./RtxHybridSoftSha
 compileList.append(("./Filters/crossBilateralFilter.comp", "./Filters/crossBilateralFilter.spv"))
 compileList.append(("./Filters/temporalFilter.comp", "./Filters/temporalFilter.spv"))
 compileList.append(("./Filters/dummyFilter.comp", "./Filters/dummyFilter.spv"))
-
+compileList.append(("./Filters/temporalFrequencyFilter.comp", "./Filters/temporalFrequencyFilter.spv"))
 try:
     for shader in compileList:
         output = subprocess.Popen([glslangValidator, "-V", shader[0], "-o", shader[1] ], stdout=subprocess.PIPE).communicate()[0]

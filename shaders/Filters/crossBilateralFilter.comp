@@ -1,6 +1,6 @@
 #version 450
 #extension GL_GOOGLE_include_directive : enable
-#include "crossBilateralFilterParam.h"
+#include "filterParams.h"
 
 layout (local_size_x = CBF_I_TILE_WIDTH, local_size_y = CBF_I_TILE_WIDTH) in;
 layout (binding = 0, rgba8) uniform readonly image2D inDiffuseColor;
