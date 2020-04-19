@@ -34,6 +34,8 @@ extern VkPhysicalDeviceFeatures checkSupportedDeviceFeatures(const VkPhysicalDev
 			vk_requiredFeatures.multiDrawIndirect = VK_TRUE;
 		else if (std::strcmp(requiredFeature, "drawIndirectFirstInstance") == 0 && supportedFeatures.drawIndirectFirstInstance)
 			vk_requiredFeatures.drawIndirectFirstInstance = VK_TRUE;
+		else if (std::strcmp(requiredFeature, "shaderStorageImageExtendedFormats") == 0 && supportedFeatures.shaderStorageImageExtendedFormats)
+			vk_requiredFeatures.shaderStorageImageExtendedFormats = VK_TRUE;
 		else
 			CHECK(false, std::string("physical device feature '") + requiredFeature + "' not found or unsupported!");
 	}
@@ -129,6 +131,8 @@ extern VkDeviceSize imageFormatToBytes(VkFormat format)
 		return 4 * sizeof(unsigned char);
 	case VK_FORMAT_R32G32B32A32_SFLOAT:
 		return 4 * sizeof(float);
+	case VK_FORMAT_R32G32_SFLOAT:
+		return 2 * sizeof(float);
 	default:
 		CHECK_DBG_ONLY(false, "imageFormatToBytes : Unrecognised image format.");
 	}

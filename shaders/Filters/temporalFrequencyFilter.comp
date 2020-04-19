@@ -1,21 +1,51 @@
 #version 450
+#extension GL_GOOGLE_include_directive : enable
+#include "../common.h"
 
 layout (local_size_x = 16, local_size_y = 16) in;
 layout (binding = 0, rgba32f) uniform readonly image2D inNoisyImage;
 layout (binding = 1, rgba32f) uniform image2DArray accumImage;
-layout (binding = 2, rgba32f) uniform image2D outDenoisedImage;
+layout (binding = 2, rg32f) uniform image2DArray dftImage;
+layout (binding = 3, rgba32f) uniform image2D outDenoisedImage;
 
 layout (push_constant) uniform pcBlock {
 	uint frameIndex;
 	uint temporalSamples;
 } pcb;
 
+vec2 complexExp(in float x)
+{
+	float arg = 2 * PI * x;
+
+	return vec2(cos(arg), sin(arg));
+}
+
+vec2 complexMul(in vec2 x, in vec2 y)
+{
+	return vec2(x.r * y.r - x.g * y.g, x.r * y.g + x.g * y.r);
+}
+
+void updateDFT(in vec4 new, in vec4 old, in ivec2 pixel)
+{
+	uint nDftElements = (pcb.temporalSamples >> 1) + 1;
+	vec2 update = vec2((new.r + new.g + new.b - old.r - old.g - old.b) / 3.0, 0);
+	
+	for (uint i = 0; i < nDftElements; i++) {
+		vec2 cExp = complexExp(float(i) / pcb.temporalSamples);
+		vec2 dftElement = imageLoad(dftImage, ivec3(pixel, i)).rg;
+		vec4 newDftElement = vec4(complexMul(dftElement, cExp) + update, 0, 0);
+		imageStore(dftImage, ivec3(pixel, i), newDftElement);
+	}
+}
 
 void main()
 {	
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
-	vec4 rgba = imageLoad(inNoisyImage, pixel).rgba;
-	imageStore(accumImage, ivec3(pixel, pcb.frameIndex %  pcb.temporalSamples), rgba);
+	vec4 newElement = imageLoad(inNoisyImage, pixel).rgba;
+	vec4 oldElement = imageLoad(accumImage, ivec3(pixel, pcb.frameIndex %  pcb.temporalSamples)).rgba;
+	imageStore(accumImage, ivec3(pixel, pcb.frameIndex %  pcb.temporalSamples), newElement);
+
+	updateDFT(newElement, oldElement, pixel);
 
 	vec4 filteredPix = vec4(0);
 	for (uint i = 0; i < pcb.temporalSamples; i++) {

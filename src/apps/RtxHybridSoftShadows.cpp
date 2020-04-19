@@ -257,8 +257,8 @@ private:
 
 class RtxHybridSoftShadows : public WindowApplication {
 public:
-	RtxHybridSoftShadows(const std::vector<const char*>& _instanceExtensions, const std::vector<const char*>& _deviceExtensions) :
-		WindowApplication(std::vector<const char*>(), _instanceExtensions, _deviceExtensions, std::vector<const char*>()) {}
+	RtxHybridSoftShadows(const std::vector<const char*>& _instanceExtensions, const std::vector<const char*>& _deviceExtensions, const std::vector<const char*>& _deviceFeatures) :
+		WindowApplication(std::vector<const char*>(), _instanceExtensions, _deviceExtensions, _deviceFeatures) {}
 private:
 	std::vector<VkFramebuffer> swapChainFramebuffers;
 	VkFramebuffer renderPass1Fbo;
@@ -740,7 +740,8 @@ int main()
 	{	
 		std::vector<const char*> deviceExtensions = { VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME };
 		std::vector<const char*> instanceExtensions = { VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
-		RtxHybridSoftShadows app(instanceExtensions, deviceExtensions);
+		std::vector<const char*> deviceFeatures = { "shaderStorageImageExtendedFormats" };
+		RtxHybridSoftShadows app(instanceExtensions, deviceExtensions, deviceFeatures);
 
 		try {
 			app.run(1280, 720, false);

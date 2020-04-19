@@ -263,7 +263,8 @@ public:
 
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNoisyImage,  VK_IMAGE_LAYOUT_GENERAL });
 		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , accumImageView,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outDenoisedImage,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , dftImageView,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outDenoisedImage,  VK_IMAGE_LAYOUT_GENERAL });
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -289,6 +290,13 @@ public:
 		createImageP(device, allocator, queue, commandPool, accumImage, accumImageAllocation, screenExtent, VK_IMAGE_USAGE_STORAGE_BIT, imageFormat, VK_SAMPLE_COUNT_1_BIT, 0, MAX_TEMPORAL_FREQ_FILT_LAYERS);
 		accumImageView = createImageView(device, accumImage, imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, MAX_TEMPORAL_FREQ_FILT_LAYERS);
 		transitionImageLayout(device, queue, commandPool, accumImage, imageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, MAX_TEMPORAL_FREQ_FILT_LAYERS);
+
+		imageFormat = VK_FORMAT_R32G32_SFLOAT;
+		uint32_t dftBufferSize = (MAX_TEMPORAL_FREQ_FILT_LAYERS >> 1) + 1;
+		createImageP(device, allocator, queue, commandPool, dftImage, dftImageAllocation, screenExtent, VK_IMAGE_USAGE_STORAGE_BIT, imageFormat, VK_SAMPLE_COUNT_1_BIT, 0, dftBufferSize);
+		dftImageView = createImageView(device, dftImage, imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, dftBufferSize);
+		transitionImageLayout(device, queue, commandPool, dftImage, imageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, dftBufferSize);
+
 		buffersUpdated = true;
 	}
 
@@ -296,6 +304,8 @@ public:
 	{	
 		vkDestroyImageView(device, accumImageView, nullptr);
 		vmaDestroyImage(allocator, accumImage, accumImageAllocation);
+		vkDestroyImageView(device, dftImageView, nullptr);
+		vmaDestroyImage(allocator, dftImage, dftImageAllocation);
 		vkDestroyPipeline(device, pipeline, nullptr);
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
@@ -319,6 +329,10 @@ public:
 		accumImageAllocation = VK_NULL_HANDLE;
 		accumImageView = VK_NULL_HANDLE;
 
+		dftImage = VK_NULL_HANDLE;
+		dftImageAllocation = VK_NULL_HANDLE;
+		dftImageView = VK_NULL_HANDLE;
+
 		buffersUpdated = false;
 
 		pcb.frameIndex = 0;
@@ -338,6 +352,10 @@ private:
 	VkImage accumImage;
 	VmaAllocation accumImageAllocation;
 	VkImageView accumImageView;
+
+	VkImage dftImage;
+	VmaAllocation dftImageAllocation;
+	VkImageView dftImageView;
 
 	bool buffersUpdated;
 
