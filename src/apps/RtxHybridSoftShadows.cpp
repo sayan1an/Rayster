@@ -48,6 +48,7 @@ public:
 	TemporalFrequencyFilter* tfFilter;
 	PushConstantBlock pcb;
 	int denoise = 0;
+	int whichFilter = 0;
 private:
 
 	float lightX = 1;
@@ -70,9 +71,20 @@ private:
 		ImGui::Text("Filter"); ImGui::SameLine();
 		ImGui::RadioButton("Off", &denoise, 0); ImGui::SameLine();
 		ImGui::RadioButton("On", &denoise, 1);
-		//cFilter->widget();
-		tFilter->widget();
-		tfFilter->widget();
+		
+		if (denoise == 1) {
+			ImGui::Text("Select Filter");
+			ImGui::RadioButton("Cross", &whichFilter, 0); ImGui::SameLine();
+			ImGui::RadioButton("Temp", &whichFilter, 1); ImGui::SameLine();
+			ImGui::RadioButton("Freq", &whichFilter, 2);
+			if (whichFilter == 0)
+				cFilter->widget();
+			else if (whichFilter == 1)
+				tFilter->widget();
+			else if (whichFilter == 2)
+				tfFilter->widget();
+		}
+
 		pcb.lightPosition = glm::normalize(glm::vec3(lightX, lightY, lightZ)) * distance;
 		pcb.power = power;
 		pcb.numSamples = static_cast<uint32_t>(numSamples);
@@ -689,9 +701,12 @@ private:
 			VK_NULL_HANDLE, 0, 0, swapChainExtent.width,
 			swapChainExtent.height, 1);
 		
-		//crossBilateralFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
-		//temporalFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
-		temporalFrequencyFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
+		if (gui.whichFilter == 0)
+			crossBilateralFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
+		else if (gui.whichFilter == 1)
+			temporalFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
+		else if (gui.whichFilter == 2)
+			temporalFrequencyFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
 		
 		// begin second render-pass
 		renderPassInfo.renderPass = renderPass2;

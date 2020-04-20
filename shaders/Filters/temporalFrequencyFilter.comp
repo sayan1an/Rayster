@@ -11,7 +11,7 @@ layout (binding = 3, rgba32f) uniform image2D outDenoisedImage;
 layout (push_constant) uniform pcBlock {
 	uint frameIndex;
 	uint temporalSamples;
-	uint dftComponents;
+	uint dftComponent;
 } pcb;
 
 vec2 complexExp(in float x)
@@ -44,9 +44,9 @@ float updateDFT(in vec4 new, in vec4 old, in ivec2 pixel)
 		vec2 newDftElement = complexMul(dftElement, cExp);
 		imageStore(dftImage, ivec3(pixel, i), vec4(newDftElement, 0, 0));
 
-		if (i < pcb.dftComponents) {
-			dftFrequencyRepr += sqrt(newDftElement.r * newDftElement.r + newDftElement.g * newDftElement.g) * i;
-			normalization += i;
+		if (i == pcb.dftComponent) {
+			dftFrequencyRepr = sqrt(newDftElement.r * newDftElement.r + newDftElement.g * newDftElement.g);
+			normalization = 1;
 		}
 	}
 

@@ -98,9 +98,9 @@ public:
 	{	
 		if (ImGui::CollapsingHeader("CrossBilateralFilter")) {
 			ImGui::Text("Mode:"); ImGui::SameLine();
-			ImGui::RadioButton("Cross", &pcb.mode, FILTER_MODE_CROSS); ImGui::SameLine();
-			ImGui::RadioButton("Bilateral", &pcb.mode, FILTER_MODE_BILATERAL); ImGui::SameLine();
-			ImGui::RadioButton("Unilateral", &pcb.mode, FILTER_MODE_UNILATERAL);
+			ImGui::RadioButton("Cross##UID_CBFilter", &pcb.mode, FILTER_MODE_CROSS); ImGui::SameLine();
+			ImGui::RadioButton("Bilateral##UID_CBFilter", &pcb.mode, FILTER_MODE_BILATERAL); ImGui::SameLine();
+			ImGui::RadioButton("Unilateral##UID_CBFilter", &pcb.mode, FILTER_MODE_UNILATERAL);
 			ImGui::SliderFloat("Filter size", &pcb.filterSize, 0.02f, 5.0f);
 		}
 	}
@@ -322,9 +322,9 @@ public:
 			ImGui::SliderInt("Temporal samples##UID_TemporalFreqFilter", &tSamples, 1, MAX_TEMPORAL_FREQ_FILT_LAYERS);
 			pcb.temporalSamples = tSamples;
 
-			int dftComponents = pcb.nDftComponents;
-			ImGui::SliderInt("DFT components##UID_TemporalFreqFilter", &dftComponents, 1, (pcb.temporalSamples >> 1) + 1);
-			pcb.nDftComponents = dftComponents;
+			int dftComponent = pcb.nDftComponent;
+			ImGui::SliderInt("DFT component##UID_TemporalFreqFilter", &dftComponent, 0, (pcb.temporalSamples >> 1));
+			pcb.nDftComponent = dftComponent;
 		}
 	}
 
@@ -342,7 +342,7 @@ public:
 
 		pcb.frameIndex = 0;
 		pcb.temporalSamples = MAX_TEMPORAL_FREQ_FILT_LAYERS;
-		pcb.nDftComponents = (pcb.temporalSamples >> 1) + 1;
+		pcb.nDftComponent = 0;
 	}
 private:
 	VkPipeline pipeline;
@@ -369,7 +369,7 @@ private:
 	{
 		uint32_t frameIndex;
 		uint32_t temporalSamples;
-		uint32_t nDftComponents;
+		uint32_t nDftComponent;
 	} pcb;
 
 };
