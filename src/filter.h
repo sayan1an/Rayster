@@ -277,10 +277,11 @@ public:
 	{
 		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 		vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
-		// update push constant block
-		pcb.frameIndex++;
 		vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstantBlock), &pcb);
 		vkCmdDispatch(cmdBuf, 1 + (screenExtent.width - 1) / 16, 1 + (screenExtent.height - 1) / 16, 1);
+
+		// update push constant block
+		pcb.frameIndex++;
 
 	}
 
@@ -320,6 +321,10 @@ public:
 			int tSamples = pcb.temporalSamples;
 			ImGui::SliderInt("Temporal samples##UID_TemporalFreqFilter", &tSamples, 1, MAX_TEMPORAL_FREQ_FILT_LAYERS);
 			pcb.temporalSamples = tSamples;
+
+			int dftComponents = pcb.nDftComponents;
+			ImGui::SliderInt("DFT components##UID_TemporalFreqFilter", &dftComponents, 1, (pcb.temporalSamples >> 1) + 1);
+			pcb.nDftComponents = dftComponents;
 		}
 	}
 
@@ -337,6 +342,7 @@ public:
 
 		pcb.frameIndex = 0;
 		pcb.temporalSamples = MAX_TEMPORAL_FREQ_FILT_LAYERS;
+		pcb.nDftComponents = (pcb.temporalSamples >> 1) + 1;
 	}
 private:
 	VkPipeline pipeline;
@@ -363,6 +369,7 @@ private:
 	{
 		uint32_t frameIndex;
 		uint32_t temporalSamples;
+		uint32_t nDftComponents;
 	} pcb;
 
 };

@@ -11,6 +11,7 @@ layout (binding = 3, rgba32f) uniform image2D outDenoisedImage;
 layout (push_constant) uniform pcBlock {
 	uint frameIndex;
 	uint temporalSamples;
+	uint dftComponents;
 } pcb;
 
 vec2 complexExp(in float x)
@@ -25,32 +26,76 @@ vec2 complexMul(in vec2 x, in vec2 y)
 	return vec2(x.r * y.r - x.g * y.g, x.r * y.g + x.g * y.r);
 }
 
-void updateDFT(in vec4 new, in vec4 old, in ivec2 pixel)
+float complexAbs(in vec2 x)
+{
+	return sqrt(x.r * x.r + x.g * x.g);
+}
+
+float updateDFT(in vec4 new, in vec4 old, in ivec2 pixel)
 {
 	uint nDftElements = (pcb.temporalSamples >> 1) + 1;
 	vec2 update = vec2((new.r + new.g + new.b - old.r - old.g - old.b) / 3.0, 0);
 	
+	float dftFrequencyRepr = 0;
+	float normalization = 0;
 	for (uint i = 0; i < nDftElements; i++) {
 		vec2 cExp = complexExp(float(i) / pcb.temporalSamples);
-		vec2 dftElement = imageLoad(dftImage, ivec3(pixel, i)).rg;
-		vec4 newDftElement = vec4(complexMul(dftElement, cExp) + update, 0, 0);
-		imageStore(dftImage, ivec3(pixel, i), newDftElement);
+		vec2 dftElement = imageLoad(dftImage, ivec3(pixel, i)).rg + update;
+		vec2 newDftElement = complexMul(dftElement, cExp);
+		imageStore(dftImage, ivec3(pixel, i), vec4(newDftElement, 0, 0));
+
+		if (i < pcb.dftComponents) {
+			dftFrequencyRepr += sqrt(newDftElement.r * newDftElement.r + newDftElement.g * newDftElement.g) * i;
+			normalization += i;
+		}
 	}
+
+	return dftFrequencyRepr / normalization;
+}
+
+float bruteForceDftCompare(in uint startIdx, in ivec2 pixel)
+{	
+	uint nDftElements = (pcb.temporalSamples >> 1) + 1;
+
+	float error = 0;
+	for (uint i = 0; i < nDftElements; i++) {
+		vec2 dftElement = vec2(0);
+		for (uint j = 0; j < pcb.temporalSamples; j++) {
+			float arg = -1.0 * (int(j) - int(startIdx)) * float(i) / pcb.temporalSamples;
+			vec2 cExp = complexExp(arg);
+
+			vec4 element = imageLoad(accumImage, ivec3(pixel, j)).rgba;
+
+			dftElement += complexMul(cExp, vec2((element.r + element.g + element.b)/3.0, 0));
+		}
+
+		vec2 dftElementRef = imageLoad(dftImage, ivec3(pixel, i)).rg;
+		vec2 delta = dftElementRef - dftElement;
+		error += sqrt(delta.r * delta.r + delta.g * delta.g);
+
+		//error += abs(complexAbs(dftElementRef) - complexAbs(dftElement));
+	}
+
+	return error;
 }
 
 void main()
 {	
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
 	vec4 newElement = imageLoad(inNoisyImage, pixel).rgba;
-	vec4 oldElement = imageLoad(accumImage, ivec3(pixel, pcb.frameIndex %  pcb.temporalSamples)).rgba;
-	imageStore(accumImage, ivec3(pixel, pcb.frameIndex %  pcb.temporalSamples), newElement);
+	uint startIndex = pcb.frameIndex %  pcb.temporalSamples;
+	vec4 oldElement = imageLoad(accumImage, ivec3(pixel, startIndex)).rgba;
+	imageStore(accumImage, ivec3(pixel, startIndex), newElement);
 
-	updateDFT(newElement, oldElement, pixel);
+	float dftSummary = updateDFT(newElement, oldElement, pixel);
+
+	//float error = bruteForceDftCompare((startIndex + 1) % pcb.temporalSamples, pixel);
 
 	vec4 filteredPix = vec4(0);
 	for (uint i = 0; i < pcb.temporalSamples; i++) {
 		filteredPix += imageLoad(accumImage, ivec3(pixel, i)).rgba;
 	}
 
-	imageStore(outDenoisedImage, pixel, filteredPix / pcb.temporalSamples);
+	//imageStore(outDenoisedImage, pixel, filteredPix / pcb.temporalSamples);
+	imageStore(outDenoisedImage, pixel, vec4(vec3(dftSummary), 0));
 }

@@ -67,9 +67,9 @@ private:
 		ImGui::SliderFloat("Emitter power", &power, 1.0f, 100.0f);
 		ImGui::SliderFloat("Emitter distance", &distance, 1.0f, 25.0f);
 		ImGui::SliderInt("MC Samples", &numSamples, 1, 64);
-		ImGui::Text("Denoise"); ImGui::SameLine();
-		ImGui::RadioButton("No", &denoise, 0); ImGui::SameLine();
-		ImGui::RadioButton("Yes", &denoise, 1);
+		ImGui::Text("Filter"); ImGui::SameLine();
+		ImGui::RadioButton("Off", &denoise, 0); ImGui::SameLine();
+		ImGui::RadioButton("On", &denoise, 1);
 		//cFilter->widget();
 		tFilter->widget();
 		tfFilter->widget();
