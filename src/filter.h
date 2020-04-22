@@ -320,7 +320,7 @@ public:
 			int dftComponent = (pcb.dftInfo >> 8) & 0xff;
 			int sampleComponent = (pcb.dftInfo >> 16) & 0xff;
 			int mode = (pcb.dftInfo >> 24) & 0xff;
-			
+						
 			ImGui::SliderInt("Temporal samples##UID_TemporalFreqFilter", &tSamples, 1, MAX_TEMPORAL_FREQ_FILT_SAMPLES);
 			
 			if (tSamples != (pcb.dftInfo & 0xff))
@@ -331,13 +331,21 @@ public:
 			ImGui::RadioButton("Test filtered output##UID_TemporalFreqFilter", &mode, TEMPORAL_FREQ_FILT_MODE_1);
 			ImGui::RadioButton("Display DFT components##UID_TemporalFreqFilter", &mode, TEMPORAL_FREQ_FILT_MODE_2);
 			ImGui::RadioButton("Test DFT output##UID_TemporalFreqFilter", &mode, TEMPORAL_FREQ_FILT_MODE_3);
+			ImGui::RadioButton("Show pixel DFT##UID_TemporalFreqFilter", &mode, TEMPORAL_FREQ_FILT_MODE_5);
 			ImGui::RadioButton("Reset DFT buffer##UID_TemporalFreqFilter", &mode, TEMPORAL_FREQ_FILT_MODE_4);
 			
 			if (mode == TEMPORAL_FREQ_FILT_MODE_0 || mode == TEMPORAL_FREQ_FILT_MODE_1)
 				ImGui::SliderInt("Sample component##UID_TemporalFreqFilter", &sampleComponent, 0, tSamples - 1);
-			if (mode == TEMPORAL_FREQ_FILT_MODE_2)
+			else if (mode == TEMPORAL_FREQ_FILT_MODE_2)
 				ImGui::SliderInt("DFT component##UID_TemporalFreqFilter", &dftComponent, 0, (tSamples >> 1));
-			
+			else if (mode == TEMPORAL_FREQ_FILT_MODE_5) {
+				int px = pcb.pixelInfo & 0xffff;
+				int py = pcb.pixelInfo >> 16;
+				ImGui::SliderInt("Pixel X coord##UID_TemporalFreqFilter", &px, 0, (pcb.imageInfo & 0xffff) - 1);
+				ImGui::SliderInt("Pixel Y coord##UID_TemporalFreqFilter", &py, 0, (pcb.imageInfo >> 16) - 1);
+				pcb.pixelInfo = (px & 0xffff) | (py << 16);
+			}
+
 			pcb.dftInfo = ((mode & 0xff) << 24) | ((sampleComponent & 0xff) << 16) | ((dftComponent  & 0xff) << 8) | (tSamples & 0xff);
 		}
 	}
@@ -355,6 +363,7 @@ public:
 
 		pcb.frameIndex = 0;
 		pcb.dftInfo= MAX_TEMPORAL_FREQ_FILT_SAMPLES;
+		pcb.pixelInfo = 25 | (25 << 16);
 	}
 private:
 	VkPipeline pipeline;
@@ -380,7 +389,8 @@ private:
 	{
 		uint32_t frameIndex;
 		uint32_t dftInfo; // Starting LSB  8 bit - number of samples, 8 bit - dftComponent to display, 8 bit - index of sample to recover after filtering (0 is oldest while max is latest), 8 bit mode 
-		uint32_t imageInfo; // Staring LSB 16 bit - image width, 16 bit -image height
+		uint32_t imageInfo; // Staring LSB 16 bit - image width, 16 bit - image height
+		uint32_t pixelInfo; // Starting LSB 16 - pixel x coord, 16 bit - pixel y coord
 	} pcb;
 
 	VkDescriptorBufferInfo getDftDescriptorBufferInfo() const

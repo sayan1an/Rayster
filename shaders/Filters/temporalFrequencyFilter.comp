@@ -13,6 +13,7 @@ layout (push_constant) uniform pcBlock {
 	uint frameIndex;
 	uint dftInfo; // Starting LSB  8 bit - number of samples, 8 bit - dftComponent to display, 8 bit - index of sample to recover after filtering (0 is oldest while max is latest), 8 bit mode 
 	uint imageInfo; // Staring LSB 16 bit - image width, 16 bit -image height
+	uint pixelInfo; // Starting LSB 16 - pixel x coord, 16 bit - pixel y coord
 } pcb;
 
 mat3x2 loadDftBuffer(in ivec2 imageExtent, in ivec2 pixel, in uint dftComponent)
@@ -104,7 +105,14 @@ void main()
 		}
 		else if (dftInfo.w == TEMPORAL_FREQ_FILT_MODE_3)
 			displayOut = bruteForceDftCompare((startIndex + 1) % dftInfo.x, imageExtent, pixel, dftInfo.x);
-		
+		else if (dftInfo.w == TEMPORAL_FREQ_FILT_MODE_5) {
+			uint centerX = pcb.pixelInfo & 0xffff;
+			uint centerY = pcb.pixelInfo >> 16;
+			if (pixel.x >= centerX - 2 && pixel.x <= centerX + 2 && pixel.y >= centerY - 2 && pixel.y <= centerY + 2) {
+				uint idx = pcb.frameIndex / 20;
+				displayOut = vec3(idx % 3 == 0, idx % 3 == 1, idx % 3 == 2);
+			}
+		}
 
 		imageStore(outDenoisedImage, pixel, vec4(displayOut, 0));
 	}
