@@ -89,6 +89,13 @@ extern void copyBuffer(const VkDevice& device, const VkQueue& queue, const VkCom
 	endSingleTimeCommands(device, queue, commandPool, commandBuffer);
 }
 
+extern void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsageFlags, uint64_t pattern)
+{
+	VkDeviceSize nUint64_t = static_cast<VkDeviceSize>(bufferSize / sizeof(uint64_t)) + 1;
+	std::vector<uint64_t> data(nUint64_t, pattern);
+	createBuffer(device, allocator, queue, commandPool, buffer, bufferAllocation, bufferSize, static_cast<const void*>(data.data()), bufferUsageFlags);
+}
+
 extern void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer &buffer, VmaAllocation &bufferAllocation, VkDeviceSize bufferSize, const void *srcData, VkBufferUsageFlags bufferUsageFlags)
 {
 	CHECK_DBG_ONLY(srcData != nullptr, "createBuffer: data source cannot be null.");

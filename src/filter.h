@@ -263,7 +263,7 @@ public:
 
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNoisyImage,  VK_IMAGE_LAYOUT_GENERAL });
 		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , accumImageView,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , dftImageView,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindBuffer({2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, getDftDescriptorBufferInfo());
 		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outDenoisedImage,  VK_IMAGE_LAYOUT_GENERAL });
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
@@ -282,31 +282,29 @@ public:
 
 		// update push constant block
 		pcb.frameIndex++;
-
 	}
 
 	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& screenExtent)
 	{	
 		VkFormat imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
-		createImageP(device, allocator, queue, commandPool, accumImage, accumImageAllocation, screenExtent, VK_IMAGE_USAGE_STORAGE_BIT, imageFormat, VK_SAMPLE_COUNT_1_BIT, 0, MAX_TEMPORAL_FREQ_FILT_LAYERS);
-		accumImageView = createImageView(device, accumImage, imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, MAX_TEMPORAL_FREQ_FILT_LAYERS);
-		transitionImageLayout(device, queue, commandPool, accumImage, imageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, MAX_TEMPORAL_FREQ_FILT_LAYERS);
+		createImageP(device, allocator, queue, commandPool, accumImage, accumImageAllocation, screenExtent, VK_IMAGE_USAGE_STORAGE_BIT, imageFormat, VK_SAMPLE_COUNT_1_BIT, 0, MAX_TEMPORAL_FREQ_FILT_SAMPLES);
+		accumImageView = createImageView(device, accumImage, imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, MAX_TEMPORAL_FREQ_FILT_SAMPLES);
+		transitionImageLayout(device, queue, commandPool, accumImage, imageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, MAX_TEMPORAL_FREQ_FILT_SAMPLES);
 
-		imageFormat = VK_FORMAT_R32G32_SFLOAT;
-		uint32_t dftBufferSize = (MAX_TEMPORAL_FREQ_FILT_LAYERS >> 1) + 1;
-		createImageP(device, allocator, queue, commandPool, dftImage, dftImageAllocation, screenExtent, VK_IMAGE_USAGE_STORAGE_BIT, imageFormat, VK_SAMPLE_COUNT_1_BIT, 0, dftBufferSize);
-		dftImageView = createImageView(device, dftImage, imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, dftBufferSize);
-		transitionImageLayout(device, queue, commandPool, dftImage, imageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, dftBufferSize);
-
+		uint64_t dftComponents = (MAX_TEMPORAL_FREQ_FILT_SAMPLES >> 1) + 1;
+		VkDeviceSize dftBufferSize = 6 * sizeof(float) * dftComponents * screenExtent.width * screenExtent.height;
+		createBuffer(device, allocator, queue, commandPool, dftBuffer, dftBufferAllocation, dftBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		
+		pcb.imageInfo = (screenExtent.width & 0xffff) | (screenExtent.height << 16);
+		
 		buffersUpdated = true;
 	}
 
 	void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
 	{	
+		vmaDestroyBuffer(allocator, dftBuffer, dftBufferAllocation);
 		vkDestroyImageView(device, accumImageView, nullptr);
 		vmaDestroyImage(allocator, accumImage, accumImageAllocation);
-		vkDestroyImageView(device, dftImageView, nullptr);
-		vmaDestroyImage(allocator, dftImage, dftImageAllocation);
 		vkDestroyPipeline(device, pipeline, nullptr);
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
@@ -318,31 +316,45 @@ public:
 	void widget()
 	{
 		if (ImGui::CollapsingHeader("TemporalFrequencyFilter")) {
-			int tSamples = pcb.temporalSamples;
-			ImGui::SliderInt("Temporal samples##UID_TemporalFreqFilter", &tSamples, 1, MAX_TEMPORAL_FREQ_FILT_LAYERS);
-			pcb.temporalSamples = tSamples;
+			int tSamples = pcb.dftInfo & 0xff;
+			int dftComponent = (pcb.dftInfo >> 8) & 0xff;
+			int sampleComponent = (pcb.dftInfo >> 16) & 0xff;
+			int mode = (pcb.dftInfo >> 24) & 0xff;
+			
+			ImGui::SliderInt("Temporal samples##UID_TemporalFreqFilter", &tSamples, 1, MAX_TEMPORAL_FREQ_FILT_SAMPLES);
+			
+			if (tSamples != (pcb.dftInfo & 0xff))
+				mode = TEMPORAL_FREQ_FILT_MODE_4;
 
-			int dftComponent = pcb.nDftComponent;
-			ImGui::SliderInt("DFT component##UID_TemporalFreqFilter", &dftComponent, 0, (pcb.temporalSamples >> 1));
-			pcb.nDftComponent = dftComponent;
+			ImGui::Text("Select output modes:");
+			ImGui::RadioButton("Filtered output##UID_TemporalFreqFilter", &mode, TEMPORAL_FREQ_FILT_MODE_0);
+			ImGui::RadioButton("Test filtered output##UID_TemporalFreqFilter", &mode, TEMPORAL_FREQ_FILT_MODE_1);
+			ImGui::RadioButton("Display DFT components##UID_TemporalFreqFilter", &mode, TEMPORAL_FREQ_FILT_MODE_2);
+			ImGui::RadioButton("Test DFT output##UID_TemporalFreqFilter", &mode, TEMPORAL_FREQ_FILT_MODE_3);
+			ImGui::RadioButton("Reset DFT buffer##UID_TemporalFreqFilter", &mode, TEMPORAL_FREQ_FILT_MODE_4);
+			
+			if (mode == TEMPORAL_FREQ_FILT_MODE_0 || mode == TEMPORAL_FREQ_FILT_MODE_1)
+				ImGui::SliderInt("Sample component##UID_TemporalFreqFilter", &sampleComponent, 0, tSamples - 1);
+			if (mode == TEMPORAL_FREQ_FILT_MODE_2)
+				ImGui::SliderInt("DFT component##UID_TemporalFreqFilter", &dftComponent, 0, (tSamples >> 1));
+			
+			pcb.dftInfo = ((mode & 0xff) << 24) | ((sampleComponent & 0xff) << 16) | ((dftComponent  & 0xff) << 8) | (tSamples & 0xff);
 		}
 	}
 
 	TemporalFrequencyFilter()
-	{
+	{	
 		accumImage = VK_NULL_HANDLE;
 		accumImageAllocation = VK_NULL_HANDLE;
 		accumImageView = VK_NULL_HANDLE;
 
-		dftImage = VK_NULL_HANDLE;
-		dftImageAllocation = VK_NULL_HANDLE;
-		dftImageView = VK_NULL_HANDLE;
+		dftBuffer = VK_NULL_HANDLE;
+		dftBufferAllocation = VK_NULL_HANDLE;
 
 		buffersUpdated = false;
 
 		pcb.frameIndex = 0;
-		pcb.temporalSamples = MAX_TEMPORAL_FREQ_FILT_LAYERS;
-		pcb.nDftComponent = 0;
+		pcb.dftInfo= MAX_TEMPORAL_FREQ_FILT_SAMPLES;
 	}
 private:
 	VkPipeline pipeline;
@@ -359,17 +371,26 @@ private:
 	VmaAllocation accumImageAllocation;
 	VkImageView accumImageView;
 
-	VkImage dftImage;
-	VmaAllocation dftImageAllocation;
-	VkImageView dftImageView;
+	VkBuffer dftBuffer;
+	VmaAllocation dftBufferAllocation;
 
 	bool buffersUpdated;
 
 	struct PushConstantBlock
 	{
 		uint32_t frameIndex;
-		uint32_t temporalSamples;
-		uint32_t nDftComponent;
+		uint32_t dftInfo; // Starting LSB  8 bit - number of samples, 8 bit - dftComponent to display, 8 bit - index of sample to recover after filtering (0 is oldest while max is latest), 8 bit mode 
+		uint32_t imageInfo; // Staring LSB 16 bit - image width, 16 bit -image height
 	} pcb;
+
+	VkDescriptorBufferInfo getDftDescriptorBufferInfo() const
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = dftBuffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		return descriptorBufferInfo;
+	}
 
 };

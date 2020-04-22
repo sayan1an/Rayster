@@ -1,79 +1,71 @@
 #version 450
 #extension GL_GOOGLE_include_directive : enable
-#include "../common.h"
+#include "filterParams.h"
+#include "../commonMath.h"
 
 layout (local_size_x = 16, local_size_y = 16) in;
-layout (binding = 0, rgba32f) uniform readonly image2D inNoisyImage;
-layout (binding = 1, rgba32f) uniform image2DArray accumImage;
-layout (binding = 2, rg32f) uniform image2DArray dftImage;
-layout (binding = 3, rgba32f) uniform image2D outDenoisedImage;
+layout (binding = 0, set = 0, rgba32f) uniform readonly image2D inNoisyImage;
+layout (binding = 1, set = 0, rgba32f) uniform image2DArray accumImage;
+layout (binding = 2, set = 0) buffer DftBuffer { mat3x2 data[]; } dftBuffer;
+layout (binding = 3, set = 0, rgba32f) uniform image2D outDenoisedImage;
 
 layout (push_constant) uniform pcBlock {
 	uint frameIndex;
-	uint temporalSamples;
-	uint dftComponent;
+	uint dftInfo; // Starting LSB  8 bit - number of samples, 8 bit - dftComponent to display, 8 bit - index of sample to recover after filtering (0 is oldest while max is latest), 8 bit mode 
+	uint imageInfo; // Staring LSB 16 bit - image width, 16 bit -image height
 } pcb;
 
-vec2 complexExp(in float x)
-{
-	float arg = 2 * PI * x;
+mat3x2 loadDftBuffer(in ivec2 imageExtent, in ivec2 pixel, in uint dftComponent)
+{	
+	uint index = dftComponent * imageExtent.x * imageExtent.y + pixel.y * imageExtent.x + pixel.x;
 
-	return vec2(cos(arg), sin(arg));
+	return dftBuffer.data[index];
 }
 
-vec2 complexMul(in vec2 x, in vec2 y)
+void storeDftBuffer(in ivec2 imageExtent, in ivec2 pixel, in uint dftComponent, in mat3x2 data)
 {
-	return vec2(x.r * y.r - x.g * y.g, x.r * y.g + x.g * y.r);
+	uint index = dftComponent * imageExtent.x * imageExtent.y + pixel.y * imageExtent.x + pixel.x;
+
+	dftBuffer.data[index] = data;
 }
 
-float complexAbs(in vec2 x)
+vec3 updateDFT(in vec3 difference, in ivec2 imageExtent, in ivec2 pixel, in uvec4 dftInfo)
 {
-	return sqrt(x.r * x.r + x.g * x.g);
-}
+	uint nDftElements = (dftInfo.x >> 1) + 1;
+	mat3x2 update = mat3x2(difference.r, 0, difference.g, 0,  difference.b, 0);
 
-float updateDFT(in vec4 new, in vec4 old, in ivec2 pixel)
-{
-	uint nDftElements = (pcb.temporalSamples >> 1) + 1;
-	vec2 update = vec2((new.r + new.g + new.b - old.r - old.g - old.b) / 3.0, 0);
-	
-	float dftFrequencyRepr = 0;
-	float normalization = 0;
+	vec3 dftFrequencyRepr = vec3(0);
 	for (uint i = 0; i < nDftElements; i++) {
-		vec2 cExp = complexExp(float(i) / pcb.temporalSamples);
-		vec2 dftElement = imageLoad(dftImage, ivec3(pixel, i)).rg + update;
-		vec2 newDftElement = complexMul(dftElement, cExp);
-		imageStore(dftImage, ivec3(pixel, i), vec4(newDftElement, 0, 0));
+		vec2 cExp = complexExp(float(i) / dftInfo.x);
+		mat3x2 newDftElement = complexMul(loadDftBuffer(imageExtent, pixel, i) + update, cExp);
+		
+		float multiplier = (i == 0  || (i == nDftElements - 1 && (dftInfo.x & 1) == 0)) ? 1.0 : 2.0;
 
-		if (i == pcb.dftComponent) {
-			dftFrequencyRepr = sqrt(newDftElement.r * newDftElement.r + newDftElement.g * newDftElement.g);
-			normalization = 1;
-		}
+		dftFrequencyRepr += complexMulReal(newDftElement, complexExp(float(i * dftInfo.z) / dftInfo.x)) * multiplier / dftInfo.x;
+		
+		storeDftBuffer(imageExtent, pixel, i, newDftElement);
 	}
 
-	return dftFrequencyRepr / normalization;
+	return dftFrequencyRepr;
 }
 
-float bruteForceDftCompare(in uint startIdx, in ivec2 pixel)
+vec3 bruteForceDftCompare(in uint startIdx, in ivec2 imageExtent, in ivec2 pixel, in uint temporalSamples)
 {	
-	uint nDftElements = (pcb.temporalSamples >> 1) + 1;
+	uint nDftElements = (temporalSamples >> 1) + 1;
 
-	float error = 0;
+	vec3 error = vec3(0);
 	for (uint i = 0; i < nDftElements; i++) {
-		vec2 dftElement = vec2(0);
-		for (uint j = 0; j < pcb.temporalSamples; j++) {
-			float arg = -1.0 * (int(j) - int(startIdx)) * float(i) / pcb.temporalSamples;
+		mat3x2 dftElement = mat3x2(0);
+		for (uint j = 0; j < temporalSamples; j++) {
+			float arg = -1.0 * (int(j) - int(startIdx)) * float(i) / temporalSamples;
 			vec2 cExp = complexExp(arg);
-
 			vec4 element = imageLoad(accumImage, ivec3(pixel, j)).rgba;
-
-			dftElement += complexMul(cExp, vec2((element.r + element.g + element.b)/3.0, 0));
+			dftElement += complexMul(mat3x2(element.r, 0, element.g, 0, element.b, 0), cExp);
 		}
 
-		vec2 dftElementRef = imageLoad(dftImage, ivec3(pixel, i)).rg;
-		vec2 delta = dftElementRef - dftElement;
-		error += sqrt(delta.r * delta.r + delta.g * delta.g);
-
-		//error += abs(complexAbs(dftElementRef) - complexAbs(dftElement));
+		mat3x2 dftElementRef = loadDftBuffer(imageExtent, pixel, i);
+		mat3x2 delta = dftElementRef - dftElement;
+		error += vec3(length(delta[0]), length(delta[1]), length(delta[2]));
 	}
 
 	return error;
@@ -81,21 +73,39 @@ float bruteForceDftCompare(in uint startIdx, in ivec2 pixel)
 
 void main()
 {	
+	ivec2 imageExtent = ivec2(pcb.imageInfo & 0xffff, pcb.imageInfo >> 16); 
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
-	vec4 newElement = imageLoad(inNoisyImage, pixel).rgba;
-	uint startIndex = pcb.frameIndex %  pcb.temporalSamples;
-	vec4 oldElement = imageLoad(accumImage, ivec3(pixel, startIndex)).rgba;
-	imageStore(accumImage, ivec3(pixel, startIndex), newElement);
+	
+	if (pixel.x < imageExtent.x && pixel.y < imageExtent.y) {
+		vec4 newElement = imageLoad(inNoisyImage, pixel).rgba;
+		uvec4  dftInfo = uvec4(pcb.dftInfo & 0xff, (pcb.dftInfo >> 8) & 0xff, (pcb.dftInfo >> 16) & 0xff, pcb.dftInfo >> 24);
+		
+		if (dftInfo.w == TEMPORAL_FREQ_FILT_MODE_4) {
+			mat3x2 data = mat3x2(0);
+			
+			for (uint i = 0; i < ((MAX_TEMPORAL_FREQ_FILT_SAMPLES >> 1) + 1); i++) 
+				storeDftBuffer(imageExtent, pixel, i, mat3x2(0));
 
-	float dftSummary = updateDFT(newElement, oldElement, pixel);
+			for (uint i = 0; i < MAX_TEMPORAL_FREQ_FILT_SAMPLES; i++)
+				 imageStore(accumImage, ivec3(pixel, i), vec4(0));
+		}
+	
+		uint startIndex = pcb.frameIndex %  dftInfo.x;
+		vec4 oldElement = imageLoad(accumImage, ivec3(pixel, startIndex)).rgba;
+		imageStore(accumImage, ivec3(pixel, startIndex), newElement);
+		
+		vec3 displayOut = updateDFT((newElement - oldElement).rgb, imageExtent, pixel, dftInfo);
 
-	//float error = bruteForceDftCompare((startIndex + 1) % pcb.temporalSamples, pixel);
+		if (dftInfo.w == TEMPORAL_FREQ_FILT_MODE_1)
+			displayOut -= imageLoad(accumImage, ivec3(pixel, (startIndex + 1 + dftInfo.z) % dftInfo.x)).rgb;
+		else if (dftInfo.w == TEMPORAL_FREQ_FILT_MODE_2) {
+			mat3x2 dftComponent = loadDftBuffer(imageExtent, pixel, dftInfo.y);
+			displayOut = vec3(length(dftComponent[0]), length(dftComponent[1]), length(dftComponent[2]));
+		}
+		else if (dftInfo.w == TEMPORAL_FREQ_FILT_MODE_3)
+			displayOut = bruteForceDftCompare((startIndex + 1) % dftInfo.x, imageExtent, pixel, dftInfo.x);
+		
 
-	vec4 filteredPix = vec4(0);
-	for (uint i = 0; i < pcb.temporalSamples; i++) {
-		filteredPix += imageLoad(accumImage, ivec3(pixel, i)).rgba;
+		imageStore(outDenoisedImage, pixel, vec4(displayOut, 0));
 	}
-
-	//imageStore(outDenoisedImage, pixel, filteredPix / pcb.temporalSamples);
-	imageStore(outDenoisedImage, pixel, vec4(vec3(dftSummary), 0));
 }
