@@ -27,8 +27,3 @@ vec3 complexMulReal(in mat3x2 x, in vec2 y)
 {
 	return vec3(x[0].r * y.r - x[0].g * y.g, x[1].r * y.r - x[1].g * y.g, x[2].r * y.r - x[2].g * y.g);
 }
-
-float complexAbs(in vec2 x)
-{
-	return sqrt(x.r * x.r + x.g * x.g);
-}

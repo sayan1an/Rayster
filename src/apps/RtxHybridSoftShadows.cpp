@@ -747,6 +747,8 @@ private:
 		buildCommandBuffer(imageIndex);
 		submitRenderCmd(commandBuffers[imageIndex]);
 		frameEnd(imageIndex);
+
+		temporalFrequencyFilter.updateData();
 	}
 };
 

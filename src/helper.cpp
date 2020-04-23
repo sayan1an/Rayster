@@ -89,6 +89,28 @@ extern void copyBuffer(const VkDevice& device, const VkQueue& queue, const VkCom
 	endSingleTimeCommands(device, queue, commandPool, commandBuffer);
 }
 
+extern void* createBuffer(const VmaAllocator& allocator, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsageFlags, bool cpuToGpu)
+{
+	VkBufferCreateInfo bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.size = bufferSize;
+	bufferCreateInfo.usage = bufferUsageFlags;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo allocCreateInfo = {};
+	allocCreateInfo.usage = cpuToGpu ? VMA_MEMORY_USAGE_CPU_TO_GPU : VMA_MEMORY_USAGE_GPU_TO_CPU;
+	allocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+	VmaAllocationInfo allocationInfo;
+	if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &buffer, &bufferAllocation, &allocationInfo) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create uniform buffers!");
+
+	if (allocationInfo.pMappedData == nullptr)
+		throw std::runtime_error("Failed to map meomry for buffer!");
+	
+	return allocationInfo.pMappedData;
+}
+
 extern void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsageFlags, uint64_t pattern)
 {
 	VkDeviceSize nUint64_t = static_cast<VkDeviceSize>(bufferSize / sizeof(uint64_t)) + 1;

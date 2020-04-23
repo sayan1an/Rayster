@@ -259,12 +259,13 @@ class TemporalFrequencyFilter
 public:
 	void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& inNoisyImage, const VkImageView& outDenoisedImage)
 	{	
-		CHECK_DBG_ONLY(buffersUpdated, "TemporalFrequencyFilter : call createBuffers first.");
+		CHECK_DBG_ONLY(buffersCreated, "TemporalFrequencyFilter : call createBuffers first.");
 
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNoisyImage,  VK_IMAGE_LAYOUT_GENERAL });
 		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , accumImageView,  VK_IMAGE_LAYOUT_GENERAL });
 		descGen.bindBuffer({2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, getDftDescriptorBufferInfo());
-		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outDenoisedImage,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindBuffer({3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, getPixelMagSpectDescriptorBufferInfo());
+		descGen.bindImage({4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outDenoisedImage,  VK_IMAGE_LAYOUT_GENERAL });
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -296,12 +297,16 @@ public:
 		createBuffer(device, allocator, queue, commandPool, dftBuffer, dftBufferAllocation, dftBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		
 		pcb.imageInfo = (screenExtent.width & 0xffff) | (screenExtent.height << 16);
-		
-		buffersUpdated = true;
+
+		ptrPixelMagnitudeSpectrumMapped = createBuffer(allocator, pixelMagnitudeSpectrumBuffer, pixelMagnitudeSpectrumAllocation, dftComponents * sizeof(float), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
+		ptrPixelMagnitudeSpectrum = new float[dftComponents];
+
+		buffersCreated = true;
 	}
 
 	void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
 	{	
+		vmaDestroyBuffer(allocator, pixelMagnitudeSpectrumBuffer, pixelMagnitudeSpectrumAllocation);
 		vmaDestroyBuffer(allocator, dftBuffer, dftBufferAllocation);
 		vkDestroyImageView(device, accumImageView, nullptr);
 		vmaDestroyImage(allocator, accumImage, accumImageAllocation);
@@ -310,7 +315,13 @@ public:
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
-		buffersUpdated = false;
+		buffersCreated = false;
+	}
+
+	void updateData()
+	{	
+		if ((pcb.dftInfo >> 24) == TEMPORAL_FREQ_FILT_MODE_5)
+			memcpy(ptrPixelMagnitudeSpectrum, ptrPixelMagnitudeSpectrumMapped, ((MAX_TEMPORAL_FREQ_FILT_SAMPLES >> 1) + 1) * sizeof(float));
 	}
 
 	void widget()
@@ -344,6 +355,8 @@ public:
 				ImGui::SliderInt("Pixel X coord##UID_TemporalFreqFilter", &px, 0, (pcb.imageInfo & 0xffff) - 1);
 				ImGui::SliderInt("Pixel Y coord##UID_TemporalFreqFilter", &py, 0, (pcb.imageInfo >> 16) - 1);
 				pcb.pixelInfo = (px & 0xffff) | (py << 16);
+
+				ImGui::PlotHistogram(std::to_string(static_cast<uint32_t>(ptrPixelMagnitudeSpectrum[0])).c_str(), ptrPixelMagnitudeSpectrum, (tSamples >> 1) + 1, 0, "Magnitude Spectrum (Hz)", 0, ptrPixelMagnitudeSpectrum[0], ImVec2(0, 50));
 			}
 
 			pcb.dftInfo = ((mode & 0xff) << 24) | ((sampleComponent & 0xff) << 16) | ((dftComponent  & 0xff) << 8) | (tSamples & 0xff);
@@ -359,7 +372,11 @@ public:
 		dftBuffer = VK_NULL_HANDLE;
 		dftBufferAllocation = VK_NULL_HANDLE;
 
-		buffersUpdated = false;
+		pixelMagnitudeSpectrumBuffer = VK_NULL_HANDLE;
+		pixelMagnitudeSpectrumAllocation = VK_NULL_HANDLE;
+		ptrPixelMagnitudeSpectrumMapped = nullptr;
+
+		buffersCreated = false;
 
 		pcb.frameIndex = 0;
 		pcb.dftInfo= MAX_TEMPORAL_FREQ_FILT_SAMPLES;
@@ -383,7 +400,12 @@ private:
 	VkBuffer dftBuffer;
 	VmaAllocation dftBufferAllocation;
 
-	bool buffersUpdated;
+	VkBuffer pixelMagnitudeSpectrumBuffer;
+	VmaAllocation  pixelMagnitudeSpectrumAllocation;
+	void* ptrPixelMagnitudeSpectrumMapped;
+	float* ptrPixelMagnitudeSpectrum;
+
+	bool buffersCreated;
 
 	struct PushConstantBlock
 	{
@@ -397,6 +419,16 @@ private:
 	{
 		VkDescriptorBufferInfo descriptorBufferInfo = {};
 		descriptorBufferInfo.buffer = dftBuffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		return descriptorBufferInfo;
+	}
+
+	VkDescriptorBufferInfo getPixelMagSpectDescriptorBufferInfo() const
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = pixelMagnitudeSpectrumBuffer;
 		descriptorBufferInfo.offset = 0;
 		descriptorBufferInfo.range = VK_WHOLE_SIZE;
 

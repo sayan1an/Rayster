@@ -21,24 +21,7 @@ class Camera {
 public:
 	void createBuffers(const VmaAllocator &allocator) 
 	{
-		VkDeviceSize bufferSize = sizeof(ProjectionViewMat);
-		
-		VkBufferCreateInfo bufferCreateInfo = {};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = bufferSize;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-		allocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-		if (vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &uniformBuffer, &uniformBuffersAllocation, &uniformBuffersAllocationInfo) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create uniform buffers!");
-
-		if (uniformBuffersAllocationInfo.pMappedData == nullptr)
-			throw std::runtime_error("Failed to map meory for uniform buffer!");
-		
+		ptrUniformBuffer = createBuffer(allocator, uniformBuffer, uniformBuffersAllocation, sizeof(ProjectionViewMat), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 	}
 
 	VkDescriptorBufferInfo getDescriptorBufferInfo() const 
@@ -87,7 +70,7 @@ public:
 		projViewMat.viewInv = glm::inverse(projViewMat.view);
 		projViewMat.projInv = glm::inverse(projViewMat.proj);
 		
-		memcpy(uniformBuffersAllocationInfo.pMappedData, &projViewMat, sizeof(projViewMat));
+		memcpy(ptrUniformBuffer, &projViewMat, sizeof(projViewMat));
 
 		keyFrames.tick(timeDelta);
 	}
@@ -229,7 +212,7 @@ private:
 
 	VkBuffer uniformBuffer = VK_NULL_HANDLE;
 	VmaAllocation uniformBuffersAllocation;
-	VmaAllocationInfo uniformBuffersAllocationInfo;
+	void* ptrUniformBuffer;
 
 	glm::vec3 cameraPosition;
 	glm::vec3 cameraFocus;
