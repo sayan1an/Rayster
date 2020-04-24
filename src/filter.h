@@ -324,7 +324,7 @@ public:
 			memcpy(ptrPixelMagnitudeSpectrum, ptrPixelMagnitudeSpectrumMapped, ((MAX_TEMPORAL_FREQ_FILT_SAMPLES >> 1) + 1) * sizeof(float));
 	}
 
-	void widget()
+	void widget(const IO &io)
 	{
 		if (ImGui::CollapsingHeader("TemporalFrequencyFilter")) {
 			int tSamples = pcb.dftInfo & 0xff;
@@ -356,7 +356,9 @@ public:
 				ImGui::SliderInt("Pixel Y coord##UID_TemporalFreqFilter", &py, 0, (pcb.imageInfo >> 16) - 1);
 				pcb.pixelInfo = (px & 0xffff) | (py << 16);
 
-				ImGui::PlotHistogram(std::to_string(static_cast<uint32_t>(ptrPixelMagnitudeSpectrum[0])).c_str(), ptrPixelMagnitudeSpectrum, (tSamples >> 1) + 1, 0, "Magnitude Spectrum (Hz)", 0, ptrPixelMagnitudeSpectrum[0], ImVec2(0, 50));
+				uint32_t maxFrequency = static_cast<uint32_t>(std::round(500.0f / io.getAvgFrameTime()));
+				ImGui::PlotHistogram(std::to_string(static_cast<uint32_t>(ptrPixelMagnitudeSpectrum[0])).c_str(), ptrPixelMagnitudeSpectrum, (tSamples >> 1) + 1, 0, "Magnitude spectrum", 0, ptrPixelMagnitudeSpectrum[0], ImVec2(0, 50));
+				ImGui::Text("0 Hz"); ImGui::SameLine(); ImGui::Dummy(ImVec2(220.0f, 0.0f));  ImGui::SameLine(); ImGui::Text((std::to_string(maxFrequency) + " Hz").c_str());
 			}
 
 			pcb.dftInfo = ((mode & 0xff) << 24) | ((sampleComponent & 0xff) << 16) | ((dftComponent  & 0xff) << 8) | (tSamples & 0xff);

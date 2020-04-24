@@ -82,7 +82,7 @@ private:
 			else if (whichFilter == 1)
 				tFilter->widget();
 			else if (whichFilter == 2)
-				tfFilter->widget();
+				tfFilter->widget(*io);
 		}
 
 		pcb.lightPosition = glm::normalize(glm::vec3(lightX, lightY, lightZ)) * distance;
