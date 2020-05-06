@@ -126,13 +126,13 @@ public:
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RtxHybridSoftShadows/01_raygen.spv");
-		uint32_t missShaderId0 = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxHybridSoftShadows/01_miss.spv");
-		uint32_t missShaderId1 = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxHybridSoftShadows/02_miss.spv");
+		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RtxFiltering_0/01_raygen.spv");
+		uint32_t missShaderId0 = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxFiltering_0/01_miss.spv");
+		uint32_t missShaderId1 = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxFiltering_0/02_miss.spv");
 		uint32_t hitGroupId0 = rtxPipeGen.startHitGroup();
 		rtxPipeGen.endHitGroup();
 		uint32_t hitGroupId1 = rtxPipeGen.startHitGroup();
-		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RtxHybridSoftShadows/02_close.spv");
+		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RtxFiltering_0/02_close.spv");
 		rtxPipeGen.endHitGroup();
 		rtxPipeGen.setMaxRecursionDepth(1);
 		rtxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_RAYGEN_BIT_NV, 0, sizeof(PushConstantBlock) });
@@ -249,8 +249,8 @@ public:
 		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("filterOut"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 			
-		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxHybridSoftShadows/gShowVert.spv");
-		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxHybridSoftShadows/gShowFrag.spv");
+		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxFiltering_0/gShowVert.spv");
+		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxFiltering_0/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
 		gfxPipeGen.addDepthStencilState(VK_FALSE, VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
@@ -267,9 +267,9 @@ private:
 };
 
 
-class RtxHybridSoftShadows : public WindowApplication {
+class RtxFiltering_0 : public WindowApplication {
 public:
-	RtxHybridSoftShadows(const std::vector<const char*>& _instanceExtensions, const std::vector<const char*>& _deviceExtensions, const std::vector<const char*>& _deviceFeatures) :
+	RtxFiltering_0(const std::vector<const char*>& _instanceExtensions, const std::vector<const char*>& _deviceExtensions, const std::vector<const char*>& _deviceFeatures) :
 		WindowApplication(std::vector<const char*>(), _instanceExtensions, _deviceExtensions, _deviceFeatures) {}
 private:
 	std::vector<VkFramebuffer> swapChainFramebuffers;
@@ -752,14 +752,13 @@ private:
 	}
 };
 
-/*
 int main() 
 {
 	{	
 		std::vector<const char*> deviceExtensions = { VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME };
 		std::vector<const char*> instanceExtensions = { VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
 		std::vector<const char*> deviceFeatures = { "shaderStorageImageExtendedFormats" };
-		RtxHybridSoftShadows app(instanceExtensions, deviceExtensions, deviceFeatures);
+		RtxFiltering_0 app(instanceExtensions, deviceExtensions, deviceFeatures);
 
 		try {
 			app.run(1280, 720, false);
@@ -773,4 +772,4 @@ int main()
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}*/
+}

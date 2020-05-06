@@ -1,4 +1,4 @@
-import subprocess
+import subprocess, os
 
 glslangValidator = "C:/VulkanSDK/1.1.106.0/Bin32/glslangValidator.exe"
 
@@ -50,13 +50,59 @@ compileList.append(("./RtxHybridSoftShadows/01_miss.rmiss", "./RtxHybridSoftShad
 compileList.append(("./RtxHybridSoftShadows/02_miss.rmiss", "./RtxHybridSoftShadows/02_miss.spv"))
 compileList.append(("./RtxHybridSoftShadows/02_close.rchit", "./RtxHybridSoftShadows/02_close.spv"))
 
+compileList.append(("./RtxFiltering_0/gShow.vert", "./RtxFiltering_0/gShowVert.spv"))
+compileList.append(("./RtxFiltering_0/gShow.frag", "./RtxFiltering_0/gShowFrag.spv"))
+compileList.append(("./RtxFiltering_0/01_raygen.rgen", "./RtxFiltering_0/01_raygen.spv"))
+compileList.append(("./RtxFiltering_0/01_miss.rmiss", "./RtxFiltering_0/01_miss.spv"))
+compileList.append(("./RtxFiltering_0/02_miss.rmiss", "./RtxFiltering_0/02_miss.spv"))
+compileList.append(("./RtxFiltering_0/02_close.rchit", "./RtxFiltering_0/02_close.spv"))
+
 compileList.append(("./Filters/crossBilateralFilter.comp", "./Filters/crossBilateralFilter.spv"))
 compileList.append(("./Filters/temporalFilter.comp", "./Filters/temporalFilter.spv"))
 compileList.append(("./Filters/dummyFilter.comp", "./Filters/dummyFilter.spv"))
 compileList.append(("./Filters/temporalFrequencyFilter.comp", "./Filters/temporalFrequencyFilter.spv"))
-try:
+
+def setLastModified():
+    f = open("lastModified.temp","w")
+
     for shader in compileList:
-        output = subprocess.Popen([glslangValidator, "-V", shader[0], "-o", shader[1] ], stdout=subprocess.PIPE).communicate()[0]
-        print(output.decode('utf-8'))
+        time = int(os.path.getmtime(shader[0]))
+        f.writelines([shader[0] + "\n", str(time) + "\n"])
+        
+    f.flush()
+    f.close()
+
+def getLastModified():
+    try:
+        f = open("lastModified.temp")
+    except IOError:
+        return [0] * len(compileList)
+    
+    lastModified = []
+    for shader in compileList:
+        fName = f.readline()[:-1]
+        if fName != shader[0]:
+            f.close()
+            return [0] * len(compileList)
+        
+        time = f.readline()
+        lastModified.append(int(time))
+
+    f.close()
+    return lastModified
+
+lastModifiedList = getLastModified()
+
+filesCompiled = 0
+try:
+    for shader, modified in zip(compileList, lastModifiedList):
+        if (modified < int(os.path.getmtime(shader[0]))):
+            output = subprocess.Popen([glslangValidator, "-V", shader[0], "-o", shader[1] ], stdout=subprocess.PIPE).communicate()[0]
+            print(output.decode('utf-8'))
+            filesCompiled = filesCompiled + 1
 except FileNotFoundError:
     print("Path to glslangValidator is invalid!")
+
+setLastModified()
+
+print("Files compiled: " + str(filesCompiled) + "/" + str(len(compileList)))
