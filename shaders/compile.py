@@ -1,6 +1,11 @@
-import subprocess, os
+import subprocess, os, sys
 
 glslangValidator = "C:/VulkanSDK/1.1.106.0/Bin32/glslangValidator.exe"
+
+# modifying these files will cause a full compilation
+forceFullCompilationList = []
+forceFullCompilationList.append(("./commonMath.h", "null"))
+forceFullCompilationList.append(("./Filters/filterParams.h", "null"))
 
 compileList =[]
 compileList.append(("./GBuffer/gBuf.vert", "./GBuffer/gBufVert.spv"))
@@ -62,12 +67,35 @@ compileList.append(("./Filters/temporalFilter.comp", "./Filters/temporalFilter.s
 compileList.append(("./Filters/dummyFilter.comp", "./Filters/dummyFilter.spv"))
 compileList.append(("./Filters/temporalFrequencyFilter.comp", "./Filters/temporalFrequencyFilter.spv"))
 
-def setLastModified():
-    f = open("lastModified.temp","w")
+compileAll = False
+if len(sys.argv) > 1:
+    compileAll = True
 
-    for shader in compileList:
-        time = int(os.path.getmtime(shader[0]))
-        f.writelines([shader[0] + "\n", str(time) + "\n"])
+def forceCompileAll():
+    try:
+        f = open("lastModifiedForced.temp")
+    except IOError:
+        return True
+    
+    for item in forceFullCompilationList:
+        fName = f.readline()[:-1]
+        if fName != item[0]:
+            f.close()
+            return True
+        
+        time = int(f.readline())
+        if time < int(os.path.getmtime(item[0])):
+            return True
+
+    f.close()
+    return False
+
+def setLastModified(fName, list):
+    f = open(fName,"w")
+
+    for item in list:
+        time = int(os.path.getmtime(item[0]))
+        f.writelines([item[0] + "\n", str(time) + "\n"])
         
     f.flush()
     f.close()
@@ -86,23 +114,29 @@ def getLastModified():
             return [0] * len(compileList)
         
         time = f.readline()
+        if not os.path.exists(shader[1]):
+            time = 0
         lastModified.append(int(time))
 
     f.close()
     return lastModified
 
 lastModifiedList = getLastModified()
+compileAll = compileAll or forceCompileAll()
 
 filesCompiled = 0
 try:
     for shader, modified in zip(compileList, lastModifiedList):
-        if (modified < int(os.path.getmtime(shader[0]))):
+        if (compileAll or modified < int(os.path.getmtime(shader[0]))):
+            if os.path.exists(shader[1]):
+                os.remove(shader[1])
             output = subprocess.Popen([glslangValidator, "-V", shader[0], "-o", shader[1] ], stdout=subprocess.PIPE).communicate()[0]
             print(output.decode('utf-8'))
             filesCompiled = filesCompiled + 1
 except FileNotFoundError:
     print("Path to glslangValidator is invalid!")
 
-setLastModified()
+setLastModified("lastModified.temp", compileList)
+setLastModified("lastModifiedForced.temp", forceFullCompilationList)
 
 print("Files compiled: " + str(filesCompiled) + "/" + str(len(compileList)))

@@ -751,7 +751,6 @@ private:
 		temporalFrequencyFilter.updateData();
 	}
 };
-
 /*
 int main() 
 {

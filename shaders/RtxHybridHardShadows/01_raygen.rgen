@@ -1,5 +1,7 @@
 #version 460
 #extension GL_NV_ray_tracing : require
+#extension GL_GOOGLE_include_directive : enable
+#include "../commonMath.h"
 
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
 layout(binding = 1, set = 0, rgba8) uniform readonly image2D diffuseImage;
@@ -21,49 +23,6 @@ layout (push_constant) uniform pcBlock {
 } pcb;
 
 layout(location = 0) rayPayloadNV uint hit;
-
-const float pi = 3.141592653589793;
-
-float ggxDist(const vec3 h, const vec3 n, float alpha) {
-    float cosine_sq = dot(h, n);
-    cosine_sq *= cosine_sq;
-    float tan_sq = 1.0f / cosine_sq - 1.0f;
-    float alpha_sq = alpha * alpha;
-
-    tan_sq += alpha_sq;
-    tan_sq *= tan_sq;
-    float D = alpha_sq / (pi * cosine_sq * cosine_sq * tan_sq);
-
-    return D;
-}
-
-float ggxG1(const vec3 v, const vec3 h, const vec3 n, float alpha) {
-    float cosv_sq = dot(v, n);
-    cosv_sq *= cosv_sq;
-    float tanv_sq = 1.0f / cosv_sq - 1.0f;
-
-    if (tanv_sq <= 1e-15)
-        return 1.0f;
-    else if (dot(h, v) <= 1e-15)
-        return 0.0f;
-
-    float alpha_sq = alpha * alpha;
-
-    tanv_sq *= alpha_sq;
-    tanv_sq += 1.0f;
-    tanv_sq = 1.0f + sqrt(tanv_sq);
-
-    return 2.0f/tanv_sq;
-}
-
-float ggxBrdf(const vec3 wo, const vec3 wi, const vec3 n, float alpha) {
-    vec3 h = normalize(wo + wi);
-    
-    float D = ggxDist(h, n, alpha);
-    float G = ggxG1(wo, h, n, alpha) * ggxG1(wi, h, n, alpha);
-
-    return (D * G) / (4.0f * dot(wo, n));
-}
 
 void main() 
 {	
@@ -98,7 +57,7 @@ void main()
 				, 0, 0, 0, origin.xyz, 0.01f, lightDir.xyz, 10000.0f, 0);
 
 			vec4 specularColor = other.w > 0.5f ? specularColor * ggxBrdf(-viewDir.xyz, lightDir.xyz, normal.xyz, normal.w) : vec4(0, 0, 0, 1);
-			vec4 diffuseColor = diffuseColor * cos / pi;
+			vec4 diffuseColor = diffuseColor * cos / PI;
 		
 			color = pcb.power * (diffuseColor + specularColor) * hit  / (distance * distance);
 		}
