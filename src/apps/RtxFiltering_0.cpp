@@ -31,7 +31,6 @@
 
 struct PushConstantBlock
 {
-	glm::vec3 lightPosition;
 	float power;
 	uint32_t discretePdfSize;
 	uint32_t numSamples;
@@ -51,22 +50,14 @@ public:
 	int whichFilter = 0;
 private:
 
-	float lightX = 1;
-	float lightY = -1;
-	float lightZ = 1;
 	float power = 10;
-	float distance = 10;
 	int numSamples = 4;
 
 	void guiSetup()
 	{
 		io->frameRateWidget();
 		cam->cameraWidget();
-		ImGui::SliderFloat("Emitter direction - x", &lightX, -1.0f, 1.0f);
-		ImGui::SliderFloat("Emitter direction - y", &lightY, -1.0f, 1.0f);
-		ImGui::SliderFloat("Emitter direction - z", &lightZ, -1.0f, 1.0f);
 		ImGui::SliderFloat("Emitter power", &power, 1.0f, 100.0f);
-		ImGui::SliderFloat("Emitter distance", &distance, 1.0f, 25.0f);
 		ImGui::SliderInt("MC Samples", &numSamples, 1, 64);
 		ImGui::Text("Filter"); ImGui::SameLine();
 		ImGui::RadioButton("Off", &denoise, 0); ImGui::SameLine();
@@ -85,7 +76,6 @@ private:
 				tfFilter->widget(*io);
 		}
 
-		pcb.lightPosition = glm::normalize(glm::vec3(lightX, lightY, lightZ)) * distance;
 		pcb.power = power;
 		pcb.numSamples = static_cast<uint32_t>(numSamples);
 		pcb.seed = static_cast<uint32_t>(rand());
@@ -126,13 +116,13 @@ public:
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RtxFiltering_0/01_raygen.spv");
-		uint32_t missShaderId0 = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxFiltering_0/01_miss.spv");
-		uint32_t missShaderId1 = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxFiltering_0/02_miss.spv");
+		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RtxFiltering_0/biased/01_raygen.spv");
+		uint32_t missShaderId0 = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxFiltering_0/biased/01_miss.spv");
+		uint32_t missShaderId1 = rtxPipeGen.addMissShaderStage(device, ROOT + "/shaders/RtxFiltering_0/biased/02_miss.spv");
 		uint32_t hitGroupId0 = rtxPipeGen.startHitGroup();
 		rtxPipeGen.endHitGroup();
 		uint32_t hitGroupId1 = rtxPipeGen.startHitGroup();
-		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RtxFiltering_0/02_close.spv");
+		rtxPipeGen.addCloseHitShaderStage(device, ROOT + "/shaders/RtxFiltering_0/biased/02_close.spv");
 		rtxPipeGen.endHitGroup();
 		rtxPipeGen.setMaxRecursionDepth(1);
 		rtxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_RAYGEN_BIT_NV, 0, sizeof(PushConstantBlock) });
