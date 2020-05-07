@@ -64,7 +64,7 @@ protected:
 		VK_CHECK(vkCreateInstance(&createInfo, nullptr, &instance), "Application: failed to create instance!");
 	}
 
-	void pickPhysicalDevice(const VkSurfaceKHR &surface, boolean enableMsaa) {
+	void pickPhysicalDevice(const VkSurfaceKHR &surface, bool enableMsaa) {
 		uint32_t deviceCount = 0;
 		vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
@@ -158,6 +158,7 @@ protected:
 		VmaAllocatorCreateInfo allocatorInfo = {};
 		allocatorInfo.physicalDevice = physicalDevice;
 		allocatorInfo.device = device;
+		allocatorInfo.instance = instance;
 
 		vmaCreateAllocator(&allocatorInfo, &allocator);
 	}

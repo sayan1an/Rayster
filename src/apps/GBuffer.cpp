@@ -510,5 +510,4 @@ int main()
 	std::cin >> i;
 	return EXIT_SUCCESS;
 }
-
 */

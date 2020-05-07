@@ -598,25 +598,23 @@ public:
 	}
 
 	void cleanUp(const VkDevice& device, const VmaAllocator& allocator) 
-	{
-		vkDestroySampler(device, ldrTextureSampler, nullptr);
-		vkDestroyImageView(device, ldrTextureImageView, nullptr);
-
-		vmaDestroyImage(allocator, ldrTextureImage, ldrTextureImageAllocation);
-
+	{	
 		vkDestroySampler(device, hdrTextureSampler, nullptr);
 		vkDestroyImageView(device, hdrTextureImageView, nullptr);
-
 		vmaDestroyImage(allocator, hdrTextureImage, hdrTextureImageAllocation);
 
-		vmaDestroyBuffer(allocator, materialBuffer, materialBufferAllocation);
+		vkDestroySampler(device, ldrTextureSampler, nullptr);
+		vkDestroyImageView(device, ldrTextureImageView, nullptr);
+		vmaDestroyImage(allocator, ldrTextureImage, ldrTextureImageAllocation);
+		
+		vmaDestroyBuffer(allocator, indirectCmdBuffer, indirectCmdBufferAllocation);
 		vmaDestroyBuffer(allocator, indexBuffer, indexBufferAllocation);
-		vmaDestroyBuffer(allocator, vertexBuffer, vertexBufferAllocation);
-		vmaDestroyBuffer(allocator, staticInstanceBuffer, staticInstanceBufferAllocation);
 		vmaDestroyBuffer(allocator, dynamicInstanceBuffer, dynamicInstanceBufferAllocation);
 		vmaUnmapMemory(allocator, dynamicInstanceStagingBufferAllocation);
 		vmaDestroyBuffer(allocator, dynamicInstanceStagingBuffer, dynamicInstanceStagingBufferAllocation);
-		vmaDestroyBuffer(allocator, indirectCmdBuffer, indirectCmdBufferAllocation);
+		vmaDestroyBuffer(allocator, staticInstanceBuffer, staticInstanceBufferAllocation);
+		vmaDestroyBuffer(allocator, vertexBuffer, vertexBufferAllocation);
+		vmaDestroyBuffer(allocator, materialBuffer, materialBufferAllocation);
 	}
 
 	void cleanUpRtx(const VkDevice& device, const VmaAllocator& allocator) 
@@ -625,7 +623,7 @@ public:
 			mesh->as_bottomLevel.cleanUp(device, allocator);
 
 		as_topLevel.cleanUp(device, allocator);
-		vmaDestroyBuffer(allocator, indexBufferRtx, indexBufferAllocation);
+		vmaDestroyBuffer(allocator, indexBufferRtx, indexBufferRtxAllocation);
 	}
 
 	VkWriteDescriptorSetAccelerationStructureNV getDescriptorTlas() const

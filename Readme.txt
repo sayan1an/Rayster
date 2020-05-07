@@ -1,7 +1,10 @@
+Visual Studio->Properties->general->c++ language standart c++17
+
 Include folders
 
 D:\projects\VkExperiment\external\glfw-3.2.1.bin.WIN64\include
 D:\projects\VkExperiment\external\imgui
+D:\projects\VkExperiment\external\implot
 D:\vcpkg\installed\x86-windows\include // this is for assimp binaries
 D:\projects\VkExperiment\external\tinyobjloader
 D:\projects\VkExperiment\external\stb
@@ -23,6 +26,6 @@ glfw3.lib
 vulkan-1.lib
 assimp-vc142-mt.lib
 
-Note for imgui
+Note for imgui and implot
 
-Add all imgui files in your project
+Add all imgui/implot files in your project

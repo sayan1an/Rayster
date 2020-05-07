@@ -237,7 +237,7 @@ extern void createImageD(const VkDevice& device, const VmaAllocator& allocator, 
 	vmaMapMemory(allocator, stagingBufferAllocation, &data);
 	
 	for (uint32_t i = 0; i < layers; i++) {
-		byte* start = static_cast<byte*>(data);
+		std::byte* start = static_cast<std::byte *>(data);
 		memcpy(&start[i * imageSizeBytes], layerData[i], static_cast<size_t>(imageSizeBytes));
 	}
 	vmaUnmapMemory(allocator, stagingBufferAllocation);

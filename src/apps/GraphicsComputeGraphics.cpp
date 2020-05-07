@@ -460,7 +460,7 @@ private:
 	{
 		auto makeImage = [&device = device, &graphicsQueue = graphicsQueue,
 			&graphicsCommandPool = graphicsCommandPool, &allocator = allocator,
-			&swapChainExtent = swapChainExtent](VkFormat colorFormat, VkSampleCountFlagBits samples, VkImageUsageFlags usage, VkImageLayout layout, VkImage& image, VkImageView& imageView, VmaAllocation& allocation, boolean depthImage = false)
+			&swapChainExtent = swapChainExtent](VkFormat colorFormat, VkSampleCountFlagBits samples, VkImageUsageFlags usage, VkImageLayout layout, VkImage& image, VkImageView& imageView, VmaAllocation& allocation, bool depthImage = false)
 		{
 			createImage(device, allocator, graphicsQueue, graphicsCommandPool, image, allocation, swapChainExtent, usage, colorFormat, samples);
 			imageView = createImageView(device, image, colorFormat, depthImage ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
@@ -692,7 +692,7 @@ int main()
 	int i;
 	std::cin >> i;
 	return EXIT_SUCCESS;
-}
-*/
+}*/
+
 
 

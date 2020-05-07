@@ -13,6 +13,7 @@
 #include <optional>
 #include <set>
 #include <unordered_map>
+#include <cstdlib>
 
 #include "stb_image.h"
 #include "tiny_obj_loader.h"
@@ -27,7 +28,8 @@
 #include "../gui.h"
 #include "../lightSources.h"
 #include "../filter.h"
-#include <cstdlib>
+#include "../random.h"
+
 
 struct PushConstantBlock
 {
@@ -317,6 +319,7 @@ private:
 
 	NewGui gui;
 	RandomGenerator randGen;
+	RandomSphericalPattern randomPattern;
 
 	PFN_vkCmdTraceRaysNV vkCmdTraceRaysNV = nullptr;
 
@@ -353,6 +356,7 @@ private:
 		gui.setStyle();
 		gui.pcb.discretePdfSize = areaSources.dPdf.size();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
+		randomPattern.createBuffers(5, 1024);
 		randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
@@ -741,7 +745,6 @@ private:
 		temporalFrequencyFilter.updateData();
 	}
 };
-
 
 int main() 
 {

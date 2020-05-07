@@ -23,3 +23,6 @@
 [submodule "external/cereal"]
 	path = external/cereal
 	url = https://github.com/USCiLab/cereal.git
+[submodule "external/implot"]
+	path = external/implot
+	url = https://github.com/epezent/implot.git

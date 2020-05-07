@@ -19,6 +19,8 @@
 
 #define NDEBUG
 
+const float PI = 3.14159265358979324f;
+
 #ifdef NDEBUG
 static const bool enableValidationLayers = true;
 #else
@@ -124,7 +126,7 @@ struct Image2d
 			stbi_image_free(pixels);
 	}
 
-	Image2d(uint32_t width = 1, uint32_t height = 1, glm::vec4 color = glm::vec4(1.0f), boolean hdr = false)
+	Image2d(uint32_t width = 1, uint32_t height = 1, glm::vec4 color = glm::vec4(1.0f), bool hdr = false)
 	{
 		this->width = width;
 		this->height = height;
