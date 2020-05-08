@@ -539,3 +539,15 @@ extern uint32_t queryComputeSharedMemSize(const VkPhysicalDevice& device)
 
 	return physicalDeviceProperties.limits.maxComputeSharedMemorySize;
 }
+
+extern inline glm::vec3 sphericalToCartesian(const glm::vec3 &polar)
+{
+	float sintheta = sin(polar.y);
+	return glm::vec3(sintheta * cos(polar.z), sintheta * sin(polar.z), cos(polar.y)) * polar.x;
+}
+
+extern inline glm::vec3 cartesianToSpherical(const glm::vec3& cartesian)
+{	
+	float phi = atan2(cartesian.y, cartesian.x);
+	return glm::vec3(glm::length(cartesian), atan2(glm::length(glm::vec2(cartesian)), cartesian.z), phi >= 0 ? phi : 2 * PI + phi);
+}

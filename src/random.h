@@ -115,12 +115,14 @@ public:
 
 	void createBuffers(uint32_t seed, uint32_t nSamples)
 	{
-		RandomGenerator rGen(seed);
+		RandomGenerator rGen(seed + 10);
 		randomSamplesSpherical.reserve(nSamples);
+		randomSamplesCartesian.reserve(nSamples);
 
 		for (uint32_t i = 0; i < nSamples; i++) {
-			float theta = std::acos(1 - (2.0f * rGen.getNextUint32_t()) / 4294967295);
-			float phi = (2 * PI * rGen.getNextUint32_t()) / 4294967295;
+			float theta = std::acos(1 - 2.0f * (rGen.getNextUint32_t() / 4294967295.0f));
+			float phi = (2 * PI * (rGen.getNextUint32_t()) / 4294967295.0f);
+
 			randomSamplesSpherical.push_back(glm::vec2(theta, phi));
 		}
 
@@ -131,8 +133,31 @@ public:
 
 			return lhs.x < rhs.x;
 		});
+
+		for (const auto& sample : randomSamplesSpherical)
+			randomSamplesCartesian.push_back(sphericalToCartesian(glm::vec3(1, sample)));
+	}
+
+	void widget() const
+	{
+		if (ImGui::CollapsingHeader("RandomPattern")) {
+			ImGui::SetNextPlotRange(0, 2 * PI, 0, PI, ImGuiCond_Always);
+			if (ImGui::BeginPlot("Scatter Plot", NULL, NULL)) {
+				ImGui::PushPlotStyleVar(ImPlotStyleVar_LineWeight, 0);
+				ImGui::PushPlotStyleVar(ImPlotStyleVar_Marker, ImMarker_Cross);
+				ImGui::PushPlotStyleVar(ImPlotStyleVar_MarkerSize, 3);
+				auto getter = [](const void* data, int idx) {
+					glm::vec2 d = static_cast<const glm::vec2*>(data)[idx];
+					return ImVec2(d.y, d.x);
+				};
+				ImGui::Plot("Samples", static_cast<ImVec2 (*)(const void*, int)>(getter), static_cast<const void*>(randomSamplesSpherical.data()), static_cast<int>(randomSamplesSpherical.size()), 0);
+				ImGui::PopPlotStyleVar(2);
+				ImGui::EndPlot();
+			}
+		}
 	}
 private:
 	std::vector<glm::vec2> randomSamplesSpherical;
+	std::vector<glm::vec3> randomSamplesCartesian;
 	const float pi = 3.14159265358979323846f;
 };

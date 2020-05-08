@@ -47,6 +47,7 @@ public:
 	CrossBilateralFilter* cFilter;
 	TemporalFilter* tFilter;
 	TemporalFrequencyFilter* tfFilter;
+	const RandomSphericalPattern* rPattern;
 	PushConstantBlock pcb;
 	int denoise = 0;
 	int whichFilter = 0;
@@ -59,6 +60,7 @@ private:
 	{
 		io->frameRateWidget();
 		cam->cameraWidget();
+		rPattern->widget();
 		ImGui::SliderFloat("Emitter power", &power, 1.0f, 100.0f);
 		ImGui::SliderInt("MC Samples", &numSamples, 1, 64);
 		ImGui::Text("Filter"); ImGui::SameLine();
@@ -350,6 +352,7 @@ private:
 
 		gui.io = &io;
 		gui.cam = &cam;
+		gui.rPattern = &randomPattern;
 		gui.cFilter = &crossBilateralFilter;
 		gui.tFilter = &temporalFilter;
 		gui.tfFilter = &temporalFrequencyFilter;

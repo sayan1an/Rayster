@@ -265,3 +265,8 @@ void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const V
 // create buffer with initialized with raw binary data
 void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, const void* srcData, VkBufferUsageFlags bufferUsageFlags);
 uint32_t queryComputeSharedMemSize(const VkPhysicalDevice& device);
+
+//(r, theta, phi) -> (x, y, z)
+glm::vec3 sphericalToCartesian(const glm::vec3&);
+//(x, y, z) -> (r, theta, phi)
+glm::vec3 cartesianToSpherical(const glm::vec3&);
