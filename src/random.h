@@ -110,15 +110,37 @@ class RandomSphericalPattern
 public:
 	RandomSphericalPattern()
 	{
+		maxSamples = 1024;
 
+		sampleSphericalBuffer = VK_NULL_HANDLE;
+		sampleSphericalBufferAllocation = VK_NULL_HANDLE;
+		mptrSampleSphericalBuffer = nullptr;
+
+		sampleCartesianBuffer = VK_NULL_HANDLE;
+		sampleCartesianBufferAllocation = VK_NULL_HANDLE;
+		mptrSampleCartesianBuffer = nullptr;
+
+		seed = 5;
+		nSamples = 32;
 	}
 
-	void createBuffers(uint32_t seed, uint32_t nSamples)
+	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool)
 	{
-		RandomGenerator rGen(seed + 10);
-		randomSamplesSpherical.reserve(nSamples);
-		randomSamplesCartesian.reserve(nSamples);
+		randomSamplesSpherical.reserve(maxSamples);
+		randomSamplesCartesian.reserve(maxSamples);
 
+		// an extra space to transfer the number of samples
+		mptrSampleSphericalBuffer = static_cast<glm::vec2*>(createBuffer(allocator, sampleSphericalBuffer, sampleSphericalBufferAllocation, (maxSamples + 1) * sizeof(glm::vec2), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT));
+		mptrSampleCartesianBuffer = static_cast<glm::vec3*>(createBuffer(allocator, sampleCartesianBuffer, sampleCartesianBufferAllocation, (maxSamples) * sizeof(glm::vec3), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT));
+	}
+
+	void updateData()
+	{
+		RandomGenerator rGen(seed);
+
+		randomSamplesSpherical.clear();
+		randomSamplesCartesian.clear();
+		
 		for (uint32_t i = 0; i < nSamples; i++) {
 			float theta = std::acos(1 - 2.0f * (rGen.getNextUint32_t() / 4294967295.0f));
 			float phi = (2 * PI * (rGen.getNextUint32_t()) / 4294967295.0f);
@@ -136,6 +158,17 @@ public:
 
 		for (const auto& sample : randomSamplesSpherical)
 			randomSamplesCartesian.push_back(sphericalToCartesian(glm::vec3(1, sample)));
+
+		glm::vec2 nS(nSamples, 0);
+		memcpy(mptrSampleSphericalBuffer, &nS, sizeof(glm::vec2));
+		memcpy(&mptrSampleSphericalBuffer[1], randomSamplesSpherical.data(), randomSamplesSpherical.size() * sizeof(glm::vec2));
+		memcpy(&mptrSampleCartesianBuffer, randomSamplesCartesian.data(), randomSamplesCartesian.size() * sizeof(glm::vec3));
+	}
+
+	void cleanUp(const VmaAllocator& allocator)
+	{	
+		vmaDestroyBuffer(allocator, sampleSphericalBuffer, sampleSphericalBufferAllocation);
+		vmaDestroyBuffer(allocator, sampleCartesianBuffer, sampleCartesianBufferAllocation);
 	}
 
 	void widget() const
@@ -157,7 +190,17 @@ public:
 		}
 	}
 private:
+	VkDeviceSize maxSamples;
+	VkDeviceSize nSamples;
+	uint32_t seed;
+
 	std::vector<glm::vec2> randomSamplesSpherical;
+	VkBuffer sampleSphericalBuffer;
+	VmaAllocation sampleSphericalBufferAllocation;
+	glm::vec2* mptrSampleSphericalBuffer;
+
 	std::vector<glm::vec3> randomSamplesCartesian;
-	const float pi = 3.14159265358979323846f;
+	VkBuffer sampleCartesianBuffer;
+	VmaAllocation sampleCartesianBufferAllocation;
+	glm::vec3* mptrSampleCartesianBuffer;
 };

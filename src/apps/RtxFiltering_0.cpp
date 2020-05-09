@@ -359,7 +359,7 @@ private:
 		gui.setStyle();
 		gui.pcb.discretePdfSize = areaSources.dPdf.size();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
-		randomPattern.createBuffers(5, 1024);
+		randomPattern.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
 		randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
@@ -376,7 +376,8 @@ private:
 		createCommandBuffers();
 	}
 
-	void cleanUpAfterSwapChainResize() {
+	void cleanUpAfterSwapChainResize() 
+	{
 		vkDestroyImageView(device, depthImageView, nullptr);
 		vmaDestroyImage(allocator, depthImage, depthImageAllocation);
 
@@ -458,6 +459,7 @@ private:
 		model.cleanUpRtx(device, allocator);
 		model.cleanUp(device, allocator);
 		areaSources.cleanUp(allocator);
+		randomPattern.cleanUp(allocator);
 	}
 	
 	void createRenderPass()

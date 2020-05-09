@@ -264,6 +264,7 @@ void* createBuffer(const VmaAllocator& allocator, VkBuffer& buffer, VmaAllocatio
 void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsageFlags, uint64_t pattern = 0);
 // create buffer with initialized with raw binary data
 void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, const void* srcData, VkBufferUsageFlags bufferUsageFlags);
+// query shared memory size
 uint32_t queryComputeSharedMemSize(const VkPhysicalDevice& device);
 
 //(r, theta, phi) -> (x, y, z)
