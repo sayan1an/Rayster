@@ -26,6 +26,9 @@
 #include "../generator.h"
 #include "../gui.h"
 
+class GraphicsComputeApplication : public WindowApplication 
+{
+private:
 struct PushConstantBlock
 {
 	uint32_t select = 0;
@@ -78,22 +81,22 @@ public:
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 
-	void createSubpassDescription(const VkDevice &device, FboManager &fboMgr) {
+	void createSubpassDescription(const VkDevice& device, FboManager& fboMgr) {
 		// ref to multi-sample color buffer
 		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("diffuseColor", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("specularColor", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("normal", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("other", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
-		
+
 		// ref to multi-sample depth buffer
 		depthAttachmentRef = fboMgr.getAttachmentReference("depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-		
+
 		// ref to color resolve image buffer
 		colorAttachmentResolveRefs.push_back(fboMgr.getAttachmentReference("diffuseColorResolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 		colorAttachmentResolveRefs.push_back(fboMgr.getAttachmentReference("specularColorResolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 		colorAttachmentResolveRefs.push_back(fboMgr.getAttachmentReference("normalResolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 		colorAttachmentResolveRefs.push_back(fboMgr.getAttachmentReference("otherResolve", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
-		
+
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpassDescription.colorAttachmentCount = static_cast<uint32_t>(colorAttachmentRefs.size());
@@ -101,10 +104,10 @@ public:
 		subpassDescription.pDepthStencilAttachment = &depthAttachmentRef;
 		subpassDescription.pResolveAttachments = colorAttachmentResolveRefs.data();
 	}
-	
-	void createSubpass(const VkDevice &device, const VkExtent2D &swapChainExtent, const VkSampleCountFlagBits &msaaSamples, const VkRenderPass &renderPass,
-		const Camera &cam, const Model& model) {
-		
+
+	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkSampleCountFlagBits& msaaSamples, const VkRenderPass& renderPass,
+		const Camera& cam, const Model& model) {
+
 		descGen.bindBuffer({ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT }, cam.getDescriptorBufferInfo());
 		descGen.bindBuffer({ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT }, model.getMaterialDescriptorBufferInfo());
 		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { model.ldrTextureSampler,  model.ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
@@ -144,12 +147,12 @@ public:
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 
-	void createSubpassDescription(const VkDevice& device, FboManager &fboMgr)
+	void createSubpassDescription(const VkDevice& device, FboManager& fboMgr)
 	{
 		colorAttachmentRef = fboMgr.getAttachmentReference("swapchain", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-		
+
 		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("csout", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-		
+
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpassDescription.colorAttachmentCount = 1;
@@ -185,8 +188,8 @@ public:
 
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
-	
-	void createPipeline(const VkDevice &device, const VkImageView &inView0, const VkImageView &inView1, const VkImageView &inView2, const VkImageView &inView3, const VkImageView &outView)
+
+	void createPipeline(const VkDevice& device, const VkImageView& inView0, const VkImageView& inView1, const VkImageView& inView2, const VkImageView& inView3, const VkImageView& outView)
 	{
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inView0,  VK_IMAGE_LAYOUT_GENERAL });
 		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inView1,  VK_IMAGE_LAYOUT_GENERAL });
@@ -195,7 +198,7 @@ public:
 		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outView,  VK_IMAGE_LAYOUT_GENERAL });
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
-		
+
 		compPipeGen.addPushConstantRange({ VK_SHADER_STAGE_COMPUTE_BIT , 0, sizeof(PushConstantBlock) });
 		compPipeGen.addComputeShaderStage(device, ROOT + "/shaders/GraphicsComputeGraphicsApp/edgeDetectComp.spv");
 		compPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
@@ -205,7 +208,6 @@ private:
 	ComputePipelineGenerator compPipeGen;
 };
 
-class GraphicsComputeApplication : public WindowApplication {
 public:
 	GraphicsComputeApplication() : WindowApplication(std::vector<const char*>(), std::vector<const char*>(), std::vector<const char*>(), std::vector<const char*>()) {}
 private:
@@ -674,25 +676,3 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-/*
-int main() 
-{
-	{
-		GraphicsComputeApplication app;
-
-		try {
-			app.run(1280, 720, true);
-		}
-		catch (const std::exception & e) {
-			std::cerr << e.what() << std::endl;
-			//return EXIT_FAILURE;
-		}
-	}
-
-	int i;
-	std::cin >> i;
-	return EXIT_SUCCESS;
-}*/
-
-
-

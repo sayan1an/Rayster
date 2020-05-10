@@ -253,33 +253,24 @@ public:
 
 		// When the instance is of type light source, ensure the matrial type is AREA (or other emitter type)
 		if (radiance) {
-			const Mesh* mesh = nullptr;
+			const Mesh* mesh = meshes[meshIdx];
 			if (materialIndex >= 0xffffffff) {
-				mesh = meshes[meshIdx];
 
+				// Ensure all vertices have a materialIndex that points to a material of type AREA
 				for (const auto& v : mesh->vertices) {
 					if (materials[v.materialIndex].materialType != AREA) {
 						WARN(false, "Model: Material type must be AREA when radiance param is non zero!");
-						materials[materialIndex].materialType = AREA;
+						materials[v.materialIndex].materialType = AREA;
 					}
 				}
-
-				instanceDataStatic.data.z = instanceDataStatic.data.z | (areaLightPrimitiveOffsetCounter << 8);
-				areaLightPrimitiveOffsetCounter += static_cast<uint32_t>(mesh->indices.size());
 			}
-			else {
-				if (materials[materialIndex].materialType != AREA) {
-					WARN(false, "Model: Material type must be AREA (or other emitter type) when radiance param is non zero!");
-					materials[materialIndex].materialType = AREA; // TODO :: change to appropriate emiiter type in future
-				}
-				if (materials[materialIndex].materialType == AREA)
-					mesh = meshes[meshIdx];
+			else if (materials[materialIndex].materialType != AREA) {
+				WARN(false, "Model: Material type must be AREA (or other emitter type) when radiance param is non zero!");
+				materials[materialIndex].materialType = AREA; // TODO :: change to appropriate emiiter type in future
 			}
 
-			if (mesh) {
-				instanceDataStatic.data.z = instanceDataStatic.data.z | (areaLightPrimitiveOffsetCounter << 8);
-				areaLightPrimitiveOffsetCounter += static_cast<uint32_t>(mesh->indices.size());
-			}
+			instanceDataStatic.data.z = instanceDataStatic.data.z | (areaLightPrimitiveOffsetCounter << 8);
+			areaLightPrimitiveOffsetCounter += static_cast<uint32_t>(mesh->indices.size());
 		}
 		
 		// assumes instances have meshIdx in groups i.e. aaa-bbbbb-ccccc-dddddd. 

@@ -1,9 +1,9 @@
 #version 460
 #extension GL_NV_ray_tracing : require
 
-layout(location = 0) rayPayloadInNV uint hit;
+layout(location = 0) rayPayloadInNV vec3 radiance;
 
 void main()
 {
-    hit = 1;
+    radiance = vec3(0, 0, 0);
 }

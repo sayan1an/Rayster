@@ -122,6 +122,8 @@ public:
 
 		seed = 5;
 		nSamples = 32;
+
+		dataUpdated = false;
 	}
 
 	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool)
@@ -135,34 +137,38 @@ public:
 	}
 
 	void updateData()
-	{
-		RandomGenerator rGen(seed);
+	{	
+		if (dataUpdated == false) {
+			RandomGenerator rGen(seed);
 
-		randomSamplesSpherical.clear();
-		randomSamplesCartesian.clear();
-		
-		for (uint32_t i = 0; i < nSamples; i++) {
-			float theta = std::acos(1 - 2.0f * (rGen.getNextUint32_t() / 4294967295.0f));
-			float phi = (2 * PI * (rGen.getNextUint32_t()) / 4294967295.0f);
+			randomSamplesSpherical.clear();
+			randomSamplesCartesian.clear();
 
-			randomSamplesSpherical.push_back(glm::vec2(theta, phi));
+			for (uint32_t i = 0; i < nSamples; i++) {
+				float theta = std::acos(1 - 2.0f * (rGen.getNextUint32_t() / 4294967295.0f));
+				float phi = (2 * PI * (rGen.getNextUint32_t()) / 4294967295.0f);
+
+				randomSamplesSpherical.push_back(glm::vec2(theta, phi));
+			}
+
+			std::sort(randomSamplesSpherical.begin(), randomSamplesSpherical.end(), [](const glm::vec2& lhs, const glm::vec2& rhs)
+			{
+				if (lhs.x == rhs.x)
+					return lhs.y < rhs.y;
+
+				return lhs.x < rhs.x;
+			});
+
+			for (const auto& sample : randomSamplesSpherical)
+				randomSamplesCartesian.push_back(sphericalToCartesian(glm::vec3(1, sample)));
+						
+			glm::vec2 nS(nSamples, 0);
+			memcpy(mptrSampleSphericalBuffer, &nS, sizeof(glm::vec2));
+			memcpy(&mptrSampleSphericalBuffer[1], randomSamplesSpherical.data(), randomSamplesSpherical.size() * sizeof(glm::vec2));
+			memcpy(mptrSampleCartesianBuffer, randomSamplesCartesian.data(), randomSamplesCartesian.size() * sizeof(glm::vec3));
+			
+			dataUpdated = true;
 		}
-
-		std::sort(randomSamplesSpherical.begin(), randomSamplesSpherical.end(), [](const glm::vec2& lhs, const glm::vec2& rhs)
-		{
-			if (lhs.x == rhs.x)
-				return lhs.y < rhs.y;
-
-			return lhs.x < rhs.x;
-		});
-
-		for (const auto& sample : randomSamplesSpherical)
-			randomSamplesCartesian.push_back(sphericalToCartesian(glm::vec3(1, sample)));
-
-		glm::vec2 nS(nSamples, 0);
-		memcpy(mptrSampleSphericalBuffer, &nS, sizeof(glm::vec2));
-		memcpy(&mptrSampleSphericalBuffer[1], randomSamplesSpherical.data(), randomSamplesSpherical.size() * sizeof(glm::vec2));
-		memcpy(&mptrSampleCartesianBuffer, randomSamplesCartesian.data(), randomSamplesCartesian.size() * sizeof(glm::vec3));
 	}
 
 	void cleanUp(const VmaAllocator& allocator)
@@ -171,19 +177,29 @@ public:
 		vmaDestroyBuffer(allocator, sampleCartesianBuffer, sampleCartesianBufferAllocation);
 	}
 
-	void widget() const
+	void widget()
 	{
 		if (ImGui::CollapsingHeader("RandomPattern")) {
+			int nS = static_cast<int>(nSamples);
+			ImGui::SliderInt("Sample size##UID_RndomSphericalPattern", &nS, 1, static_cast<int>(maxSamples));
+			int sd = static_cast<int>(seed);
+			ImGui::SliderInt("Sample seed##UID_RndomSphericalPattern", &sd, 1, static_cast<int>(maxSamples));
+			if (nS != nSamples || sd != seed) {
+				dataUpdated = false;
+				nSamples = nS;
+				seed = sd;
+			}
+
 			ImGui::SetNextPlotRange(0, 2 * PI, 0, PI, ImGuiCond_Always);
-			if (ImGui::BeginPlot("Scatter Plot", NULL, NULL)) {
+			if (ImGui::BeginPlot("Scatter Plot##UID_RndomSphericalPattern", "phi", "theta")) {
 				ImGui::PushPlotStyleVar(ImPlotStyleVar_LineWeight, 0);
 				ImGui::PushPlotStyleVar(ImPlotStyleVar_Marker, ImMarker_Cross);
 				ImGui::PushPlotStyleVar(ImPlotStyleVar_MarkerSize, 3);
-				auto getter = [](const void* data, int idx) {
+				auto getter = [](void* data, int idx) {
 					glm::vec2 d = static_cast<const glm::vec2*>(data)[idx];
 					return ImVec2(d.y, d.x);
 				};
-				ImGui::Plot("Samples", static_cast<ImVec2 (*)(const void*, int)>(getter), static_cast<const void*>(randomSamplesSpherical.data()), static_cast<int>(randomSamplesSpherical.size()), 0);
+				ImGui::Plot("Samples##UID_RndomSphericalPattern", static_cast<ImVec2 (*)(void*, int)>(getter), static_cast<void*>(randomSamplesSpherical.data()), static_cast<int>(randomSamplesSpherical.size()), 0);
 				ImGui::PopPlotStyleVar(2);
 				ImGui::EndPlot();
 			}
@@ -193,6 +209,8 @@ private:
 	VkDeviceSize maxSamples;
 	VkDeviceSize nSamples;
 	uint32_t seed;
+
+	bool dataUpdated;
 
 	std::vector<glm::vec2> randomSamplesSpherical;
 	VkBuffer sampleSphericalBuffer;

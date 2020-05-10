@@ -28,8 +28,7 @@ layout (push_constant) uniform pcBlock {
 	uint randomSeed;
 } pcb;
 
-layout(location = 0) rayPayloadNV uint hit;
-layout(location = 1) rayPayloadNV vec3 radiance;
+layout(location = 0) rayPayloadNV vec3 radiance;
 
 uint xorshiftState;
 
@@ -45,7 +44,7 @@ vec3 shadowRayAreaLight(vec3 lightPosition, vec3 viewDir, vec3 origin, vec4 surf
 
 	radiance = -lightDir;
 	traceNV(topLevelAS, gl_RayFlagsOpaqueNV, gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
-		, 1, 0, 1, origin, 0.01f, lightDir, 10000.0f, 1);
+		, 0, 0, 0, origin, 0.01f, lightDir, 10000.0f, 0);
 
 	vec3 specularColor = bsdfType > 0.5f ? specRef *  ggxBrdf(viewDir, lightDir, surfaceNormal.xyz, surfaceNormal.w) : vec3(0, 0, 0);
 	vec3 diffuseColor = diffRef * cos / PI;

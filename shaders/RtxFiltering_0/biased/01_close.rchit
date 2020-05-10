@@ -9,7 +9,7 @@ layout(binding = 11, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
 layout(binding = 12, set = 0) readonly buffer Indices { uint i[]; } indices;
 layout(binding = 13, set = 0) uniform sampler2DArray ldrTexSampler;
 
-layout(location = 1) rayPayloadInNV vec3 radiance;
+layout(location = 0) rayPayloadInNV vec3 radiance;
 hitAttributeNV vec3 attribs;
 
 struct Vertex 

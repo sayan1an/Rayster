@@ -26,6 +26,9 @@
 #include "../generator.h"
 #include "../gui.h"
 
+class RtxHybridHardShadows : public WindowApplication 
+{
+private:
 struct PushConstantBlock
 {
 	glm::vec3 lightPosition;
@@ -72,7 +75,7 @@ public:
 	VmaAllocation sbtBufferAllocation;
 	ShaderBindingTableGenerator sbtGen;
 
-	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator, const Model& model, FboManager &fboMgr, const Camera& cam)
+	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator, const Model& model, FboManager& fboMgr, const Camera& cam)
 	{
 		descGen.bindTLAS({ 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, model.getDescriptorTlas());
 		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("diffuseColor"), VK_IMAGE_LAYOUT_GENERAL });
@@ -132,13 +135,13 @@ public:
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 
-	void createSubpassDescription(const VkDevice& device, FboManager &fboMgr) {
+	void createSubpassDescription(const VkDevice& device, FboManager& fboMgr) {
 		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("diffuseColor", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("specularColor", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("normal", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 		colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("other", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 		depthAttachmentRef = fboMgr.getAttachmentReference("depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-			
+
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpassDescription.colorAttachmentCount = static_cast<uint32_t>(colorAttachmentRefs.size());
@@ -146,7 +149,7 @@ public:
 		subpassDescription.pDepthStencilAttachment = &depthAttachmentRef;
 	}
 
-	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const Camera& cam, const Model &model)
+	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, const Camera& cam, const Model& model)
 	{
 		descGen.bindBuffer({ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT }, cam.getDescriptorBufferInfo());
 		descGen.bindBuffer({ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT }, model.getMaterialDescriptorBufferInfo());
@@ -163,7 +166,7 @@ public:
 		gfxPipeGen.addVertexInputState(bindingDescription, attributeDescription);
 		gfxPipeGen.addViewportState(swapChainExtent);
 		gfxPipeGen.addColorBlendAttachmentState(4);
-		
+
 		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 0, &pipeline, &pipelineLayout);
 	}
 private:
@@ -184,11 +187,11 @@ public:
 	VkPipeline pipeline = VK_NULL_HANDLE;
 	VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
 
-	void createSubpassDescription(const VkDevice& device, FboManager &fboMgr)
+	void createSubpassDescription(const VkDevice& device, FboManager& fboMgr)
 	{
 		colorAttachmentRef = fboMgr.getAttachmentReference("swapchain", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 		inputAttachmentRefs.push_back(fboMgr.getAttachmentReference("rtxOut", VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-			
+
 		subpassDescription = {};
 		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpassDescription.colorAttachmentCount = 1;
@@ -197,17 +200,17 @@ public:
 		subpassDescription.pInputAttachments = inputAttachmentRefs.data();
 	}
 
-	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, FboManager &fboMgr) 
+	void createSubpass(const VkDevice& device, const VkExtent2D& swapChainExtent, const VkRenderPass& renderPass, FboManager& fboMgr)
 	{
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { VK_NULL_HANDLE, fboMgr.getImageView("rtxOut"),  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
-				
+
 		gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/gShowVert.spv");
 		gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxHybridHardShadows/gShowFrag.spv");
 		gfxPipeGen.addRasterizationState(VK_CULL_MODE_NONE);
 		gfxPipeGen.addDepthStencilState(VK_FALSE, VK_FALSE);
 		gfxPipeGen.addViewportState(swapChainExtent);
-	
+
 		gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 0, &pipeline, &pipelineLayout);
 	}
 
@@ -218,7 +221,6 @@ private:
 	GraphicsPipelineGenerator gfxPipeGen;
 };
 
-class RtxHybridHardShadows : public WindowApplication {
 public:
 	RtxHybridHardShadows(const std::vector<const char*>& _instanceExtensions, const std::vector<const char*>& _deviceExtensions) :
 		WindowApplication(std::vector<const char*>(), _instanceExtensions, _deviceExtensions, std::vector<const char*>()) {}
@@ -646,25 +648,3 @@ private:
 		frameEnd(imageIndex);
 	}
 };
-/*
-int main() 
-{
-	{	
-		std::vector<const char*> deviceExtensions = { VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME };
-		std::vector<const char*> instanceExtensions = { VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
-		RtxHybridHardShadows app(instanceExtensions, deviceExtensions);
-
-		try {
-			app.run(1280, 720, false);
-		}
-		catch (const std::exception & e) {
-			std::cerr << e.what() << std::endl;
-			//return EXIT_FAILURE;
-		}
-	}
-
-	int i;
-	std::cin >> i;
-	return EXIT_SUCCESS;
-}*/
-
