@@ -111,7 +111,7 @@ public:
 	RandomSphericalPattern()
 	{
 		maxSamples = 1024;
-
+		minSamples = 3; // Do not change this value, see updateDataPre(), 3 samples are needed to transfer nSamples, xPixelQuey, yPixelQuery
 		sampleSphericalBuffer = VK_NULL_HANDLE;
 		sampleSphericalBufferAllocation = VK_NULL_HANDLE;
 		mptrSampleSphericalBuffer = nullptr;
@@ -119,6 +119,11 @@ public:
 		sampleCartesianBuffer = VK_NULL_HANDLE;
 		sampleCartesianBufferAllocation = VK_NULL_HANDLE;
 		mptrSampleCartesianBuffer = nullptr;
+
+		feedbackBuffer = VK_NULL_HANDLE;
+		feedbackBufferAllocation = VK_NULL_HANDLE;
+		mptrFeedbackBuffer = nullptr;
+		ptrFeedbackBuffer = nullptr;
 
 		seed = 5;
 		nSamples = 32;
@@ -132,11 +137,13 @@ public:
 		randomSamplesCartesian.reserve(maxSamples);
 
 		// an extra space to transfer the number of samples
-		mptrSampleSphericalBuffer = static_cast<glm::vec2*>(createBuffer(allocator, sampleSphericalBuffer, sampleSphericalBufferAllocation, (maxSamples + 1) * sizeof(glm::vec2), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT));
-		mptrSampleCartesianBuffer = static_cast<glm::vec3*>(createBuffer(allocator, sampleCartesianBuffer, sampleCartesianBufferAllocation, (maxSamples) * sizeof(glm::vec3), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT));
+		mptrSampleSphericalBuffer = static_cast<glm::vec2*>(createBuffer(allocator, sampleSphericalBuffer, sampleSphericalBufferAllocation, maxSamples * sizeof(glm::vec2), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT));
+		mptrSampleCartesianBuffer = static_cast<glm::vec4*>(createBuffer(allocator, sampleCartesianBuffer, sampleCartesianBufferAllocation, maxSamples * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT));
+		mptrFeedbackBuffer = createBuffer(allocator, feedbackBuffer, feedbackBufferAllocation, (maxSamples + 1) * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
+		ptrFeedbackBuffer = new uint32_t[maxSamples + 1];
 	}
 
-	void updateData()
+	void updateDataPre()
 	{	
 		if (dataUpdated == false) {
 			RandomGenerator rGen(seed);
@@ -160,28 +167,36 @@ public:
 			});
 
 			for (const auto& sample : randomSamplesSpherical)
-				randomSamplesCartesian.push_back(sphericalToCartesian(glm::vec3(1, sample)));
+				randomSamplesCartesian.push_back(glm::vec4(sphericalToCartesian(glm::vec3(1, sample)), nSamples));
 						
-			glm::vec2 nS(nSamples, 0);
-			memcpy(mptrSampleSphericalBuffer, &nS, sizeof(glm::vec2));
-			memcpy(&mptrSampleSphericalBuffer[1], randomSamplesSpherical.data(), randomSamplesSpherical.size() * sizeof(glm::vec2));
-			memcpy(mptrSampleCartesianBuffer, randomSamplesCartesian.data(), randomSamplesCartesian.size() * sizeof(glm::vec3));
+			memcpy(mptrSampleSphericalBuffer, randomSamplesSpherical.data(), randomSamplesSpherical.size() * sizeof(glm::vec2));
+			memcpy(mptrSampleCartesianBuffer, randomSamplesCartesian.data(), randomSamplesCartesian.size() * sizeof(glm::vec4));
 			
 			dataUpdated = true;
 		}
+	}
+
+	void updateDataPost()
+	{
+		memcpy(ptrFeedbackBuffer, mptrFeedbackBuffer, (maxSamples + 1) * sizeof(uint32_t));
+
+		std::cout << ptrFeedbackBuffer[0] << " " << randomSamplesCartesian[0].x * 1000 << std::endl;
 	}
 
 	void cleanUp(const VmaAllocator& allocator)
 	{	
 		vmaDestroyBuffer(allocator, sampleSphericalBuffer, sampleSphericalBufferAllocation);
 		vmaDestroyBuffer(allocator, sampleCartesianBuffer, sampleCartesianBufferAllocation);
+		vmaDestroyBuffer(allocator, feedbackBuffer, feedbackBufferAllocation);
+
+		delete[] ptrFeedbackBuffer;
 	}
 
 	void widget()
 	{
 		if (ImGui::CollapsingHeader("RandomPattern")) {
 			int nS = static_cast<int>(nSamples);
-			ImGui::SliderInt("Sample size##UID_RndomSphericalPattern", &nS, 1, static_cast<int>(maxSamples));
+			ImGui::SliderInt("Sample size##UID_RndomSphericalPattern", &nS, static_cast<int>(minSamples), static_cast<int>(maxSamples));
 			int sd = static_cast<int>(seed);
 			ImGui::SliderInt("Sample seed##UID_RndomSphericalPattern", &sd, 1, static_cast<int>(maxSamples));
 			if (nS != nSamples || sd != seed) {
@@ -205,8 +220,40 @@ public:
 			}
 		}
 	}
+
+	VkDescriptorBufferInfo getSphericalSamplesDescriptorBufferInfo() const
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = sampleSphericalBuffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		return descriptorBufferInfo;
+	}
+
+	VkDescriptorBufferInfo getCartesianSamplesDescriptorBufferInfo() const
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = sampleCartesianBuffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		return descriptorBufferInfo;
+	}
+
+	VkDescriptorBufferInfo getFeedbackDescriptorBufferInfo() const
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = feedbackBuffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		return descriptorBufferInfo;
+	}
 private:
 	VkDeviceSize maxSamples;
+	VkDeviceSize minSamples;
+
 	VkDeviceSize nSamples;
 	uint32_t seed;
 
@@ -217,8 +264,13 @@ private:
 	VmaAllocation sampleSphericalBufferAllocation;
 	glm::vec2* mptrSampleSphericalBuffer;
 
-	std::vector<glm::vec3> randomSamplesCartesian;
+	std::vector<glm::vec4> randomSamplesCartesian;
 	VkBuffer sampleCartesianBuffer;
 	VmaAllocation sampleCartesianBufferAllocation;
-	glm::vec3* mptrSampleCartesianBuffer;
+	glm::vec4* mptrSampleCartesianBuffer;
+
+	VkBuffer feedbackBuffer;
+	VmaAllocation feedbackBufferAllocation;
+	void* mptrFeedbackBuffer;
+	uint32_t* ptrFeedbackBuffer;
 };

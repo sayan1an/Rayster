@@ -36,9 +36,6 @@ private:
 struct PushConstantBlock
 {
 	float power;
-	uint32_t discretePdfSize;
-	uint32_t numSamples;
-	uint32_t seed;
 };
 
 class NewGui : public Gui
@@ -56,15 +53,13 @@ public:
 private:
 
 	float power = 10;
-	int numSamples = 4;
-
+	
 	void guiSetup()
 	{
 		io->frameRateWidget();
 		cam->cameraWidget();
 		rPattern->widget();
 		ImGui::SliderFloat("Emitter power", &power, 1.0f, 100.0f);
-		ImGui::SliderInt("MC Samples", &numSamples, 1, 64);
 		ImGui::Text("Filter"); ImGui::SameLine();
 		ImGui::RadioButton("Off", &denoise, 0); ImGui::SameLine();
 		ImGui::RadioButton("On", &denoise, 1);
@@ -83,8 +78,6 @@ private:
 		}
 
 		pcb.power = power;
-		pcb.numSamples = static_cast<uint32_t>(numSamples);
-		pcb.seed = static_cast<uint32_t>(rand());
 	}
 };
 
@@ -102,7 +95,7 @@ public:
 
 	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator,
 		const Model& model, FboManager& fboMgr, const Camera& cam, const AreaLightSources& areaSource,
-		const RandomGenerator& randGen)
+		const RandomSphericalPattern& randomPattern)
 	{
 		descGen.bindTLAS({ 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, model.getDescriptorTlas());
 		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("diffuseColor"), VK_IMAGE_LAYOUT_GENERAL });
@@ -111,15 +104,17 @@ public:
 		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("other"), VK_IMAGE_LAYOUT_GENERAL });
 		descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("rtxOut"), VK_IMAGE_LAYOUT_GENERAL });
 		descGen.bindBuffer({ 6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, cam.getDescriptorBufferInfo());
-		descGen.bindBuffer({ 7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, areaSource.getDescriptorBufferInfo());
-		descGen.bindBuffer({ 8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.dPdf.getCdfNormDescriptorBufferInfo());
-		descGen.bindBuffer({ 9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getStaticInstanceDescriptorBufferInfo());
-		descGen.bindBuffer({ 10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getMaterialDescriptorBufferInfo());
-		descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getVertexDescriptorBufferInfo());
-		descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getIndexDescriptorBufferInfo());
-		descGen.bindImage({ 13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, { model.ldrTextureSampler,  model.ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		descGen.bindBuffer({ 14, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, randGen.getDescriptorBufferInfo());
-
+		descGen.bindBuffer({ 7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, randomPattern.getSphericalSamplesDescriptorBufferInfo());
+		descGen.bindBuffer({ 8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, randomPattern.getCartesianSamplesDescriptorBufferInfo());
+		descGen.bindBuffer({ 9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, randomPattern.getFeedbackDescriptorBufferInfo());
+		
+		descGen.bindBuffer({ 10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, areaSource.getDescriptorBufferInfo());
+		descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getStaticInstanceDescriptorBufferInfo());
+		descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getMaterialDescriptorBufferInfo());
+		descGen.bindBuffer({ 13, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getVertexDescriptorBufferInfo());
+		descGen.bindBuffer({ 14, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getIndexDescriptorBufferInfo());
+		descGen.bindImage({ 15, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, { model.ldrTextureSampler,  model.ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
 		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RtxFiltering_0/biased/01_raygen.spv");
@@ -352,7 +347,7 @@ private:
 		gui.tFilter = &temporalFilter;
 		gui.tfFilter = &temporalFrequencyFilter;
 		gui.setStyle();
-		gui.pcb.discretePdfSize = areaSources.dPdf.size();
+		
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
 		randomPattern.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
 		randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
@@ -362,7 +357,7 @@ private:
 		temporalFrequencyFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
-		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randomPattern);
 		crossBilateralFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"),
 			fboManager1.getImageView("normal"), fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
 		temporalFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
@@ -439,7 +434,7 @@ private:
 		temporalFrequencyFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
-		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randomPattern);
 		crossBilateralFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"),
 			fboManager1.getImageView("normal"), fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
 		temporalFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
@@ -737,12 +732,13 @@ private:
 		model.updateTlasData();
 		areaSources.updateData();
 		cam.updateProjViewMat(io, swapChainExtent.width, swapChainExtent.height);
-		randomPattern.updateData();
+		randomPattern.updateDataPre();
 
 		buildCommandBuffer(imageIndex);
 		submitRenderCmd(commandBuffers[imageIndex]);
 		frameEnd(imageIndex);
 
 		temporalFrequencyFilter.updateData();
+		randomPattern.updateDataPost();
 	}
 };
