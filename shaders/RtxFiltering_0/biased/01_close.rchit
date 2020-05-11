@@ -66,22 +66,22 @@ void main()
          vec2 texCoord = v0.texCoord * barycentricCoords.x + v1.texCoord * barycentricCoords.y + v2.texCoord * barycentricCoords.z;
          uint primitiveIndex = 3 * gl_PrimitiveID + (staticInstanceDataUnit.z >> 8);
          
-         vec4 vPos0 = lightVertices.v[primitiveIndex];
-         vec4 vPos1 = lightVertices.v[primitiveIndex + 1];
-         vec4 vPos2 = lightVertices.v[primitiveIndex + 2];
+         //vec4 vPos0 = lightVertices.v[primitiveIndex];
+         //vec4 vPos1 = lightVertices.v[primitiveIndex + 1];
+         //vec4 vPos2 = lightVertices.v[primitiveIndex + 2];
          
          // shNormal
          //vec3 normal = normalize(transpose(mat3(gl_WorldToObjectNV)) * (v0.normal * barycentricCoords.x + v1.normal * barycentricCoords.y + v2.normal * barycentricCoords.z));
          // geoNormal        
-         vec3 normal = vec3(vPos0.w, vPos1.w, vPos2.w);
+         //vec3 normal = vec3(vPos0.w, vPos1.w, vPos2.w);
 
-         float area = length(normal);
-         normal /= area;
-         area *= 0.5f;
+         //float area = length(normal);
+         //normal /= area;
+         //area *= 0.5f;
          
-         vec3 lightDir = vPos0.xyz * barycentricCoords.x + vPos1.xyz * barycentricCoords.y + vPos2.xyz * barycentricCoords.z - gl_WorldRayOriginNV;
-         float distSq = dot(lightDir, lightDir);
-         radiance = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)).xyz * color * (staticInstanceDataUnit.z & 0xff) * area * abs(dot(gl_WorldRayDirectionNV, normal)) / distSq; // diffuse texture
+         //vec3 lightDir = vPos0.xyz * barycentricCoords.x + vPos1.xyz * barycentricCoords.y + vPos2.xyz * barycentricCoords.z - gl_WorldRayOriginNV;
+         //float distSq = dot(lightDir, lightDir);
+         radiance = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)).xyz * color * (staticInstanceDataUnit.z & 0xff);// * abs(dot(gl_WorldRayDirectionNV, normal));// * area/ distSq; // diffuse texture
       }
    }
 }

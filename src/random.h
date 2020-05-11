@@ -241,9 +241,9 @@ public:
 						glm::vec2 d = static_cast<const glm::vec2*>(data)[idx];
 						return ImVec2(d.y, d.x);
 					};
-					ImGui::Plot("Not Raytraced", static_cast<ImVec2(*)(void*, int)>(getter), static_cast<void*>(nonRaytracedSamples.data()), static_cast<int>(nonRaytracedSamples.size()), 0);
-					ImGui::Plot("Raytraced", static_cast<ImVec2(*)(void*, int)>(getter), static_cast<void*>(raytracedSamples.data()), static_cast<int>(raytracedSamples.size()), 0);
-					ImGui::Plot("Intersected", static_cast<ImVec2(*)(void*, int)>(getter), static_cast<void*>(intersectedSamples.data()), static_cast<int>(intersectedSamples.size()), 0);
+					ImGui::Plot("Not Raytraced##UID_RndomSphericalPattern", static_cast<ImVec2(*)(void*, int)>(getter), static_cast<void*>(nonRaytracedSamples.data()), static_cast<int>(nonRaytracedSamples.size()), 0);
+					ImGui::Plot("Raytraced##UID_RndomSphericalPattern", static_cast<ImVec2(*)(void*, int)>(getter), static_cast<void*>(raytracedSamples.data()), static_cast<int>(raytracedSamples.size()), 0);
+					ImGui::Plot("Intersected##UID_RndomSphericalPattern", static_cast<ImVec2(*)(void*, int)>(getter), static_cast<void*>(intersectedSamples.data()), static_cast<int>(intersectedSamples.size()), 0);
 					ImGui::PopPlotStyleVar(2);
 					ImGui::EndPlot();
 				}
