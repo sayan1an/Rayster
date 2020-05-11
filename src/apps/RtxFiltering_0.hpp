@@ -36,6 +36,8 @@ private:
 struct PushConstantBlock
 {
 	float power;
+	uint32_t collectData;
+	uint32_t pixelInfo;
 };
 
 class NewGui : public Gui
@@ -58,7 +60,7 @@ private:
 	{
 		io->frameRateWidget();
 		cam->cameraWidget();
-		rPattern->widget();
+		rPattern->widget(pcb.collectData, pcb.pixelInfo);
 		ImGui::SliderFloat("Emitter power", &power, 1.0f, 100.0f);
 		ImGui::Text("Filter"); ImGui::SameLine();
 		ImGui::RadioButton("Off", &denoise, 0); ImGui::SameLine();
@@ -732,7 +734,7 @@ private:
 		model.updateTlasData();
 		areaSources.updateData();
 		cam.updateProjViewMat(io, swapChainExtent.width, swapChainExtent.height);
-		randomPattern.updateDataPre();
+		randomPattern.updateDataPre(swapChainExtent);
 
 		buildCommandBuffer(imageIndex);
 		submitRenderCmd(commandBuffers[imageIndex]);

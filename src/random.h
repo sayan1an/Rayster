@@ -111,7 +111,7 @@ public:
 	RandomSphericalPattern()
 	{
 		maxSamples = 1024;
-		minSamples = 3; // Do not change this value, see updateDataPre(), 3 samples are needed to transfer nSamples, xPixelQuey, yPixelQuery
+		minSamples = 4;
 		sampleSphericalBuffer = VK_NULL_HANDLE;
 		sampleSphericalBufferAllocation = VK_NULL_HANDLE;
 		mptrSampleSphericalBuffer = nullptr;
@@ -129,21 +129,28 @@ public:
 		nSamples = 32;
 
 		dataUpdated = false;
+
+		xPixelQuery = 1;
+		yPixelQuery = 1;
+		extent = { 10,10 };
+
+		randomSamplesSpherical.reserve(maxSamples);
+		randomSamplesCartesian.reserve(maxSamples);
+
+		nonRaytracedSamples.reserve(maxSamples);
+		raytracedSamples.reserve(maxSamples);
+		intersectedSamples.reserve(maxSamples);
 	}
 
 	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool)
 	{
-		randomSamplesSpherical.reserve(maxSamples);
-		randomSamplesCartesian.reserve(maxSamples);
-
-		// an extra space to transfer the number of samples
 		mptrSampleSphericalBuffer = static_cast<glm::vec2*>(createBuffer(allocator, sampleSphericalBuffer, sampleSphericalBufferAllocation, maxSamples * sizeof(glm::vec2), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT));
 		mptrSampleCartesianBuffer = static_cast<glm::vec4*>(createBuffer(allocator, sampleCartesianBuffer, sampleCartesianBufferAllocation, maxSamples * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT));
-		mptrFeedbackBuffer = createBuffer(allocator, feedbackBuffer, feedbackBufferAllocation, (maxSamples + 1) * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
-		ptrFeedbackBuffer = new uint32_t[maxSamples + 1];
+		mptrFeedbackBuffer = createBuffer(allocator, feedbackBuffer, feedbackBufferAllocation, maxSamples * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
+		ptrFeedbackBuffer = new uint32_t[maxSamples];
 	}
 
-	void updateDataPre()
+	void updateDataPre(const VkExtent2D &extent)
 	{	
 		if (dataUpdated == false) {
 			RandomGenerator rGen(seed);
@@ -168,19 +175,31 @@ public:
 
 			for (const auto& sample : randomSamplesSpherical)
 				randomSamplesCartesian.push_back(glm::vec4(sphericalToCartesian(glm::vec3(1, sample)), nSamples));
-						
+									
 			memcpy(mptrSampleSphericalBuffer, randomSamplesSpherical.data(), randomSamplesSpherical.size() * sizeof(glm::vec2));
 			memcpy(mptrSampleCartesianBuffer, randomSamplesCartesian.data(), randomSamplesCartesian.size() * sizeof(glm::vec4));
 			
 			dataUpdated = true;
 		}
+
+		this->extent = extent;
 	}
 
 	void updateDataPost()
-	{
-		memcpy(ptrFeedbackBuffer, mptrFeedbackBuffer, (maxSamples + 1) * sizeof(uint32_t));
+	{	
+		memcpy(ptrFeedbackBuffer, mptrFeedbackBuffer, nSamples * sizeof(uint32_t));
 
-		std::cout << ptrFeedbackBuffer[0] << " " << randomSamplesCartesian[0].x * 1000 << std::endl;
+		nonRaytracedSamples.clear();
+		raytracedSamples.clear();
+		intersectedSamples.clear();
+		for (uint32_t i = 0; i < nSamples; i++) {
+			if (ptrFeedbackBuffer[i] == 0)
+				nonRaytracedSamples.push_back(randomSamplesSpherical[i]);
+			else if (ptrFeedbackBuffer[i] == 1)
+				raytracedSamples.push_back(randomSamplesSpherical[i]);
+			else
+				intersectedSamples.push_back(randomSamplesSpherical[i]);
+		}
 	}
 
 	void cleanUp(const VmaAllocator& allocator)
@@ -192,7 +211,7 @@ public:
 		delete[] ptrFeedbackBuffer;
 	}
 
-	void widget()
+	void widget(uint32_t &collectData, uint32_t &pixelInfo)
 	{
 		if (ImGui::CollapsingHeader("RandomPattern")) {
 			int nS = static_cast<int>(nSamples);
@@ -205,19 +224,34 @@ public:
 				seed = sd;
 			}
 
-			ImGui::SetNextPlotRange(0, 2 * PI, 0, PI, ImGuiCond_Always);
-			if (ImGui::BeginPlot("Scatter Plot##UID_RndomSphericalPattern", "phi", "theta")) {
-				ImGui::PushPlotStyleVar(ImPlotStyleVar_LineWeight, 0);
-				ImGui::PushPlotStyleVar(ImPlotStyleVar_Marker, ImMarker_Cross);
-				ImGui::PushPlotStyleVar(ImPlotStyleVar_MarkerSize, 3);
-				auto getter = [](void* data, int idx) {
-					glm::vec2 d = static_cast<const glm::vec2*>(data)[idx];
-					return ImVec2(d.y, d.x);
-				};
-				ImGui::Plot("Samples##UID_RndomSphericalPattern", static_cast<ImVec2 (*)(void*, int)>(getter), static_cast<void*>(randomSamplesSpherical.data()), static_cast<int>(randomSamplesSpherical.size()), 0);
-				ImGui::PopPlotStyleVar(2);
-				ImGui::EndPlot();
+			if (ImGui::CollapsingHeader("CollectSamples##UID_RndomSphericalPattern")) {
+
+				ImGui::SliderInt("Pixel X##UID_RndomSphericalPattern", &xPixelQuery, 0, static_cast<int>(extent.width));
+				ImGui::SliderInt("Pixel Y##UID_RndomSphericalPattern", &yPixelQuery, 0, static_cast<int>(extent.height));
+
+				collectData = 1;
+				pixelInfo = (xPixelQuery & 0xffff) | (yPixelQuery & 0xffff) << 16;
+
+				ImGui::SetNextPlotRange(0, 2 * PI, 0, PI, ImGuiCond_Always);
+				if (ImGui::BeginPlot("Scatter Plot##UID_RndomSphericalPattern", "phi", "theta")) {
+					ImGui::PushPlotStyleVar(ImPlotStyleVar_LineWeight, 0);
+					ImGui::PushPlotStyleVar(ImPlotStyleVar_Marker, ImMarker_Circle);
+					ImGui::PushPlotStyleVar(ImPlotStyleVar_MarkerSize, 4);
+					auto getter = [](void* data, int idx) {
+						glm::vec2 d = static_cast<const glm::vec2*>(data)[idx];
+						return ImVec2(d.y, d.x);
+					};
+					ImGui::Plot("Not Raytraced", static_cast<ImVec2(*)(void*, int)>(getter), static_cast<void*>(nonRaytracedSamples.data()), static_cast<int>(nonRaytracedSamples.size()), 0);
+					ImGui::Plot("Raytraced", static_cast<ImVec2(*)(void*, int)>(getter), static_cast<void*>(raytracedSamples.data()), static_cast<int>(raytracedSamples.size()), 0);
+					ImGui::Plot("Intersected", static_cast<ImVec2(*)(void*, int)>(getter), static_cast<void*>(intersectedSamples.data()), static_cast<int>(intersectedSamples.size()), 0);
+					ImGui::PopPlotStyleVar(2);
+					ImGui::EndPlot();
+				}
 			}
+			else
+				collectData = 0;
+
+			
 		}
 	}
 
@@ -273,4 +307,12 @@ private:
 	VmaAllocation feedbackBufferAllocation;
 	void* mptrFeedbackBuffer;
 	uint32_t* ptrFeedbackBuffer;
+
+	int xPixelQuery;
+	int yPixelQuery;
+	VkExtent2D extent;
+
+	std::vector<glm::vec2> nonRaytracedSamples;
+	std::vector<glm::vec2> raytracedSamples;
+	std::vector<glm::vec2> intersectedSamples;
 };

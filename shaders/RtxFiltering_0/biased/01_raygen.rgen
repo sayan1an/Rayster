@@ -22,29 +22,34 @@ layout(binding = 9, set = 0) buffer SampleFeedback { uint v[]; } sampleFeedback;
 
 layout (push_constant) uniform pcBlock {
 	float power;
+	uint collectData;
+	uint pixelInfo;
 } pcb;
 
 layout(location = 0) rayPayloadNV vec3 radiance;
 
-vec3 shadowRayAreaLight(in vec3 lightDir, in vec3 viewDir, in vec3 origin, in vec4 surfaceNormal, in float bsdfType, in vec3 diffRef, in vec3 specRef)
+vec3 shadowRayAreaLight(in float cosIncident, in vec3 lightDir, in vec3 viewDir, in vec3 origin, in vec4 surfaceNormal, in float bsdfType, in vec3 diffRef, in vec3 specRef)
 {	
-	float cos = dot(lightDir, surfaceNormal.xyz);	
-	
-	if (cos < 0)
-		return vec3(0, 0, 0);
-
 	traceNV(topLevelAS, gl_RayFlagsOpaqueNV, gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
 		, 0, 0, 0, origin, 0.01f, lightDir, 10000.0f, 0);
 
 	vec3 specularColor = bsdfType > 0.5f ? specRef *  ggxBrdf(viewDir, lightDir, surfaceNormal.xyz, surfaceNormal.w) : vec3(0, 0, 0);
-	vec3 diffuseColor = diffRef * cos / PI;
+	vec3 diffuseColor = diffRef * cosIncident / PI;
 		
 	return (diffuseColor + specularColor) * radiance;
 }
 
 void main()
 {	
+	const uint px = pcb.pixelInfo & 0xffff;
+	const uint py = pcb.pixelInfo >> 16;
+	const uint nSamples = uint(samplePatternCartCoord.v[0].w);
 	const ivec2 pixel = ivec2(gl_LaunchIDNV.xy);
+
+	if (pcb.collectData > 0 && pixel.x == px && pixel.y == py)
+		for (uint i = 0; i < nSamples; i++)
+			sampleFeedback.v[i] = 0;
+	
 	const vec4 diffuseColor = imageLoad(diffuseImage, pixel).rgba;
 	const vec4 other = imageLoad(otherImage, pixel).rgba;
 
@@ -67,16 +72,26 @@ void main()
 	
 		// for shadow rays
 		origin = origin + (other.x - 0.000f) * viewDir;
-
-		uint nSamples = uint(samplePatternCartCoord.v[0].w);
 		
 		for (uint i = 0; i < nSamples; i++) {
 			vec3 lightDir = samplePatternCartCoord.v[i].xyz;
-			color.xyz += shadowRayAreaLight(lightDir, -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor.xyz, specularColor.xyz) * 4 * PI /  nSamples;
+			float cos = dot(lightDir, normal.xyz);	
+			uint raytrace = cos > 0 ? 1 : 0;
+			vec3 sampleValue = vec3(0);
+			if (raytrace > 0) {
+				sampleValue = shadowRayAreaLight(cos, lightDir, -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor.xyz, specularColor.xyz) * 4 * PI /  nSamples;
+				color.xyz += sampleValue;
+			}
+
+			if (pcb.collectData > 0 && pixel.x == px && pixel.y == py)
+				sampleFeedback.v[i] = max(dot(sampleValue, sampleValue) > 0 ? 3 : 0, raytrace);
 		}
 		
 		color *= pcb.power;
 	}
+
+	if (pcb.collectData > 0 && pixel.x >= px - 2 && pixel.x <= px + 2 && pixel.y >= py - 2 && pixel.y <= py + 2)
+		color = vec4(0, 1, 0, 1); 
 
 	imageStore(outImage, pixel, color);
 }
