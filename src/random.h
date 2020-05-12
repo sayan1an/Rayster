@@ -125,6 +125,9 @@ public:
 		mptrFeedbackBuffer = nullptr;
 		ptrFeedbackBuffer = nullptr;
 
+		triEmitterBoundingSphereBuffer = VK_NULL_HANDLE;
+		triEmitterBoundingSphereBufferAllocation = VK_NULL_HANDLE;
+
 		seed = 5;
 		nSamples = 32;
 
@@ -142,11 +145,12 @@ public:
 		intersectedSamples.reserve(maxSamples);
 	}
 
-	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool)
+	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const uint32_t nTriLightSources)
 	{
 		mptrSampleSphericalBuffer = static_cast<glm::vec2*>(createBuffer(allocator, sampleSphericalBuffer, sampleSphericalBufferAllocation, maxSamples * sizeof(glm::vec2), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT));
 		mptrSampleCartesianBuffer = static_cast<glm::vec4*>(createBuffer(allocator, sampleCartesianBuffer, sampleCartesianBufferAllocation, maxSamples * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT));
 		mptrFeedbackBuffer = createBuffer(allocator, feedbackBuffer, feedbackBufferAllocation, maxSamples * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
+		createBuffer(device, allocator, queue, commandPool, triEmitterBoundingSphereBuffer, triEmitterBoundingSphereBufferAllocation, nTriLightSources * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		ptrFeedbackBuffer = new uint32_t[maxSamples];
 	}
 
@@ -207,7 +211,7 @@ public:
 		vmaDestroyBuffer(allocator, sampleSphericalBuffer, sampleSphericalBufferAllocation);
 		vmaDestroyBuffer(allocator, sampleCartesianBuffer, sampleCartesianBufferAllocation);
 		vmaDestroyBuffer(allocator, feedbackBuffer, feedbackBufferAllocation);
-
+		vmaDestroyBuffer(allocator, triEmitterBoundingSphereBuffer, triEmitterBoundingSphereBufferAllocation);
 		delete[] ptrFeedbackBuffer;
 	}
 
@@ -284,6 +288,16 @@ public:
 
 		return descriptorBufferInfo;
 	}
+
+	VkDescriptorBufferInfo getEmBndSphDescriptorBufferInfo() const
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = triEmitterBoundingSphereBuffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		return descriptorBufferInfo;
+	}
 private:
 	VkDeviceSize maxSamples;
 	VkDeviceSize minSamples;
@@ -307,6 +321,9 @@ private:
 	VmaAllocation feedbackBufferAllocation;
 	void* mptrFeedbackBuffer;
 	uint32_t* ptrFeedbackBuffer;
+
+	VkBuffer triEmitterBoundingSphereBuffer;
+	VmaAllocation triEmitterBoundingSphereBufferAllocation;
 
 	int xPixelQuery;
 	int yPixelQuery;

@@ -111,3 +111,17 @@ float ggxBrdf(const vec3 wo, const vec3 wi, const vec3 n, float alpha)
 
 	return (D * G) / (4.0f * dot(wo, n));
 }
+
+vec4 boundingSphereTri(in vec3 a, in vec3 b, in vec3 c)
+{
+	vec4 ret;
+
+	ret.xyz = (a + b + c) / 3.0;
+	vec3 da = ret.xyz - a;
+	vec3 db = ret.xyz - b;
+	vec3 dc = ret.xyz - c;
+
+	ret.w = sqrt(max(max(dot(da, da), dot(db, db)), dot(dc, dc)));
+
+	return ret;
+}
