@@ -109,12 +109,23 @@ public:
 				}
 			}
 			
-			glm::mat3 l2w = glm::mat3(model->instanceData_dynamic[globalInstanceIdx].model);
+			glm::mat4 l2w = model->instanceData_dynamic[globalInstanceIdx].model;
+			glm::mat3 l2w_3 = glm::mat3(l2w);
 
+			if (mesh != nullptr) {
+				glm::vec4 center = l2w * glm::vec4(glm::vec3(mesh->boundingSphere), 1.0f);
+				// multiply radius with largest eigenvalue of orthogonal matrix
+				center.w = std::max(std::max(glm::length(l2w_3[0]), glm::length(l2w_3[1])), glm::length(l2w_3[2])) * mesh->boundingSphere.w;
+				boundingSpheres.push_back(center);
+				boundingSphereInstanceIndexes.push_back(globalInstanceIdx);
+			}
+
+			CHECK(globalInstanceIdx <= 0xffff, "AreaLightSources : Number of globalInstances must be <= 0xffff.");
 			for (uint32_t i = 0, primitiveIdx = 0; mesh != nullptr && i < mesh->indices.size(); i += 3, primitiveIdx++) {
-				dPdf.add(computeArea(l2w * (mesh->vertices[mesh->indices[i]].pos),
-					l2w * (mesh->vertices[mesh->indices[i + 1]].pos),
-					l2w * (mesh->vertices[mesh->indices[i + 2]].pos)));
+				dPdf.add(computeArea(l2w_3 * (mesh->vertices[mesh->indices[i]].pos),
+					l2w_3 * (mesh->vertices[mesh->indices[i + 1]].pos),
+					l2w_3 * (mesh->vertices[mesh->indices[i + 2]].pos)));
+				CHECK(primitiveIdx <= 0xffff, "AreaLightSources : Number of primitives must be <= 0xffff.");
 				triangleIdxs.push_back(globalInstanceIdx << 16 | primitiveIdx);
 			}
 
@@ -129,7 +140,8 @@ public:
 
 		lightVertices.resize(triangleIdxs.size() * 3);
 
-		createBuffer(device, allocator, queue, commandPool);
+		mptrLightVertices = createBuffer(device, allocator, queue, commandPool, lightVerticesBuffer, lightVerticesBufferAllocation, lightVerticesStagingBuffer, lightVerticesStagingBufferAllocation, sizeof(lightVertices[0]) * lightVertices.size());
+		mptrBoundingSpheres = createBuffer(device, allocator, queue, commandPool, bndSphBuffer, bndSphBufferAllocation, bndSphStagingBuffer, bndSphStagingBufferAllocation, sizeof(boundingSpheres[0]) * boundingSpheres.size());
 		dPdf.createBuffers(device, allocator, queue, commandPool);
 	}
 
@@ -137,22 +149,26 @@ public:
 	{
 		VkBufferCopy copyRegion = {};
 		copyRegion.size = sizeof(lightVertices[0]) * lightVertices.size();
-
 		vkCmdCopyBuffer(cmdBuffer, lightVerticesStagingBuffer, lightVerticesBuffer, 1, &copyRegion);
+		copyRegion.size = sizeof(boundingSpheres[0]) * boundingSpheres.size();
+		vkCmdCopyBuffer(cmdBuffer, bndSphStagingBuffer, bndSphBuffer, 1, &copyRegion);
 
-		VkBufferMemoryBarrier bufferMemoryBarrier = {};
-		bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-		bufferMemoryBarrier.buffer = lightVerticesBuffer;
-		bufferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		bufferMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		std::array<VkBufferMemoryBarrier, 2> bufferMemoryBarriers = {};
+		bufferMemoryBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		bufferMemoryBarriers[0].buffer = lightVerticesBuffer;
+		bufferMemoryBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		bufferMemoryBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
+		bufferMemoryBarriers[1] = bufferMemoryBarriers[0];
+		bufferMemoryBarriers[1].buffer = bndSphBuffer;
+	
 		vkCmdPipelineBarrier(
 			cmdBuffer,
 			VK_PIPELINE_STAGE_TRANSFER_BIT,
 			VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV,
 			0,
 			0, nullptr,
-			1, &bufferMemoryBarrier,
+			static_cast<uint32_t>(bufferMemoryBarriers.size()), bufferMemoryBarriers.data(),
 			0, nullptr);
 	}
 
@@ -181,7 +197,21 @@ public:
 			lightIndex += 3;
 		}
 
-		memcpy(mappedLightVerticesPtr, lightVertices.data(), sizeof(lightVertices[0]) * lightVertices.size());
+		uint32_t boundingSphereIdx = 0;
+		for (uint32_t bndSphInstIdx : boundingSphereInstanceIndexes) {
+			uint32_t meshIdx = model->meshPointers[bndSphInstIdx];
+			const Mesh* mesh = model->meshes[meshIdx];
+			glm::mat4 l2w = model->instanceData_dynamic[bndSphInstIdx].model;
+			glm::vec4 center = l2w * glm::vec4(glm::vec3(mesh->boundingSphere), 1.0f);
+			glm::mat3 l2w_3 = glm::mat3(l2w);
+			// multiply radius with largest eigenvalue of orthogonal matrix
+			center.w = std::max(std::max(glm::length(l2w_3[0]), glm::length(l2w_3[1])), glm::length(l2w_3[2])) * mesh->boundingSphere.w;
+			boundingSpheres[boundingSphereIdx] = center;
+			boundingSphereIdx++;
+		}
+
+		memcpy(mptrLightVertices, lightVertices.data(), sizeof(lightVertices[0]) * lightVertices.size());
+		memcpy(mptrBoundingSpheres, boundingSpheres.data(), sizeof(boundingSpheres[0]) * boundingSpheres.size());
 	}
 
 	void cleanUp(const VmaAllocator& allocator)
@@ -189,13 +219,33 @@ public:
 		vmaDestroyBuffer(allocator, lightVerticesBuffer, lightVerticesBufferAllocation);
 		vmaUnmapMemory(allocator, lightVerticesStagingBufferAllocation);
 		vmaDestroyBuffer(allocator, lightVerticesStagingBuffer, lightVerticesStagingBufferAllocation);
+
+		vmaDestroyBuffer(allocator, bndSphBuffer, bndSphBufferAllocation);
+		vmaUnmapMemory(allocator, bndSphStagingBufferAllocation);
+		vmaDestroyBuffer(allocator, bndSphStagingBuffer, bndSphStagingBufferAllocation);
+
 		dPdf.cleanUp(allocator);
 	}
 
-	VkDescriptorBufferInfo getDescriptorBufferInfo() const
+	uint32_t getNumSources() const 
+	{
+		return static_cast<uint32_t>(boundingSpheres.size());
+	}
+
+	VkDescriptorBufferInfo getVerticesDescriptorBufferInfo() const
 	{
 		VkDescriptorBufferInfo descriptorBufferInfo = {};
 		descriptorBufferInfo.buffer = lightVerticesBuffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		return descriptorBufferInfo;
+	}
+
+	VkDescriptorBufferInfo getBndSphDescriptorBufferInfo() const
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = bndSphBuffer;
 		descriptorBufferInfo.offset = 0;
 		descriptorBufferInfo.range = VK_WHOLE_SIZE;
 
@@ -206,41 +256,24 @@ private:
 	const Model* model;
 	std::vector<uint32_t> triangleIdxs; // MSB 16 bit - instance index, LSB 16 bit primitive index
 	std::vector<glm::vec4> lightVertices;
+	std::vector<glm::vec4> boundingSpheres;
+	std::vector<uint32_t> boundingSphereInstanceIndexes;
+
 
 	VkBuffer lightVerticesStagingBuffer;
 	VmaAllocation lightVerticesStagingBufferAllocation;
-	void* mappedLightVerticesPtr;
-
+	void* mptrLightVertices;
 	VkBuffer lightVerticesBuffer;
 	VmaAllocation lightVerticesBufferAllocation;
+
+	VkBuffer bndSphStagingBuffer;
+	VmaAllocation  bndSphStagingBufferAllocation;
+	void* mptrBoundingSpheres;
+	VkBuffer bndSphBuffer;
+	VmaAllocation bndSphBufferAllocation;
 
 	inline float computeArea(const glm::vec3 &v0, const glm::vec3 &v1, const glm::vec3 &v2)
 	{	
 		return glm::length(glm::cross(v0 - v1, v0 - v2)) * 0.5f;
-	}
-
-	void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool)
-	{
-		VkDeviceSize bufferSize = sizeof(lightVertices[0]) * lightVertices.size();
-
-		VkBufferCreateInfo bufferCreateInfo = {};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = bufferSize;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-		VK_CHECK(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &lightVerticesStagingBuffer, &lightVerticesStagingBufferAllocation, nullptr),
-			"AreaLightSources: Failed to create staging buffer for light vertices buffer!");
-
-		vmaMapMemory(allocator, lightVerticesStagingBufferAllocation, &mappedLightVerticesPtr);
-
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-		VK_CHECK(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &lightVerticesBuffer, &lightVerticesBufferAllocation, nullptr),
-			"AreaLightSources: Failed to create staging buffer for light vertices buffer!");
 	}
 };

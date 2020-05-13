@@ -89,6 +89,34 @@ extern void copyBuffer(const VkDevice& device, const VkQueue& queue, const VkCom
 	endSingleTimeCommands(device, queue, commandPool, commandBuffer);
 }
 
+extern void* createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkBuffer& stagingBuffer, VmaAllocation& stagingBufferAllocation, VkDeviceSize sizeInBytes)
+{
+	void* mptrStagingBuffer = nullptr;
+
+	VkBufferCreateInfo bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.size = sizeInBytes;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo allocCreateInfo = {};
+	allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+	VK_CHECK(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr),
+		"createBuffer: Failed to create staging buffer!");
+
+	vmaMapMemory(allocator, stagingBufferAllocation, &mptrStagingBuffer);
+	CHECK(mptrStagingBuffer != nullptr, "createBuffer: Failed to create mapper ptr to staging buffer!")
+
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+	allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	VK_CHECK(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &buffer, &bufferAllocation, nullptr),
+		"createBuffer: Failed to create buffer!");
+
+	return mptrStagingBuffer;
+}
+
 extern void* createBuffer(const VmaAllocator& allocator, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsageFlags, bool cpuToGpu)
 {
 	VkBufferCreateInfo bufferCreateInfo = {};

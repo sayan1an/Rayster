@@ -96,6 +96,8 @@ public:
 	std::vector<uint32_t> indices;
 	// set of instance count for this type of mesh
 	uint32_t instanceCount = 0;
+	// compute bounding sphere, store center and radius
+	glm::vec4 boundingSphere;
 
 	BottomLevelAccelerationStructure as_bottomLevel;
 
@@ -157,6 +159,20 @@ public:
 			vertex.pos *= scale;
 			vertex.pos += shift;
 		}
+	}
+
+	void computeBoundingSphere()
+	{
+		glm::vec3 centroid(0.0f);
+		for (const auto& vertex : vertices)
+			centroid += vertex.pos;
+
+		centroid /= vertices.size();
+		float r = 0;
+		for (const auto& vertex : vertices)
+			r = glm::max(r, glm::length(vertex.pos - centroid));
+
+		boundingSphere = glm::vec4(centroid, r);
 	}
 };
 

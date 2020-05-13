@@ -26,7 +26,7 @@ layout (push_constant) uniform pcBlock {
 	float power;
 	uint collectData;
 	uint pixelInfo;
-	uint nTriSources;
+	uint nEmitters;
 } pcb;
 
 layout(location = 0) rayPayloadNV vec3 radiance;
@@ -45,18 +45,9 @@ vec3 shadowRayAreaLight(in float cosIncident, in vec3 lightDir, in vec3 viewDir,
 void main()
 {	
 	const ivec2 pixel = ivec2(gl_LaunchIDNV.xy);
-	if (pixel.x == 0 && pixel.y == 0) {
-		for (uint i = 0; i < pcb.nTriSources; i++)
-			emitterBoundSp.v[i] = boundingSphereTri(lightVertices.v[3*i].xyz, lightVertices.v[3*i + 1].xyz, lightVertices.v[3*i + 2].xyz);
-	}
-	memoryBarrierBuffer();
-	//barrier();
-
 	const uint px = pcb.pixelInfo & 0xffff;
 	const uint py = pcb.pixelInfo >> 16;
 	const uint nSamples = uint(samplePatternCartCoord.v[0].w);
-	
-
 	if (pcb.collectData > 0 && pixel.x == px && pixel.y == py)
 		for (uint i = 0; i < nSamples; i++)
 			sampleFeedback.v[i] = 0;
@@ -69,7 +60,8 @@ void main()
 	if (other.w > 3.5 && other.w < 4.5)
 		color = diffuseColor;
 	// primary hit point is valid
-	else if (other.w > -0.5f){
+	else if (other.w > -0.5f) {
+
 		const vec4 specularColor = imageLoad(specularImage, pixel).rgba;
 		const vec4 normal = imageLoad(normalImage, pixel).rgba;
 
@@ -84,22 +76,29 @@ void main()
 		// for shadow rays
 		origin = origin + (other.x - 0.000f) * viewDir;
 		
+		vec4 centerline;
+		{	
+			uint j = 0;
+			centerline.xyz = emitterBoundSp.v[j].xyz - origin.xyz;
+			float h = length(centerline.xyz);
+			centerline.xyz /= h;
+			float r = emitterBoundSp.v[j].w;
+			centerline.w = r > h ? -1 : sqrt(h * h - r * r) / h;
+		}
+		
 		for (uint i = 0; i < nSamples; i++) {
 			vec3 lightDir = samplePatternCartCoord.v[i].xyz;
 			float cos = dot(lightDir, normal.xyz);	
 			uint raytrace = cos > 0 ? 1 : 0;
 			vec3 sampleValue = vec3(0);
 			if (raytrace > 0) {
-				/*raytrace = 0;
-				for (uint j = 0; j < pcb.nTriSources; j++) {
-					vec3 centerline = emitterBoundSp.v[j].xyz - origin.xyz;
-					float len = length(centerline);
-					centerline /= len;
-					if (dot(centerline, lightDir) < emitterBoundSp.v[j].w / len) {
+				raytrace = 0;
+				//for (uint j = 0; j < pcb.nEmitters; j++) {
+					if (centerline.w < 0 || dot(centerline.xyz, lightDir) > centerline.w) {
 						raytrace = 1;
-						break;
+				//		break;
 					}
-				}*/
+				//}
 
 				if (raytrace > 0) {
 					sampleValue = shadowRayAreaLight(cos, lightDir, -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor.xyz, specularColor.xyz) * 4 * PI /  nSamples;

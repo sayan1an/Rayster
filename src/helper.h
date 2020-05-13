@@ -258,6 +258,9 @@ void createImageP(const VkDevice& device, const VmaAllocator& allocator, const V
 void createImageD(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
 	const VkExtent2D& extent, const VkImageUsageFlags& usage, const std::vector<const void*>& srcData, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, 
 	const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT, const uint32_t mipLevels = 1);
+// create a host side memory mapped staging buffer and device side buffer. Required explicit transfer of data from staging to device buffers. 
+// Suitable for large buffers requiring frequent updates.  
+void* createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkBuffer& stagingBuffer, VmaAllocation& stagingBufferAllocation, VkDeviceSize sizeInBytes);
 // create memory mapper buffer, use for small sized buffers
 void* createBuffer(const VmaAllocator& allocator, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsageFlags, bool cpuToGpu = true);
 // create buffer with initialized with 64bit pattern

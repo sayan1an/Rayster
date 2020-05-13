@@ -124,6 +124,7 @@ static Mesh* loadMeshTiny(const char* meshPath, bool invertNormal = false)
 			v.normal = glm::normalize(v.normal) * (invertNormal ? -1.0f : 1.0f);
 	}
 
+	mesh->computeBoundingSphere();
 	std::cout << "Done." << std::endl;
 	return mesh;
 }
@@ -260,6 +261,7 @@ static void loadModelTiny(const char* meshPath, Model &model)
 			v.normal = glm::normalize(v.normal);
 	}
 
+	mesh->computeBoundingSphere();
 	model.addMesh(mesh);
 	glm::mat4 tf = glm::identity<glm::mat4>();
 	model.addInstance(0, tf);
