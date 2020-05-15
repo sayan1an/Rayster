@@ -249,7 +249,8 @@ QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, const VkSur
 VkDeviceSize imageFormatToBytes(VkFormat format);
 // create image without initialization
 void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
-	const VkExtent2D& extent, const VkImageUsageFlags& usage, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT);
+	const VkExtent2D& extent, const VkImageUsageFlags& usage, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT,
+	const uint32_t layers = 1);
 // create image with initialized with 64bit pattern
 void createImageP(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
 	const VkExtent2D& extent, const VkImageUsageFlags& usage, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT,

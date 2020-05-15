@@ -96,6 +96,19 @@ public:
 	VmaAllocation sbtBufferAllocation;
 	ShaderBindingTableGenerator sbtGen;
 
+	void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D &extent, const AreaLightSources& areaSource)
+	{	
+		VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		createImage(device, allocator, queue, commandPool, areaEmitterDataImage, areaEmitterDataImageAllocation, extent, VK_IMAGE_USAGE_STORAGE_BIT, format, VK_SAMPLE_COUNT_1_BIT, areaSource.getNumSources());
+		areaEmitterDataImageView = createImageView(device, areaEmitterDataImage, format, VK_IMAGE_ASPECT_COLOR_BIT, 1, areaSource.getNumSources());
+	}
+
+	void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
+	{	
+		vkDestroyImageView(device, areaEmitterDataImageView, nullptr);
+		vmaDestroyImage(allocator, areaEmitterDataImage, areaEmitterDataImageAllocation);
+	}
+
 	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator,
 		const Model& model, FboManager& fboMgr, const Camera& cam, const AreaLightSources& areaSource,
 		const RandomSphericalPattern& randomPattern)
@@ -111,7 +124,7 @@ public:
 		descGen.bindBuffer({ 8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, randomPattern.getCartesianSamplesDescriptorBufferInfo());
 		descGen.bindBuffer({ 9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, randomPattern.getFeedbackDescriptorBufferInfo());
 		descGen.bindBuffer({ 10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.getBndSphDescriptorBufferInfo());
-		descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.getVerticesDescriptorBufferInfo());
+		descGen.bindImage({ 11, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, areaEmitterDataImageView, VK_IMAGE_LAYOUT_GENERAL });
 		
 		descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getStaticInstanceDescriptorBufferInfo());
 		descGen.bindBuffer({ 13, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getMaterialDescriptorBufferInfo());
@@ -154,6 +167,10 @@ public:
 private:
 	DescriptorSetGenerator descGen;
 	RayTracingPipelineGenerator rtxPipeGen;
+
+	VkImage areaEmitterDataImage;
+	VkImageView areaEmitterDataImageView;
+	VmaAllocation areaEmitterDataImageAllocation;
 };
 
 class Subpass1 {
@@ -360,6 +377,7 @@ private:
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
 		temporalFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		temporalFrequencyFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
+		rtxPass.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent, areaSources);
 		
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randomPattern);
@@ -403,6 +421,7 @@ private:
 		crossBilateralFilter.cleanUp(device);
 		temporalFilter.cleanUp(device, allocator);
 		temporalFrequencyFilter.cleanUp(device, allocator);
+		rtxPass.cleanUp(device, allocator);
 		
 		vkFreeCommandBuffers(device, graphicsCommandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
@@ -437,6 +456,7 @@ private:
 		createFramebuffers();
 		temporalFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		temporalFrequencyFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
+		rtxPass.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent, areaSources);
 
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randomPattern);

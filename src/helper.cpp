@@ -198,7 +198,7 @@ extern VkDeviceSize imageFormatToBytes(VkFormat format)
 }
 
 extern void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
-	const VkExtent2D& extent, const VkImageUsageFlags& usage, const VkFormat format, const VkSampleCountFlagBits& sampleCount)
+	const VkExtent2D& extent, const VkImageUsageFlags& usage, const VkFormat format, const VkSampleCountFlagBits& sampleCount, const uint32_t layers)
 {
 	VkImageCreateInfo imageCreateInfo = {};
 	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -207,7 +207,7 @@ extern void createImage(const VkDevice& device, const VmaAllocator& allocator, c
 	imageCreateInfo.extent.height = extent.height;
 	imageCreateInfo.extent.depth = 1;
 	imageCreateInfo.mipLevels = 1;
-	imageCreateInfo.arrayLayers = 1;
+	imageCreateInfo.arrayLayers = layers;
 	imageCreateInfo.format = format;
 	imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;

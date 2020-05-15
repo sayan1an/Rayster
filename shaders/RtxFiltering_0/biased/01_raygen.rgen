@@ -20,7 +20,7 @@ layout(binding = 7, set = 0) readonly buffer SamplePatternSphericalCoord { vec2 
 layout(binding = 8, set = 0) readonly buffer SamplePatternCartesianCoord { vec4 v[]; } samplePatternCartCoord;
 layout(binding = 9, set = 0) buffer SampleFeedback { uint v[]; } sampleFeedback;
 layout(binding = 10, set = 0) buffer EmitterBoundSp { vec4 v[]; } emitterBoundSp;
-layout(binding = 11, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 11, set = 0, rgba32f) uniform image2DArray emitterDataTemp;
 
 layout (push_constant) uniform pcBlock {
 	float power;
@@ -75,16 +75,17 @@ void main()
 	
 		// for shadow rays
 		origin = origin + (other.x - 0.000f) * viewDir;
-		
-		vec4 centerline;
-		{	
-			uint j = 0;
+
+		vec4 centerline;		
+		for (uint j = 0; j < pcb.nEmitters; j++) {
 			centerline.xyz = emitterBoundSp.v[j].xyz - origin.xyz;
 			float h = length(centerline.xyz);
 			centerline.xyz /= h;
 			float r = emitterBoundSp.v[j].w;
 			centerline.w = r > h ? -1 : sqrt(h * h - r * r) / h;
+			imageStore(emitterDataTemp, ivec3(pixel, j), centerline);
 		}
+		
 		
 		for (uint i = 0; i < nSamples; i++) {
 			vec3 lightDir = samplePatternCartCoord.v[i].xyz;
@@ -93,12 +94,13 @@ void main()
 			vec3 sampleValue = vec3(0);
 			if (raytrace > 0) {
 				raytrace = 0;
-				//for (uint j = 0; j < pcb.nEmitters; j++) {
+				for (uint j = 0; j < pcb.nEmitters; j++) {
+					centerline = imageLoad(emitterDataTemp, ivec3(pixel, j)).rgba;
 					if (centerline.w < 0 || dot(centerline.xyz, lightDir) > centerline.w) {
 						raytrace = 1;
-				//		break;
+						break;
 					}
-				//}
+				}
 
 				if (raytrace > 0) {
 					sampleValue = shadowRayAreaLight(cos, lightDir, -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor.xyz, specularColor.xyz) * 4 * PI /  nSamples;

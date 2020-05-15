@@ -233,6 +233,7 @@ public:
 
 				ImGui::SetNextPlotRange(0, 2 * PI, 0, PI, ImGuiCond_Always);
 				if (ImGui::BeginPlot("Scatter Plot##UID_RndomSphericalPattern", "phi", "theta")) {
+					ImGui::Text(("Intersected Samples:" + std::to_string(intersectedSamples.size())).c_str());
 					ImGui::PushPlotStyleVar(ImPlotStyleVar_LineWeight, 0);
 					ImGui::PushPlotStyleVar(ImPlotStyleVar_Marker, ImMarker_Circle);
 					ImGui::PushPlotStyleVar(ImPlotStyleVar_MarkerSize, 4);
