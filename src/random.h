@@ -131,6 +131,7 @@ public:
 		dataUpdated = false;
 		moveSampleInTime = true;
 		choosePattern = 0;
+		nLines = 1;
 
 		xPixelQuery = 1;
 		yPixelQuery = 1;
@@ -171,11 +172,13 @@ public:
 				}
 			}
 			else {
-				for (uint32_t i = 0; i < nSamples; i++) {
-					float theta = std::acos(1 - 2.0f * ((float)i / nSamples));
-					float phi = 2 * PI * 0;
-
-					randomSamplesSpherical.push_back(glm::vec2(theta, phi));
+				float samplesPerLine = std::ceil((float)nSamples / nLines);
+				for (uint32_t j = 0; j < nLines; j++) {
+					for (uint32_t i = 0; i < static_cast<uint32_t>(samplesPerLine); i++) {
+						float theta = std::acos(1 - 2.0f * (i / samplesPerLine));
+						float phi = 2.0f * j * PI / nLines;
+						randomSamplesSpherical.push_back(glm::vec2(theta, phi));
+					}
 				}
 			}
 
@@ -249,7 +252,7 @@ public:
 			int cP = choosePattern;
 			ImGui::RadioButton("Random pattern##UID_RndomSphericalPattern", &cP, 1); ImGui::SameLine();
 			ImGui::RadioButton("Regular pattern##UID_RndomSphericalPattern", &cP, 0);
-			dataUpdated = (cP == choosePattern);
+			dataUpdated = dataUpdated && (cP == choosePattern);
 			choosePattern = cP;
 
 			if (choosePattern) {
@@ -259,7 +262,10 @@ public:
 				seed = sd;
 			}
 			else {
-
+				int nL = nLines;
+				ImGui::SliderInt("Num Lines##UID_RndomSphericalPattern", &nL, 1, 50);
+				dataUpdated = dataUpdated && (nL == nLines);
+				nLines = nL;
 			}
 			
 
@@ -333,6 +339,7 @@ private:
 	bool dataUpdated;
 	int moveSampleInTime;
 	int choosePattern; // Random or deterministic
+	int nLines;
 
 	std::vector<glm::vec2> randomSamplesSpherical;
 	VkBuffer sampleSphericalBuffer;
