@@ -129,6 +129,8 @@ public:
 		nSamples = 32;
 
 		dataUpdated = false;
+		moveSampleInTime = true;
+		choosePattern = 0;
 
 		xPixelQuery = 1;
 		yPixelQuery = 1;
@@ -152,17 +154,29 @@ public:
 
 	void updateDataPre(const VkExtent2D &extent)
 	{	
-		if (dataUpdated == false) {
-			RandomGenerator rGen(seed);
+		bool writeToBuffer = false;
 
+		if (dataUpdated == false) {
 			randomSamplesSpherical.clear();
 			randomSamplesCartesian.clear();
 
-			for (uint32_t i = 0; i < nSamples; i++) {
-				float theta = std::acos(1 - 2.0f * (rGen.getNextUint32_t() / 4294967295.0f));
-				float phi = (2 * PI * (rGen.getNextUint32_t()) / 4294967295.0f);
+			if (choosePattern) {
+				RandomGenerator rGen(seed);
+							   
+				for (uint32_t i = 0; i < nSamples; i++) {
+					float theta = std::acos(1 - 2.0f * (rGen.getNextUint32_t() / 4294967295.0f));
+					float phi = (2 * PI * (rGen.getNextUint32_t()) / 4294967295.0f);
 
-				randomSamplesSpherical.push_back(glm::vec2(theta, phi));
+					randomSamplesSpherical.push_back(glm::vec2(theta, phi));
+				}
+			}
+			else {
+				for (uint32_t i = 0; i < nSamples; i++) {
+					float theta = std::acos(1 - 2.0f * ((float)i / nSamples));
+					float phi = 2 * PI * 0;
+
+					randomSamplesSpherical.push_back(glm::vec2(theta, phi));
+				}
 			}
 
 			std::sort(randomSamplesSpherical.begin(), randomSamplesSpherical.end(), [](const glm::vec2& lhs, const glm::vec2& rhs)
@@ -176,12 +190,23 @@ public:
 			for (const auto& sample : randomSamplesSpherical)
 				randomSamplesCartesian.push_back(glm::vec4(sphericalToCartesian(glm::vec3(1, sample)), nSamples));
 									
-			memcpy(mptrSampleSphericalBuffer, randomSamplesSpherical.data(), randomSamplesSpherical.size() * sizeof(glm::vec2));
-			memcpy(mptrSampleCartesianBuffer, randomSamplesCartesian.data(), randomSamplesCartesian.size() * sizeof(glm::vec4));
-			
+			writeToBuffer = true;
 			dataUpdated = true;
 		}
 
+		if (moveSampleInTime) {
+			for (uint32_t i = 0; i < nSamples; i++) {
+				randomSamplesSpherical[i].y += 0.1f;
+				randomSamplesSpherical[i].y = randomSamplesSpherical[i].y > 2 * PI ? randomSamplesSpherical[i].y - 2 * PI : randomSamplesSpherical[i].y;
+				randomSamplesCartesian[i] = glm::vec4(sphericalToCartesian(glm::vec3(1, randomSamplesSpherical[i])), nSamples);
+			}
+			writeToBuffer = true;
+		}
+
+		if (writeToBuffer) {
+			memcpy(mptrSampleSphericalBuffer, randomSamplesSpherical.data(), randomSamplesSpherical.size() * sizeof(glm::vec2));
+			memcpy(mptrSampleCartesianBuffer, randomSamplesCartesian.data(), randomSamplesCartesian.size() * sizeof(glm::vec4));
+		}
 		this->extent = extent;
 	}
 
@@ -213,15 +238,30 @@ public:
 	void widget(uint32_t &collectData, uint32_t &pixelInfo)
 	{
 		if (ImGui::CollapsingHeader("RandomPattern")) {
+			ImGui::RadioButton("Dynamic samples##UID_RndomSphericalPattern", &moveSampleInTime, 1); ImGui::SameLine();
+			ImGui::RadioButton("Static samples##UID_RndomSphericalPattern", &moveSampleInTime, 0);
+
 			int nS = static_cast<int>(nSamples);
 			ImGui::SliderInt("Sample size##UID_RndomSphericalPattern", &nS, static_cast<int>(minSamples), static_cast<int>(maxSamples));
-			int sd = static_cast<int>(seed);
-			ImGui::SliderInt("Sample seed##UID_RndomSphericalPattern", &sd, 1, static_cast<int>(maxSamples));
-			if (nS != nSamples || sd != seed) {
-				dataUpdated = false;
-				nSamples = nS;
+			dataUpdated = (nS == nSamples);
+			nSamples = nS;
+
+			int cP = choosePattern;
+			ImGui::RadioButton("Random pattern##UID_RndomSphericalPattern", &cP, 1); ImGui::SameLine();
+			ImGui::RadioButton("Regular pattern##UID_RndomSphericalPattern", &cP, 0);
+			dataUpdated = (cP == choosePattern);
+			choosePattern = cP;
+
+			if (choosePattern) {
+				int sd = static_cast<int>(seed);
+				ImGui::SliderInt("Sample seed##UID_RndomSphericalPattern", &sd, 1, static_cast<int>(maxSamples));
+				dataUpdated = dataUpdated && (sd == seed);
 				seed = sd;
 			}
+			else {
+
+			}
+			
 
 			if (ImGui::CollapsingHeader("CollectSamples##UID_RndomSphericalPattern")) {
 
@@ -250,8 +290,6 @@ public:
 			}
 			else
 				collectData = 0;
-
-			
 		}
 	}
 
@@ -293,6 +331,8 @@ private:
 	uint32_t seed;
 
 	bool dataUpdated;
+	int moveSampleInTime;
+	int choosePattern; // Random or deterministic
 
 	std::vector<glm::vec2> randomSamplesSpherical;
 	VkBuffer sampleSphericalBuffer;
