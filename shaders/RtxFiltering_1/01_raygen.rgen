@@ -1,0 +1,155 @@
+#version 460
+#extension GL_NV_ray_tracing : require
+#extension GL_GOOGLE_include_directive : enable
+#include "../commonMath.h"
+
+layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
+layout(binding = 1, set = 0, rgba8) uniform readonly image2D diffuseImage;
+layout(binding = 2, set = 0, rgba8) uniform readonly image2D specularImage;
+layout(binding = 3, set = 0, rgba32f) uniform readonly image2D normalImage;
+layout(binding = 4, set = 0, rgba32f) uniform readonly image2D otherImage;
+layout(binding = 5, set = 0, rgba32f) uniform image2D outImage;
+layout(binding = 6, set = 0) uniform CameraProperties 
+{
+	mat4 view;
+    mat4 proj;
+    mat4 viewInv;
+    mat4 projInv;
+} cam;
+
+layout(binding = 7, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 8, set = 0) readonly buffer DiscretePdf { float bins[]; } discretePdf;
+layout(binding = 14, set = 0) buffer RandomGeneratorState { uint state[]; } randGenState;
+
+layout (push_constant) uniform pcBlock {
+	vec3 lightPosition;
+	float power;
+	uint discretePdfSize;
+	uint numSamples;
+	uint randomSeed;
+} pcb;
+
+layout(location = 0) rayPayloadNV uint hit;
+layout(location = 1) rayPayloadNV vec3 radiance;
+
+uint xorshiftState;
+
+vec3 shadowRayPointLight(const vec3 lightPosition, vec3 viewDir, vec3 origin, vec4 surfaceNormal, float bsdfType, vec3 diffRef, vec3 specRef)
+{
+	float distance = length(lightPosition - origin);
+	vec3 lightDir = (lightPosition - origin) / distance;
+	
+	float cos = dot(lightDir, surfaceNormal.xyz);	
+	
+	if (cos < 0)
+		return vec3(0, 0, 0);
+
+	hit = 0;
+	traceNV(topLevelAS, gl_RayFlagsOpaqueNV, gl_RayFlagsTerminateOnFirstHitNV|gl_RayFlagsOpaqueNV|gl_RayFlagsSkipClosestHitShaderNV
+		, 0, 0, 0, origin, 0.01f, lightDir, 10000.0f, 0);
+
+	vec3 specularColor = bsdfType > 0.5f ? specRef * ggxBrdf(viewDir, lightDir, surfaceNormal.xyz, surfaceNormal.w) : vec3(0, 0, 0);
+	vec3 diffuseColor = diffRef * cos / PI;
+		
+	return (diffuseColor + specularColor) * hit  / (distance * distance);
+}
+
+vec3 shadowRayAreaLight(vec3 lightPosition, vec3 viewDir, vec3 origin, vec4 surfaceNormal, float bsdfType, vec3 diffRef, vec3 specRef)
+{	
+	float distance = length(lightPosition - origin);
+	vec3 lightDir = (lightPosition - origin) / distance;
+	
+	float cos = dot(lightDir, surfaceNormal.xyz);	
+	
+	if (cos < 0)
+		return vec3(0, 0, 0);
+
+	radiance = -lightDir;
+	traceNV(topLevelAS, gl_RayFlagsOpaqueNV, gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
+		, 1, 0, 1, origin, 0.01f, lightDir, 10000.0f, 1);
+
+	vec3 specularColor = bsdfType > 0.5f ? specRef *  ggxBrdf(viewDir, lightDir, surfaceNormal.xyz, surfaceNormal.w) : vec3(0, 0, 0);
+	vec3 diffuseColor = diffRef * cos / PI;
+		
+	return (diffuseColor + specularColor) * radiance  / (distance * distance);
+}
+
+vec3 rand()
+{	
+	vec3 ret;
+	
+	ret.x = xorshift(xorshiftState) / 4294967296.0;     
+    ret.y = xorshift(xorshiftState) / 4294967296.0;
+	ret.z = xorshift(xorshiftState) / 4294967296.0;
+	/*
+	
+	ret.x = xorwow() / 4294967296.0;     
+    ret.y = xorwow() / 4294967296.0;
+	ret.z = xorwow() / 4294967296.0;
+	*/
+	return ret;
+}
+
+vec3 randomTriplet()
+{	
+	vec3 triplet = rand();
+	
+	triplet.y = 1.0 - sqrt(triplet.y);
+	triplet.z = (1.0 - triplet.y) * (1.0 - triplet.z);
+
+	return triplet;
+}
+
+void main()
+{	
+	const ivec2 pixel = ivec2(gl_LaunchIDNV.xy);
+	const vec4 diffuseColor = imageLoad(diffuseImage, pixel).rgba;
+	const vec4 other = imageLoad(otherImage, pixel).rgba;
+
+	vec4 color = vec4(0, 0, 0, 1);
+	// If the primary intersection is a light source
+	if (other.w > 3.5 && other.w < 4.5)
+		color = diffuseColor;
+	// primary hit point is valid
+	else if (other.w > -0.5f){
+		const vec4 specularColor = imageLoad(specularImage, pixel).rgba;
+		const vec4 normal = imageLoad(normalImage, pixel).rgba;
+
+		const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
+		const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeNV.xy);
+		vec2 d = inUV * 2.0 - 1.0;
+
+		vec4 origin = cam.viewInv * vec4(0,0,0,1);
+		vec4 target = cam.projInv * vec4(d.x, d.y, 1, 1) ;
+		vec4 viewDir = cam.viewInv * vec4(normalize(target.xyz), 0) ;
+	
+		// for shadow rays
+		origin = origin + (other.x - 0.000f) * viewDir;
+		color.xyz = shadowRayPointLight(pcb.lightPosition, -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor.xyz, specularColor.xyz);
+
+		xorshiftState = randGenState.state[pixel.y * gl_LaunchSizeNV.x + pixel.x];
+		
+		//xorwowState.a = randGenState.state[pixel.y * gl_LaunchSizeNV.x + pixel.x];
+		//xorwowState.b = wang_hash(pixel.x * 5000 + pixel.y + xorwowState.a);
+		//xorwowState.c = wang_hash(pixel.x * 5000 + pixel.y + xorwowState.b);
+		//xorwowState.d = wang_hash(pixel.x * 5000 + pixel.y + xorwowState.c);
+		//xorwowState.counter = wang_hash(pixel.x * 5000 + pixel.y + xorwowState.d);
+		
+		for (uint i = 0; i < pcb.numSamples; i++) {
+			vec3 randTrip = randomTriplet();
+			uint index = 0;
+			// This is ridiculus, TODO:: find better solution
+			for (uint j = 0; j < pcb.discretePdfSize; j++)
+				index = discretePdf.bins[j] < randTrip.x ? j : index; 
+			
+			color.xyz += shadowRayAreaLight((lightVertices.v[3*index] * randTrip.y + lightVertices.v[3*index + 1] * randTrip.z + lightVertices.v[3*index + 2] * (1 - randTrip.y - randTrip.z)).xyz,
+				-viewDir.xyz, origin.xyz, normal, other.w, diffuseColor.xyz, specularColor.xyz) / ((discretePdf.bins[index + 1] - discretePdf.bins[index]) * pcb.numSamples);
+
+		}
+		
+		color *= pcb.power;
+		randGenState.state[pixel.y * gl_LaunchSizeNV.x + pixel.x] = xorshiftState;
+	}
+
+	imageStore(outImage, pixel, color);
+}

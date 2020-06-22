@@ -9,10 +9,11 @@
 #include "RtxHybridHardShadows.hpp"
 #include "RtxHybridSoftShadows.hpp"
 #include "RtxFiltering_0.hpp"
+#include "RtxFiltering_1.hpp"
 
 int main()
 {	
-	int select = 8;
+	int select = 9;
 	try {
 		if (select == 0) {
 			// Show Rasterization based GBuffer
@@ -81,8 +82,16 @@ int main()
 			std::vector<const char*> deviceExtensions = { VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME };
 			std::vector<const char*> instanceExtensions = { VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
 			std::vector<const char*> deviceFeatures = { "shaderStorageImageExtendedFormats" };
-			// experimental technique
+			// experimental technique, samples move across the world space directions in time
 			RtxFiltering_0 app(instanceExtensions, deviceExtensions, deviceFeatures);
+			app.run(1280, 720, false);
+		}
+		else if (select == 9) {
+			std::vector<const char*> deviceExtensions = { VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME };
+			std::vector<const char*> instanceExtensions = { VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
+			std::vector<const char*> deviceFeatures = { "shaderStorageImageExtendedFormats" };
+			// experimental technique, samples move across the world space directions in time
+			RtxFiltering_1 app(instanceExtensions, deviceExtensions, deviceFeatures);
 			app.run(1280, 720, false);
 		}
 		

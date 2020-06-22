@@ -61,6 +61,13 @@ compileList.append(("./RtxFiltering_0/biased/01_raygen.rgen", "./RtxFiltering_0/
 compileList.append(("./RtxFiltering_0/biased/01_miss.rmiss", "./RtxFiltering_0/biased/01_miss.spv"))
 compileList.append(("./RtxFiltering_0/biased/01_close.rchit", "./RtxFiltering_0/biased/01_close.spv"))
 
+compileList.append(("./RtxFiltering_1/gShow.vert", "./RtxFiltering_1/gShowVert.spv"))
+compileList.append(("./RtxFiltering_1/gShow.frag", "./RtxFiltering_1/gShowFrag.spv"))
+compileList.append(("./RtxFiltering_1/01_raygen.rgen", "./RtxFiltering_1/01_raygen.spv"))
+compileList.append(("./RtxFiltering_1/01_miss.rmiss", "./RtxFiltering_1/01_miss.spv"))
+compileList.append(("./RtxFiltering_1/02_miss.rmiss", "./RtxFiltering_1/02_miss.spv"))
+compileList.append(("./RtxFiltering_1/02_close.rchit", "./RtxFiltering_1/02_close.spv"))
+
 compileList.append(("./Filters/crossBilateralFilter.comp", "./Filters/crossBilateralFilter.spv"))
 compileList.append(("./Filters/temporalFilter.comp", "./Filters/temporalFilter.spv"))
 compileList.append(("./Filters/dummyFilter.comp", "./Filters/dummyFilter.spv"))
