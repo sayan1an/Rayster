@@ -173,7 +173,7 @@ public:
 			}
 			else {
 				float samplesPerLine = std::ceil((float)nSamples / nLines);
-				for (uint32_t j = 0; j < nLines; j++) {
+				for (uint32_t j = 0; j < static_cast<uint32_t>(nLines); j++) {
 					for (uint32_t i = 0; i < static_cast<uint32_t>(samplesPerLine); i++) {
 						float theta = std::acos(1 - 2.0f * (i / samplesPerLine));
 						float phi = 2.0f * j * PI / nLines;

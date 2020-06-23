@@ -36,7 +36,6 @@ private:
 
 struct PushConstantBlock
 {
-	glm::vec3 lightPosition;
 	float power;
 	uint32_t discretePdfSize;
 	uint32_t numSamples;
@@ -48,49 +47,22 @@ class NewGui : public Gui
 public:
 	const IO* io;
 	Camera* cam;
-	CrossBilateralFilter* cFilter;
-	TemporalFilter* tFilter;
-	TemporalFrequencyFilter* tfFilter;
+	
 	PushConstantBlock pcb;
 	int denoise = 0;
 	int whichFilter = 0;
 private:
 
-	float lightX = 1;
-	float lightY = -1;
-	float lightZ = 1;
 	float power = 10;
-	float distance = 10;
 	int numSamples = 4;
 
 	void guiSetup()
 	{
 		io->frameRateWidget();
 		cam->cameraWidget();
-		ImGui::SliderFloat("Emitter direction - x", &lightX, -1.0f, 1.0f);
-		ImGui::SliderFloat("Emitter direction - y", &lightY, -1.0f, 1.0f);
-		ImGui::SliderFloat("Emitter direction - z", &lightZ, -1.0f, 1.0f);
 		ImGui::SliderFloat("Emitter power", &power, 1.0f, 100.0f);
-		ImGui::SliderFloat("Emitter distance", &distance, 1.0f, 25.0f);
 		ImGui::SliderInt("MC Samples", &numSamples, 1, 64);
-		ImGui::Text("Filter"); ImGui::SameLine();
-		ImGui::RadioButton("Off", &denoise, 0); ImGui::SameLine();
-		ImGui::RadioButton("On", &denoise, 1);
-
-		if (denoise == 1) {
-			ImGui::Text("Select Filter");
-			ImGui::RadioButton("Cross", &whichFilter, 0); ImGui::SameLine();
-			ImGui::RadioButton("Temp", &whichFilter, 1); ImGui::SameLine();
-			ImGui::RadioButton("Freq", &whichFilter, 2);
-			if (whichFilter == 0)
-				cFilter->widget();
-			else if (whichFilter == 1)
-				tFilter->widget();
-			else if (whichFilter == 2)
-				tfFilter->widget(*io);
-		}
-
-		pcb.lightPosition = glm::normalize(glm::vec3(lightX, lightY, lightZ)) * distance;
+				
 		pcb.power = power;
 		pcb.numSamples = static_cast<uint32_t>(numSamples);
 		pcb.seed = static_cast<uint32_t>(rand());
@@ -320,10 +292,7 @@ private:
 
 	Model model;
 	AreaLightSources areaSources;
-	CrossBilateralFilter crossBilateralFilter;
-	TemporalFilter temporalFilter;
-	TemporalFrequencyFilter temporalFrequencyFilter;
-
+	
 	std::vector<VkCommandBuffer> commandBuffers;
 
 	FboManager fboManager1; // For subpass 1
@@ -361,24 +330,15 @@ private:
 
 		gui.io = &io;
 		gui.cam = &cam;
-		gui.cFilter = &crossBilateralFilter;
-		gui.tFilter = &temporalFilter;
-		gui.tfFilter = &temporalFrequencyFilter;
 		gui.setStyle();
 		gui.pcb.discretePdfSize = areaSources.dPdf.size();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
 		randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
-		temporalFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
-		temporalFrequencyFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);
-		crossBilateralFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"),
-			fboManager1.getImageView("normal"), fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
-		temporalFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
-		temporalFrequencyFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -411,10 +371,7 @@ private:
 		}
 
 		randGen.cleanUp(allocator);
-		crossBilateralFilter.cleanUp(device);
-		temporalFilter.cleanUp(device, allocator);
-		temporalFrequencyFilter.cleanUp(device, allocator);
-		
+			
 		vkFreeCommandBuffers(device, graphicsCommandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
 		vkDestroyPipeline(device, subpass1.pipeline, nullptr);
@@ -446,15 +403,10 @@ private:
 		createColorResources();
 		randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		createFramebuffers();
-		temporalFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
-		temporalFrequencyFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
-
+	
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);
-		crossBilateralFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"),
-			fboManager1.getImageView("normal"), fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
-		temporalFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
-		temporalFrequencyFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
+	
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -704,14 +656,7 @@ private:
 			rtxPass.sbtBuffer, hitGroupOffset, hitGroupStride,
 			VK_NULL_HANDLE, 0, 0, swapChainExtent.width,
 			swapChainExtent.height, 1);
-		
-		if (gui.whichFilter == 0)
-			crossBilateralFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
-		else if (gui.whichFilter == 1)
-			temporalFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
-		else if (gui.whichFilter == 2)
-			temporalFrequencyFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
-		
+					
 		// begin second render-pass
 		renderPassInfo.renderPass = renderPass2;
 		renderPassInfo.framebuffer = swapChainFramebuffers[index];
@@ -751,7 +696,5 @@ private:
 		buildCommandBuffer(imageIndex);
 		submitRenderCmd(commandBuffers[imageIndex]);
 		frameEnd(imageIndex);
-
-		temporalFrequencyFilter.updateData();
 	}
 };

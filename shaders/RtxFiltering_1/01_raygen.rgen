@@ -22,7 +22,6 @@ layout(binding = 8, set = 0) readonly buffer DiscretePdf { float bins[]; } discr
 layout(binding = 14, set = 0) buffer RandomGeneratorState { uint state[]; } randGenState;
 
 layout (push_constant) uniform pcBlock {
-	vec3 lightPosition;
 	float power;
 	uint discretePdfSize;
 	uint numSamples;
@@ -33,26 +32,6 @@ layout(location = 0) rayPayloadNV uint hit;
 layout(location = 1) rayPayloadNV vec3 radiance;
 
 uint xorshiftState;
-
-vec3 shadowRayPointLight(const vec3 lightPosition, vec3 viewDir, vec3 origin, vec4 surfaceNormal, float bsdfType, vec3 diffRef, vec3 specRef)
-{
-	float distance = length(lightPosition - origin);
-	vec3 lightDir = (lightPosition - origin) / distance;
-	
-	float cos = dot(lightDir, surfaceNormal.xyz);	
-	
-	if (cos < 0)
-		return vec3(0, 0, 0);
-
-	hit = 0;
-	traceNV(topLevelAS, gl_RayFlagsOpaqueNV, gl_RayFlagsTerminateOnFirstHitNV|gl_RayFlagsOpaqueNV|gl_RayFlagsSkipClosestHitShaderNV
-		, 0, 0, 0, origin, 0.01f, lightDir, 10000.0f, 0);
-
-	vec3 specularColor = bsdfType > 0.5f ? specRef * ggxBrdf(viewDir, lightDir, surfaceNormal.xyz, surfaceNormal.w) : vec3(0, 0, 0);
-	vec3 diffuseColor = diffRef * cos / PI;
-		
-	return (diffuseColor + specularColor) * hit  / (distance * distance);
-}
 
 vec3 shadowRayAreaLight(vec3 lightPosition, vec3 viewDir, vec3 origin, vec4 surfaceNormal, float bsdfType, vec3 diffRef, vec3 specRef)
 {	
@@ -125,8 +104,7 @@ void main()
 	
 		// for shadow rays
 		origin = origin + (other.x - 0.000f) * viewDir;
-		color.xyz = shadowRayPointLight(pcb.lightPosition, -viewDir.xyz, origin.xyz, normal, other.w, diffuseColor.xyz, specularColor.xyz);
-
+	
 		xorshiftState = randGenState.state[pixel.y * gl_LaunchSizeNV.x + pixel.x];
 		
 		//xorwowState.a = randGenState.state[pixel.y * gl_LaunchSizeNV.x + pixel.x];
