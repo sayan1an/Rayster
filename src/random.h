@@ -364,3 +364,237 @@ private:
 	std::vector<glm::vec2> raytracedSamples;
 	std::vector<glm::vec2> intersectedSamples;
 };
+
+class RandomSquarePattern
+{
+public:
+	RandomSquarePattern()
+	{
+		maxSamples = 1024;
+		minSamples = 4;
+		sampleSquareBuffer = VK_NULL_HANDLE;
+		sampleSquareBufferAllocation = VK_NULL_HANDLE;
+		mptrSampleSquareBuffer = nullptr;
+
+		feedbackBuffer = VK_NULL_HANDLE;
+		feedbackBufferAllocation = VK_NULL_HANDLE;
+		mptrFeedbackBuffer = nullptr;
+		ptrFeedbackBuffer = nullptr;
+
+		seed = 5;
+		nSamples = 32;
+
+		dataUpdated = false;
+		moveSampleInTime = true;
+		choosePattern = 0;
+		nLines = 1;
+
+		xPixelQuery = 1;
+		yPixelQuery = 1;
+		extent = { 10,10 };
+
+		randomSamplesSquare.reserve(maxSamples);
+	
+		nonRaytracedSamples.reserve(maxSamples);
+		raytracedSamples.reserve(maxSamples);
+		intersectedSamples.reserve(maxSamples);
+	}
+
+	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool)
+	{
+		mptrSampleSquareBuffer = static_cast<glm::vec2*>(createBuffer(allocator, sampleSquareBuffer, sampleSquareBufferAllocation, maxSamples * sizeof(glm::vec2), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT));
+		mptrFeedbackBuffer = createBuffer(allocator, feedbackBuffer, feedbackBufferAllocation, maxSamples * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
+		ptrFeedbackBuffer = new uint32_t[maxSamples];
+	}
+
+	void updateDataPre(const VkExtent2D& extent)
+	{
+		bool writeToBuffer = false;
+
+		if (dataUpdated == false) {
+			randomSamplesSquare.clear();
+		
+			if (choosePattern) {
+				RandomGenerator rGen(seed);
+
+				for (uint32_t i = 0; i < nSamples; i++) {
+					float u = rGen.getNextUint32_t() / 4294967295.0f;
+					float v = rGen.getNextUint32_t() / 4294967295.0f;
+
+					randomSamplesSquare.push_back(glm::vec2(u, v));
+				}
+			}
+			else {
+				float samplesPerLine = std::ceil((float)nSamples / nLines);
+				for (uint32_t j = 0; j < static_cast<uint32_t>(nLines); j++) {
+					for (uint32_t i = 0; i < static_cast<uint32_t>(samplesPerLine); i++) {
+						float u = static_cast<float>(i) / samplesPerLine;
+						float v = static_cast<float>(j) / nLines;
+						randomSamplesSquare.push_back(glm::vec2(u, v));
+					}
+				}
+			}
+
+			std::sort(randomSamplesSquare.begin(), randomSamplesSquare.end(), [](const glm::vec2& lhs, const glm::vec2& rhs)
+			{
+				if (lhs.x == rhs.x)
+					return lhs.y < rhs.y;
+
+				return lhs.x < rhs.x;
+			});
+					
+			writeToBuffer = true;
+			dataUpdated = true;
+		}
+
+		if (moveSampleInTime) {
+			for (uint32_t i = 0; i < nSamples; i++) {
+				randomSamplesSquare[i].y += 0.1f;
+				randomSamplesSquare[i].y = randomSamplesSquare[i].y > 1.0 ? randomSamplesSquare[i].y - 1 : randomSamplesSquare[i].y;
+				
+			}
+			writeToBuffer = true;
+		}
+
+		if (writeToBuffer)
+			memcpy(mptrSampleSquareBuffer, randomSamplesSquare.data(), randomSamplesSquare.size() * sizeof(glm::vec2));
+		
+		this->extent = extent;
+	}
+
+	void updateDataPost()
+	{
+		memcpy(ptrFeedbackBuffer, mptrFeedbackBuffer, nSamples * sizeof(uint32_t));
+
+		nonRaytracedSamples.clear();
+		raytracedSamples.clear();
+		intersectedSamples.clear();
+		for (uint32_t i = 0; i < nSamples; i++) {
+			if (ptrFeedbackBuffer[i] == 0)
+				nonRaytracedSamples.push_back(randomSamplesSquare[i]);
+			else if (ptrFeedbackBuffer[i] == 1)
+				raytracedSamples.push_back(randomSamplesSquare[i]);
+			else
+				intersectedSamples.push_back(randomSamplesSquare[i]);
+		}
+	}
+
+	void cleanUp(const VmaAllocator& allocator)
+	{
+		vmaDestroyBuffer(allocator, sampleSquareBuffer, sampleSquareBufferAllocation);
+		vmaDestroyBuffer(allocator, feedbackBuffer, feedbackBufferAllocation);
+		delete[] ptrFeedbackBuffer;
+	}
+
+	void widget(uint32_t& collectData, uint32_t& pixelInfo, uint32_t &_nSamples)
+	{
+		if (ImGui::CollapsingHeader("RandomPattern")) {
+			ImGui::RadioButton("Dynamic samples##UID_RndomSphericalPattern", &moveSampleInTime, 1); ImGui::SameLine();
+			ImGui::RadioButton("Static samples##UID_RndomSphericalPattern", &moveSampleInTime, 0);
+
+			int nS = static_cast<int>(nSamples);
+			ImGui::SliderInt("Sample size##UID_RndomSphericalPattern", &nS, static_cast<int>(minSamples), static_cast<int>(maxSamples));
+			dataUpdated = (nS == nSamples);
+			nSamples = nS;
+			_nSamples = nSamples;
+
+			int cP = choosePattern;
+			ImGui::RadioButton("Random pattern##UID_RndomSphericalPattern", &cP, 1); ImGui::SameLine();
+			ImGui::RadioButton("Regular pattern##UID_RndomSphericalPattern", &cP, 0);
+			dataUpdated = dataUpdated && (cP == choosePattern);
+			choosePattern = cP;
+
+			if (choosePattern) {
+				int sd = static_cast<int>(seed);
+				ImGui::SliderInt("Sample seed##UID_RndomSphericalPattern", &sd, 1, static_cast<int>(maxSamples));
+				dataUpdated = dataUpdated && (sd == seed);
+				seed = sd;
+			}
+			else {
+				int nL = nLines;
+				ImGui::SliderInt("Num Lines##UID_RndomSphericalPattern", &nL, 1, 50);
+				dataUpdated = dataUpdated && (nL == nLines);
+				nLines = nL;
+			}
+
+
+			if (ImGui::CollapsingHeader("CollectSamples##UID_RndomSphericalPattern")) {
+
+				ImGui::SliderInt("Pixel X##UID_RndomSphericalPattern", &xPixelQuery, 0, static_cast<int>(extent.width));
+				ImGui::SliderInt("Pixel Y##UID_RndomSphericalPattern", &yPixelQuery, 0, static_cast<int>(extent.height));
+
+				collectData = 1;
+				pixelInfo = (xPixelQuery & 0xffff) | (yPixelQuery & 0xffff) << 16;
+
+				ImGui::SetNextPlotRange(0, 1.0f, 0, 1.0f, ImGuiCond_Always);
+				if (ImGui::BeginPlot("Scatter Plot##UID_RndomSphericalPattern", "phi", "theta")) {
+					ImGui::Text(("Intersected Samples:" + std::to_string(intersectedSamples.size())).c_str());
+					ImGui::PushPlotStyleVar(ImPlotStyleVar_LineWeight, 0);
+					ImGui::PushPlotStyleVar(ImPlotStyleVar_Marker, ImMarker_Circle);
+					ImGui::PushPlotStyleVar(ImPlotStyleVar_MarkerSize, 4);
+					auto getter = [](void* data, int idx) {
+						glm::vec2 d = static_cast<const glm::vec2*>(data)[idx];
+						return ImVec2(d.y, d.x);
+					};
+					ImGui::Plot("Not Raytraced##UID_RndomSphericalPattern", static_cast<ImVec2(*)(void*, int)>(getter), static_cast<void*>(nonRaytracedSamples.data()), static_cast<int>(nonRaytracedSamples.size()), 0);
+					ImGui::Plot("Raytraced##UID_RndomSphericalPattern", static_cast<ImVec2(*)(void*, int)>(getter), static_cast<void*>(raytracedSamples.data()), static_cast<int>(raytracedSamples.size()), 0);
+					ImGui::Plot("Intersected##UID_RndomSphericalPattern", static_cast<ImVec2(*)(void*, int)>(getter), static_cast<void*>(intersectedSamples.data()), static_cast<int>(intersectedSamples.size()), 0);
+					ImGui::PopPlotStyleVar(2);
+					ImGui::EndPlot();
+				}
+			}
+			else
+				collectData = 0;
+		}
+	}
+
+	VkDescriptorBufferInfo getSquareSamplesDescriptorBufferInfo() const
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = sampleSquareBuffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		return descriptorBufferInfo;
+	}
+	
+	VkDescriptorBufferInfo getFeedbackDescriptorBufferInfo() const
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = feedbackBuffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		return descriptorBufferInfo;
+	}
+
+private:
+	VkDeviceSize maxSamples;
+	VkDeviceSize minSamples;
+
+	VkDeviceSize nSamples;
+	uint32_t seed;
+
+	bool dataUpdated;
+	int moveSampleInTime;
+	int choosePattern; // Random or deterministic
+	int nLines;
+
+	std::vector<glm::vec2> randomSamplesSquare;
+	VkBuffer sampleSquareBuffer;
+	VmaAllocation sampleSquareBufferAllocation;
+	glm::vec2* mptrSampleSquareBuffer;
+
+	VkBuffer feedbackBuffer;
+	VmaAllocation feedbackBufferAllocation;
+	void* mptrFeedbackBuffer;
+	uint32_t* ptrFeedbackBuffer;
+
+	int xPixelQuery;
+	int yPixelQuery;
+	VkExtent2D extent;
+
+	std::vector<glm::vec2> nonRaytracedSamples;
+	std::vector<glm::vec2> raytracedSamples;
+	std::vector<glm::vec2> intersectedSamples;
+};

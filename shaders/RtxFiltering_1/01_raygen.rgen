@@ -19,13 +19,12 @@ layout(binding = 6, set = 0) uniform CameraProperties
 
 layout(binding = 7, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
 layout(binding = 8, set = 0) readonly buffer DiscretePdf { float bins[]; } discretePdf;
-layout(binding = 14, set = 0) buffer RandomGeneratorState { uint state[]; } randGenState;
+layout(binding = 9, set = 0) buffer RandomSquareSamples { vec2 v[]; } randSqSamples;
 
 layout (push_constant) uniform pcBlock {
 	float power;
 	uint discretePdfSize;
 	uint numSamples;
-	uint randomSeed;
 } pcb;
 
 layout(location = 0) rayPayloadNV uint hit;
@@ -53,25 +52,9 @@ vec3 shadowRayAreaLight(vec3 lightPosition, vec3 viewDir, vec3 origin, vec4 surf
 	return (diffuseColor + specularColor) * radiance  / (distance * distance);
 }
 
-vec3 rand()
+vec3 randomTriplet(in uint index)
 {	
-	vec3 ret;
-	
-	ret.x = xorshift(xorshiftState) / 4294967296.0;     
-    ret.y = xorshift(xorshiftState) / 4294967296.0;
-	ret.z = xorshift(xorshiftState) / 4294967296.0;
-	/*
-	
-	ret.x = xorwow() / 4294967296.0;     
-    ret.y = xorwow() / 4294967296.0;
-	ret.z = xorwow() / 4294967296.0;
-	*/
-	return ret;
-}
-
-vec3 randomTriplet()
-{	
-	vec3 triplet = rand();
+	vec3 triplet = randSqSamples.v[index].xxy;
 	
 	triplet.y = 1.0 - sqrt(triplet.y);
 	triplet.z = (1.0 - triplet.y) * (1.0 - triplet.z);
@@ -104,17 +87,9 @@ void main()
 	
 		// for shadow rays
 		origin = origin + (other.x - 0.000f) * viewDir;
-	
-		xorshiftState = randGenState.state[pixel.y * gl_LaunchSizeNV.x + pixel.x];
-		
-		//xorwowState.a = randGenState.state[pixel.y * gl_LaunchSizeNV.x + pixel.x];
-		//xorwowState.b = wang_hash(pixel.x * 5000 + pixel.y + xorwowState.a);
-		//xorwowState.c = wang_hash(pixel.x * 5000 + pixel.y + xorwowState.b);
-		//xorwowState.d = wang_hash(pixel.x * 5000 + pixel.y + xorwowState.c);
-		//xorwowState.counter = wang_hash(pixel.x * 5000 + pixel.y + xorwowState.d);
-		
+			
 		for (uint i = 0; i < pcb.numSamples; i++) {
-			vec3 randTrip = randomTriplet();
+			vec3 randTrip = randomTriplet(i);
 			uint index = 0;
 			// This is ridiculus, TODO:: find better solution
 			for (uint j = 0; j < pcb.discretePdfSize; j++)
@@ -126,7 +101,6 @@ void main()
 		}
 		
 		color *= pcb.power;
-		randGenState.state[pixel.y * gl_LaunchSizeNV.x + pixel.x] = xorshiftState;
 	}
 
 	imageStore(outImage, pixel, color);

@@ -39,7 +39,6 @@ struct PushConstantBlock
 	float power;
 	uint32_t discretePdfSize;
 	uint32_t numSamples;
-	uint32_t seed;
 };
 
 class NewGui : public Gui
@@ -47,7 +46,7 @@ class NewGui : public Gui
 public:
 	const IO* io;
 	Camera* cam;
-	
+	RandomSquarePattern* pSqPat;
 	PushConstantBlock pcb;
 	int denoise = 0;
 	int whichFilter = 0;
@@ -60,12 +59,11 @@ private:
 	{
 		io->frameRateWidget();
 		cam->cameraWidget();
+		uint32_t collectData, pixelInfo;
+		pSqPat->widget(collectData, pixelInfo, pcb.numSamples);
 		ImGui::SliderFloat("Emitter power", &power, 1.0f, 100.0f);
-		ImGui::SliderInt("MC Samples", &numSamples, 1, 64);
-				
+		
 		pcb.power = power;
-		pcb.numSamples = static_cast<uint32_t>(numSamples);
-		pcb.seed = static_cast<uint32_t>(rand());
 	}
 };
 
@@ -83,7 +81,7 @@ public:
 
 	void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator,
 		const Model& model, FboManager& fboMgr, const Camera& cam, const AreaLightSources& areaSource,
-		const RandomGenerator& randGen)
+		const RandomSquarePattern& randomPattern)
 	{
 		descGen.bindTLAS({ 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, model.getDescriptorTlas());
 		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, fboMgr.getImageView("diffuseColor"), VK_IMAGE_LAYOUT_GENERAL });
@@ -94,13 +92,13 @@ public:
 		descGen.bindBuffer({ 6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, cam.getDescriptorBufferInfo());
 		descGen.bindBuffer({ 7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, areaSource.getVerticesDescriptorBufferInfo());
 		descGen.bindBuffer({ 8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.dPdf.getCdfNormDescriptorBufferInfo());
-		descGen.bindBuffer({ 9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getStaticInstanceDescriptorBufferInfo());
-		descGen.bindBuffer({ 10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getMaterialDescriptorBufferInfo());
-		descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getVertexDescriptorBufferInfo());
-		descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getIndexDescriptorBufferInfo());
-		descGen.bindImage({ 13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, { model.ldrTextureSampler,  model.ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-		descGen.bindBuffer({ 14, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, randGen.getDescriptorBufferInfo());
-
+		descGen.bindBuffer({ 9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, randomPattern.getSquareSamplesDescriptorBufferInfo());
+		descGen.bindBuffer({ 10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getStaticInstanceDescriptorBufferInfo());
+		descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getMaterialDescriptorBufferInfo());
+		descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getVertexDescriptorBufferInfo());
+		descGen.bindBuffer({ 13, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getIndexDescriptorBufferInfo());
+		descGen.bindImage({ 14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, { model.ldrTextureSampler,  model.ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+		
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
 		uint32_t rayGenId = rtxPipeGen.addRayGenShaderStage(device, ROOT + "/shaders/RtxFiltering_1/01_raygen.spv");
@@ -290,6 +288,8 @@ private:
 	VmaAllocation filterOutImageAllocation;
 	VkImageView filterOutImageView;
 
+	RandomSquarePattern rPatSq;
+
 	Model model;
 	AreaLightSources areaSources;
 	
@@ -330,15 +330,17 @@ private:
 
 		gui.io = &io;
 		gui.cam = &cam;
+		gui.pSqPat = &rPatSq;
 		gui.setStyle();
 		gui.pcb.discretePdfSize = areaSources.dPdf.size();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
+		rPatSq.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
 		randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
 		
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
-		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, rPatSq);
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -405,7 +407,7 @@ private:
 		createFramebuffers();
 	
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
-		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, randGen);
+		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, rPatSq);
 	
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
@@ -417,6 +419,7 @@ private:
 		model.cleanUpRtx(device, allocator);
 		model.cleanUp(device, allocator);
 		areaSources.cleanUp(allocator);
+		rPatSq.cleanUp(allocator);
 	}
 	
 	void createRenderPass()
@@ -692,9 +695,11 @@ private:
 		model.updateTlasData();
 		areaSources.updateData();
 		cam.updateProjViewMat(io, swapChainExtent.width, swapChainExtent.height);
-
+		rPatSq.updateDataPre(swapChainExtent);
+		
 		buildCommandBuffer(imageIndex);
 		submitRenderCmd(commandBuffers[imageIndex]);
 		frameEnd(imageIndex);
+		rPatSq.updateDataPost();
 	}
 };
