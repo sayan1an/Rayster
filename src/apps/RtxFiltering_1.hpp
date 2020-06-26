@@ -62,7 +62,9 @@ private:
 		uint32_t collectData, pixelInfo;
 		pSqPat->widget(collectData, pixelInfo, pcb.numSamples);
 		ImGui::SliderFloat("Emitter power", &power, 1.0f, 100.0f);
-		
+		ImGui::Text("Filter"); ImGui::SameLine();
+		ImGui::RadioButton("Off", &denoise, 0); ImGui::SameLine();
+		ImGui::RadioButton("On", &denoise, 1);
 		pcb.power = power;
 	}
 };
@@ -292,7 +294,8 @@ private:
 
 	Model model;
 	AreaLightSources areaSources;
-	
+	TemporalWindowFilter temporalWindowFilter;
+
 	std::vector<VkCommandBuffer> commandBuffers;
 
 	FboManager fboManager1; // For subpass 1
@@ -338,9 +341,10 @@ private:
 		randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 		model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
-		
+		temporalWindowFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, rPatSq);
+		temporalWindowFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -373,6 +377,7 @@ private:
 		}
 
 		randGen.cleanUp(allocator);
+		temporalWindowFilter.cleanUp(device, allocator);
 			
 		vkFreeCommandBuffers(device, graphicsCommandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
@@ -405,10 +410,10 @@ private:
 		createColorResources();
 		randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		createFramebuffers();
-	
+		temporalWindowFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, rPatSq);
-	
+		temporalWindowFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("filterOut"));
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
 	}
@@ -659,7 +664,9 @@ private:
 			rtxPass.sbtBuffer, hitGroupOffset, hitGroupStride,
 			VK_NULL_HANDLE, 0, 0, swapChainExtent.width,
 			swapChainExtent.height, 1);
-					
+		
+		temporalWindowFilter.cmdDispatch(commandBuffers[index], swapChainExtent);
+
 		// begin second render-pass
 		renderPassInfo.renderPass = renderPass2;
 		renderPassInfo.framebuffer = swapChainFramebuffers[index];

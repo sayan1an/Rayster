@@ -1,0 +1,22 @@
+#version 450
+
+layout (local_size_x = 16, local_size_y = 16) in;
+layout (binding = 0, rgba32f) uniform readonly image2D inNoisyImage;
+layout (binding = 1, rgba32f) uniform image2DArray accumImage;
+layout (binding = 2, rgba32f) uniform image2D outFilteredImage;
+
+layout (push_constant) uniform pcBlock {
+	uint frameIndex;
+	uint windowSize;
+} pcb;
+
+void main()
+{	
+	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
+	vec4 new = imageLoad(inNoisyImage, pixel).rgba;
+	vec4 old = imageLoad(accumImage, ivec3(pixel, (pcb.frameIndex + 1) % pcb.windowSize));
+
+	vec4 updated = imageLoad(outFilteredImage, pixel).rgba + (new - old) / pcb.windowSize;
+	imageStore(outFilteredImage, pixel, updated);
+	imageStore(accumImage, ivec3(pixel, pcb.frameIndex % pcb.windowSize), new);
+}

@@ -382,7 +382,7 @@ public:
 		ptrFeedbackBuffer = nullptr;
 
 		seed = 5;
-		nSamples = 32;
+		nSamples = 64;
 
 		dataUpdated = false;
 		moveSampleInTime = true;
@@ -449,9 +449,8 @@ public:
 
 		if (moveSampleInTime) {
 			for (uint32_t i = 0; i < nSamples; i++) {
-				randomSamplesSquare[i].y += 0.1f;
+				randomSamplesSquare[i].y += 0.01f;
 				randomSamplesSquare[i].y = randomSamplesSquare[i].y > 1.0 ? randomSamplesSquare[i].y - 1 : randomSamplesSquare[i].y;
-				
 			}
 			writeToBuffer = true;
 		}
@@ -496,7 +495,7 @@ public:
 			ImGui::SliderInt("Sample size##UID_RndomSphericalPattern", &nS, static_cast<int>(minSamples), static_cast<int>(maxSamples));
 			dataUpdated = (nS == nSamples);
 			nSamples = nS;
-			_nSamples = nSamples;
+			
 
 			int cP = choosePattern;
 			ImGui::RadioButton("Random pattern##UID_RndomSphericalPattern", &cP, 1); ImGui::SameLine();
@@ -546,6 +545,8 @@ public:
 			else
 				collectData = 0;
 		}
+
+		_nSamples = static_cast<uint32_t>(nSamples);
 	}
 
 	VkDescriptorBufferInfo getSquareSamplesDescriptorBufferInfo() const

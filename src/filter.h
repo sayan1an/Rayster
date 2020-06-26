@@ -254,6 +254,100 @@ private:
 	int fineExp;
 };
 
+class TemporalWindowFilter
+{
+public:
+	void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& inNoisyImage, const VkImageView& outDenoisedImage)
+	{
+		CHECK_DBG_ONLY(buffersUpdated, "TemporalWindowFilter : call createBuffers first.");
+
+		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNoisyImage,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , accumImageView,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outDenoisedImage,  VK_IMAGE_LAYOUT_GENERAL });
+
+		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
+
+		filterPipeGen.addPushConstantRange({ VK_SHADER_STAGE_COMPUTE_BIT , 0, sizeof(PushConstantBlock) });
+		filterPipeGen.addComputeShaderStage(device, ROOT + "/shaders/Filters/temporalWindowFilter.spv");
+		filterPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
+	}
+
+	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& screenExtent)
+	{
+		VkFormat imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+		createImageP(device, allocator, queue, commandPool, accumImage, accumImageAllocation, screenExtent, VK_IMAGE_USAGE_STORAGE_BIT, imageFormat, VK_SAMPLE_COUNT_1_BIT, 0, MAX_TEMPORAL_WIND_FILT_SAMPLES);
+		accumImageView = createImageView(device, accumImage, imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
+		transitionImageLayout(device, queue, commandPool, accumImage, imageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
+				
+		buffersUpdated = true;
+	}
+
+	void cmdDispatch(const VkCommandBuffer& cmdBuf, const VkExtent2D& screenExtent)
+	{
+		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+		vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
+		// update push constant block
+		pcb.frameIndex++;
+		vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstantBlock), &pcb);
+		vkCmdDispatch(cmdBuf, 1 + (screenExtent.width - 1) / 16, 1 + (screenExtent.height - 1) / 16, 1);
+	}
+
+	void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
+	{
+		vkDestroyImageView(device, accumImageView, nullptr);
+		vmaDestroyImage(allocator, accumImage, accumImageAllocation);
+		vkDestroyPipeline(device, pipeline, nullptr);
+		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+
+		buffersUpdated = false;
+	}
+
+	void widget()
+	{
+		if (ImGui::CollapsingHeader("TemporalWindowFilter")) {
+			int wS = static_cast<int>(pcb.windowSize);
+			ImGui::SliderInt("WindowSize##UID_TemporalFreqFilter", &wS, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
+			pcb.windowSize = static_cast<uint32_t>(wS);
+		}
+	}
+
+	TemporalWindowFilter()
+	{
+		pcb.frameIndex = 0;
+		pcb.windowSize = MAX_TEMPORAL_WIND_FILT_SAMPLES;
+	
+		buffersUpdated = false;
+		accumImage = VK_NULL_HANDLE;
+		accumImageAllocation = VK_NULL_HANDLE;
+		accumImageView = VK_NULL_HANDLE;
+	}
+private:
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+
+	ComputePipelineGenerator filterPipeGen = ComputePipelineGenerator("TemporalFilter");
+
+	DescriptorSetGenerator descGen = DescriptorSetGenerator("TemporalFilter");
+	VkDescriptorSetLayout descriptorSetLayout;
+	VkDescriptorPool descriptorPool;
+	VkDescriptorSet descriptorSet;
+
+	struct PushConstantBlock
+	{
+		uint32_t frameIndex;
+		uint32_t windowSize;
+	} pcb;
+
+	VkImage accumImage;
+	VmaAllocation accumImageAllocation;
+	VkImageView accumImageView;
+
+	bool buffersUpdated;
+};
+
+
 class TemporalFrequencyFilter
 {
 public:
