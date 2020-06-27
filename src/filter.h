@@ -309,6 +309,7 @@ public:
 		if (ImGui::CollapsingHeader("TemporalWindowFilter")) {
 			int wS = static_cast<int>(pcb.windowSize);
 			ImGui::SliderInt("WindowSize##UID_TemporalFreqFilter", &wS, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
+			pcb.reset = (wS != pcb.windowSize);
 			pcb.windowSize = static_cast<uint32_t>(wS);
 		}
 	}
@@ -316,7 +317,8 @@ public:
 	TemporalWindowFilter()
 	{
 		pcb.frameIndex = 0;
-		pcb.windowSize = MAX_TEMPORAL_WIND_FILT_SAMPLES;
+		pcb.windowSize = 10;
+		pcb.reset = 0;
 	
 		buffersUpdated = false;
 		accumImage = VK_NULL_HANDLE;
@@ -338,6 +340,7 @@ private:
 	{
 		uint32_t frameIndex;
 		uint32_t windowSize;
+		uint32_t reset;
 	} pcb;
 
 	VkImage accumImage;

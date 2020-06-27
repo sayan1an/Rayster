@@ -74,9 +74,9 @@ void main()
 
          float area = length(normal);
          normal /= area;
-         area *= 0.5f;
+         //area *= 0.5f;
         
-         radiance = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)).xyz * color * (staticInstanceDataUnit.z & 0xff) * area * abs(dot(lightDir, normal)); // diffuse texture
+         radiance = texture(ldrTexSampler, vec3(texCoord, textureIdxUnit.x)).xyz * color * (staticInstanceDataUnit.z & 0xff) * abs(dot(lightDir, normal)); // diffuse texture
       }
    }
 }

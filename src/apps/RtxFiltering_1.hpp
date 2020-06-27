@@ -47,9 +47,9 @@ public:
 	const IO* io;
 	Camera* cam;
 	RandomSquarePattern* pSqPat;
+	TemporalWindowFilter* tWindFilt;
 	PushConstantBlock pcb;
 	int denoise = 0;
-	int whichFilter = 0;
 private:
 
 	float power = 10;
@@ -65,6 +65,8 @@ private:
 		ImGui::Text("Filter"); ImGui::SameLine();
 		ImGui::RadioButton("Off", &denoise, 0); ImGui::SameLine();
 		ImGui::RadioButton("On", &denoise, 1);
+		if (denoise == 1)
+			tWindFilt->widget();
 		pcb.power = power;
 	}
 };
@@ -333,6 +335,7 @@ private:
 
 		gui.io = &io;
 		gui.cam = &cam;
+		gui.tWindFilt = &temporalWindowFilter;
 		gui.pSqPat = &rPatSq;
 		gui.setStyle();
 		gui.pcb.discretePdfSize = areaSources.dPdf.size();

@@ -8,12 +8,20 @@ layout (binding = 2, rgba32f) uniform image2D outFilteredImage;
 layout (push_constant) uniform pcBlock {
 	uint frameIndex;
 	uint windowSize;
+	uint reset;
 } pcb;
 
 void main()
 {	
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
 	vec4 new = imageLoad(inNoisyImage, pixel).rgba;
+	
+	if (pcb.reset == 1) {
+		for (uint i = 0; i < pcb.windowSize; i++)
+			imageStore(accumImage, ivec3(pixel, i), vec4(0));
+		imageStore(outFilteredImage, pixel, vec4(0));
+	}
+
 	vec4 old = imageLoad(accumImage, ivec3(pixel, (pcb.frameIndex + 1) % pcb.windowSize));
 
 	vec4 updated = imageLoad(outFilteredImage, pixel).rgba + (new - old) / pcb.windowSize;

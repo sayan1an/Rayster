@@ -19,7 +19,7 @@ layout(binding = 6, set = 0) uniform CameraProperties
 
 layout(binding = 7, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
 layout(binding = 8, set = 0) readonly buffer DiscretePdf { float bins[]; } discretePdf;
-layout(binding = 9, set = 0) buffer RandomSquareSamples { vec2 v[]; } randSqSamples;
+layout(binding = 9, set = 0) readonly buffer RandomSquareSamples { vec2 v[]; } randSqSamples;
 
 layout (push_constant) uniform pcBlock {
 	float power;
@@ -52,14 +52,13 @@ vec3 shadowRayAreaLight(vec3 lightPosition, vec3 viewDir, vec3 origin, vec4 surf
 	return (diffuseColor + specularColor) * radiance  / (distance * distance);
 }
 
-vec3 randomTriplet(in uint index)
+vec2 uvToBary(in uint index)
 {	
-	vec3 triplet = randSqSamples.v[index].xxy;
-	
-	triplet.y = 1.0 - sqrt(triplet.y);
-	triplet.z = (1.0 - triplet.y) * (1.0 - triplet.z);
+	vec2 bary = randSqSamples.v[index];
+	bary.x = 1.0 - sqrt(bary.x);
+	bary.y = (1.0 - bary.x) * (1.0 - bary.y);
 
-	return triplet;
+	return bary;
 }
 
 void main()
@@ -89,14 +88,11 @@ void main()
 		origin = origin + (other.x - 0.000f) * viewDir;
 			
 		for (uint i = 0; i < pcb.numSamples; i++) {
-			vec3 randTrip = randomTriplet(i);
-			uint index = 0;
-			// This is ridiculus, TODO:: find better solution
-			for (uint j = 0; j < pcb.discretePdfSize; j++)
-				index = discretePdf.bins[j] < randTrip.x ? j : index; 
+			vec2 bary = uvToBary(i); 
+			uint index = i & 1;
 			
-			color.xyz += shadowRayAreaLight((lightVertices.v[3*index] * randTrip.y + lightVertices.v[3*index + 1] * randTrip.z + lightVertices.v[3*index + 2] * (1 - randTrip.y - randTrip.z)).xyz,
-				-viewDir.xyz, origin.xyz, normal, other.w, diffuseColor.xyz, specularColor.xyz) / ((discretePdf.bins[index + 1] - discretePdf.bins[index]) * pcb.numSamples);
+			color.xyz += shadowRayAreaLight((lightVertices.v[3*index] * bary.x + lightVertices.v[3*index + 1] * bary.y + lightVertices.v[3*index + 2] * (1 - bary.x - bary.y)).xyz,
+				-viewDir.xyz, origin.xyz, normal, other.w, diffuseColor.xyz, specularColor.xyz) / pcb.numSamples;
 
 		}
 		

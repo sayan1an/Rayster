@@ -435,21 +435,21 @@ public:
 				}
 			}
 
-			std::sort(randomSamplesSquare.begin(), randomSamplesSquare.end(), [](const glm::vec2& lhs, const glm::vec2& rhs)
+			/*std::sort(randomSamplesSquare.begin(), randomSamplesSquare.end(), [](const glm::vec2& lhs, const glm::vec2& rhs)
 			{
 				if (lhs.x == rhs.x)
 					return lhs.y < rhs.y;
 
 				return lhs.x < rhs.x;
-			});
-					
+			});*/
+
 			writeToBuffer = true;
 			dataUpdated = true;
 		}
 
 		if (moveSampleInTime) {
 			for (uint32_t i = 0; i < nSamples; i++) {
-				randomSamplesSquare[i].y += 0.01f;
+				randomSamplesSquare[i].y += 0.1f;
 				randomSamplesSquare[i].y = randomSamplesSquare[i].y > 1.0 ? randomSamplesSquare[i].y - 1 : randomSamplesSquare[i].y;
 			}
 			writeToBuffer = true;
