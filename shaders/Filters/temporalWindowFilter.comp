@@ -2,8 +2,12 @@
 
 layout (local_size_x = 16, local_size_y = 16) in;
 layout (binding = 0, rgba32f) uniform readonly image2D inNoisyImage;
-layout (binding = 1, rgba32f) uniform image2DArray accumImage;
-layout (binding = 2, rgba32f) uniform image2D outFilteredImage;
+layout (binding = 1, rgba32f) uniform readonly image2D inNoraml;
+layout (binding = 2, rgba32f) uniform readonly image2D inDiffuseCol;
+layout (binding = 3, rgba32f) uniform readonly image2D inDepth;
+layout (binding = 4, rgba32f) uniform image2DArray accumImage;
+layout (binding = 5, rgba32f) uniform image2DArray auxImage;
+layout (binding = 6, rgba32f) uniform image2D outFilteredImage;
 
 layout (push_constant) uniform pcBlock {
 	uint frameIndex;
@@ -11,20 +15,66 @@ layout (push_constant) uniform pcBlock {
 	uint reset;
 } pcb;
 
+vec3 computeWeightedOutput(in ivec2 pixel)
+{
+	vec3 newNormal = imageLoad(inNoraml, pixel).rgb;
+	vec3 newColor = imageLoad(inDiffuseCol, pixel).rgb;
+	float newGreyColor = (newColor.x + newColor.y + newColor.z) / 3.0 * (newNormal.z > 0 ? 1.0 : -1.0);
+	float newDepth =  imageLoad(inDepth, pixel).r;
+	imageStore(auxImage, ivec3(pixel, pcb.frameIndex % pcb.windowSize), vec4(newNormal.xy, newGreyColor, newDepth));
+
+	uint midIndex = (pcb.frameIndex + (pcb.windowSize >> 1) + 1) % pcb.windowSize;
+	vec4 reference = imageLoad(auxImage, ivec3(pixel, midIndex)).rgba;
+	vec3 refN = vec3(reference.xy, sqrt(1 - reference.x*reference.x - reference.y*reference.y) * (reference.z > 0 ? 1.0 : -1.0));
+	float refC = reference.z > 0 ? reference.z : -reference.z;
+
+	vec3 color = vec3(0);
+	float normalization;
+	for (uint i = 0; i < pcb.windowSize; i++)
+	{
+		uint index  = (pcb.frameIndex + i + 1) % pcb.windowSize;
+		vec3 col = imageLoad(accumImage, ivec3(pixel, index)).rgb;
+		
+		if (index == midIndex) {
+			color += col;
+			normalization += 1;
+		}
+		else {
+			vec4 current = imageLoad(auxImage, ivec3(pixel, index)).rgba;
+			vec3 currentN = vec3(current.xy, sqrt(1 - current.x*current.x - current.y*current.y) * (current.z > 0 ? 1.0 : -1.0));
+			float currentC = current.z > 0 ? current.z : -current.z;
+
+			float weight = dot(currentN, refN) * (abs(currentC - refC) > 0.01 ? 0 : 1);
+			weight = (weight > 0 ? weight : 0);
+			color += col * weight;
+			normalization += weight;
+		}
+	}
+
+	return color / normalization;
+}
 void main()
 {	
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
-	vec4 new = imageLoad(inNoisyImage, pixel).rgba;
-	
-	if (pcb.reset == 1) {
-		for (uint i = 0; i < pcb.windowSize; i++)
+	if ((pcb.reset & 1) == 1) {
+		for (uint i = 0; i < pcb.windowSize; i++) {
 			imageStore(accumImage, ivec3(pixel, i), vec4(0));
+			imageStore(auxImage, ivec3(pixel, i), vec4(0));
+		}
 		imageStore(outFilteredImage, pixel, vec4(0));
 	}
 
-	vec4 old = imageLoad(accumImage, ivec3(pixel, (pcb.frameIndex + 1) % pcb.windowSize));
-
-	vec4 updated = imageLoad(outFilteredImage, pixel).rgba + (new - old) / pcb.windowSize;
-	imageStore(outFilteredImage, pixel, updated);
+	vec4 new = imageLoad(inNoisyImage, pixel).rgba;
 	imageStore(accumImage, ivec3(pixel, pcb.frameIndex % pcb.windowSize), new);
+
+	vec4 color;
+	if (((pcb.reset >> 8) & 0xff) == 0) {
+		vec4 old = imageLoad(accumImage, ivec3(pixel, (pcb.frameIndex + 1) % pcb.windowSize));
+		color = imageLoad(outFilteredImage, pixel).rgba + (new - old) / pcb.windowSize;
+	}
+	else 
+		color = vec4(computeWeightedOutput(pixel), 1);
+
+	imageStore(outFilteredImage, pixel, color);
+	
 }

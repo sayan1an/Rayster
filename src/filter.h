@@ -257,13 +257,18 @@ private:
 class TemporalWindowFilter
 {
 public:
-	void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& inNoisyImage, const VkImageView& outDenoisedImage)
+	void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& inNoisyImage, const VkImageView& inNormalImage, const VkImageView& inDiffuseCol,
+		const VkImageView& inCameraDepth, const VkImageView& outDenoisedImage)
 	{
 		CHECK_DBG_ONLY(buffersUpdated, "TemporalWindowFilter : call createBuffers first.");
 
 		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNoisyImage,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , accumImageView,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outDenoisedImage,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNormalImage,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inDiffuseCol,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inCameraDepth,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , accumImageView,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , auxImageView,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outDenoisedImage,  VK_IMAGE_LAYOUT_GENERAL });
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -278,6 +283,10 @@ public:
 		createImageP(device, allocator, queue, commandPool, accumImage, accumImageAllocation, screenExtent, VK_IMAGE_USAGE_STORAGE_BIT, imageFormat, VK_SAMPLE_COUNT_1_BIT, 0, MAX_TEMPORAL_WIND_FILT_SAMPLES);
 		accumImageView = createImageView(device, accumImage, imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
 		transitionImageLayout(device, queue, commandPool, accumImage, imageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
+
+		createImageP(device, allocator, queue, commandPool, auxImage, auxImageAllocation, screenExtent, VK_IMAGE_USAGE_STORAGE_BIT, imageFormat, VK_SAMPLE_COUNT_1_BIT, 0, MAX_TEMPORAL_WIND_FILT_SAMPLES);
+		auxImageView = createImageView(device, auxImage, imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
+		transitionImageLayout(device, queue, commandPool, auxImage, imageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
 				
 		buffersUpdated = true;
 	}
@@ -296,6 +305,8 @@ public:
 	{
 		vkDestroyImageView(device, accumImageView, nullptr);
 		vmaDestroyImage(allocator, accumImage, accumImageAllocation);
+		vkDestroyImageView(device, auxImageView, nullptr);
+		vmaDestroyImage(allocator, auxImage, auxImageAllocation);
 		vkDestroyPipeline(device, pipeline, nullptr);
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
@@ -308,9 +319,14 @@ public:
 	{
 		if (ImGui::CollapsingHeader("TemporalWindowFilter")) {
 			int wS = static_cast<int>(pcb.windowSize);
-			ImGui::SliderInt("WindowSize##UID_TemporalFreqFilter", &wS, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
-			pcb.reset = (wS != pcb.windowSize);
+			ImGui::SliderInt("WindowSize##UID_TemporalWindowFilter", &wS, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
 			pcb.windowSize = static_cast<uint32_t>(wS);
+
+			int toggle = (pcb.reset >> 8) & 0xff;
+			ImGui::RadioButton("Simple##UID_TemporalWindowFilter", &toggle, 0); ImGui::SameLine();
+			ImGui::RadioButton("Complex##UID_TemporalWindowFilter", &toggle, 1);
+			
+			pcb.reset = ((wS != pcb.windowSize)  || (toggle != (pcb.reset >> 8) & 0xff)) | (toggle << 8);
 		}
 	}
 
@@ -321,9 +337,14 @@ public:
 		pcb.reset = 0;
 	
 		buffersUpdated = false;
+		
 		accumImage = VK_NULL_HANDLE;
 		accumImageAllocation = VK_NULL_HANDLE;
 		accumImageView = VK_NULL_HANDLE;
+
+		auxImage = VK_NULL_HANDLE;
+		auxImageAllocation = VK_NULL_HANDLE;
+		auxImageView = VK_NULL_HANDLE;
 	}
 private:
 	VkPipeline pipeline;
@@ -346,6 +367,10 @@ private:
 	VkImage accumImage;
 	VmaAllocation accumImageAllocation;
 	VkImageView accumImageView;
+
+	VkImage auxImage;
+	VmaAllocation auxImageAllocation;
+	VkImageView auxImageView;
 
 	bool buffersUpdated;
 };
