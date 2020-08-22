@@ -326,7 +326,7 @@ public:
 			ImGui::RadioButton("Simple##UID_TemporalWindowFilter", &toggle, 0); ImGui::SameLine();
 			ImGui::RadioButton("Complex##UID_TemporalWindowFilter", &toggle, 1);
 			
-			pcb.reset = ((wS != pcb.windowSize)  || (toggle != (pcb.reset >> 8) & 0xff)) | (toggle << 8);
+			pcb.reset = ((wS != pcb.windowSize)  || (toggle != ((pcb.reset >> 8) & 0xff))) | (toggle << 8);
 		}
 	}
 
