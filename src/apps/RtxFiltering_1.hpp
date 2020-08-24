@@ -347,7 +347,7 @@ private:
 		temporalWindowFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, rPatSq);
-		temporalWindowFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("normal"),
+		temporalWindowFilter.createPipeline(physicalDevice, device, cam, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("normal"),
 			fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("other"), fboManager1.getImageView("filterOut"));
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();
@@ -417,7 +417,7 @@ private:
 		temporalWindowFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
 		subpass1.createSubpass(device, swapChainExtent, renderPass1, cam, model);
 		rtxPass.createPipeline(device, raytracingProperties, allocator, model, fboManager1, cam, areaSources, rPatSq);
-		temporalWindowFilter.createPipeline(physicalDevice, device, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("normal"),
+		temporalWindowFilter.createPipeline(physicalDevice, device, cam, fboManager1.getImageView("rtxOut"), fboManager1.getImageView("normal"),
 			fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("other"), fboManager1.getImageView("filterOut"));
 		subpass2.createSubpass(device, swapChainExtent, renderPass2, fboManager2);
 		createCommandBuffers();

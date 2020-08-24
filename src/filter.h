@@ -257,18 +257,20 @@ private:
 class TemporalWindowFilter
 {
 public:
-	void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& inNoisyImage, const VkImageView& inNormalImage, const VkImageView& inDiffuseCol,
+	void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const Camera &cam, const VkImageView& inNoisyImage, const VkImageView& inNormalImage, const VkImageView& inDiffuseCol,
 		const VkImageView& inCameraDepth, const VkImageView& outDenoisedImage)
 	{
 		CHECK_DBG_ONLY(buffersUpdated, "TemporalWindowFilter : call createBuffers first.");
 
-		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNoisyImage,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNormalImage,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inDiffuseCol,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inCameraDepth,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , accumImageView,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , auxImageView,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outDenoisedImage,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindBuffer({ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, cam.getDescriptorBufferInfo());
+		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNoisyImage,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNormalImage,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inDiffuseCol,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inCameraDepth,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , accumImageView,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , depthAccumImageView,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindBuffer({ 7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { viewProjBuffer, 0, sizeof(glm::mat4) * 2 * MAX_TEMPORAL_WIND_FILT_SAMPLES });
+		descGen.bindImage({ 8, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outDenoisedImage,  VK_IMAGE_LAYOUT_GENERAL });
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -284,9 +286,11 @@ public:
 		accumImageView = createImageView(device, accumImage, imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
 		transitionImageLayout(device, queue, commandPool, accumImage, imageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
 
-		createImageP(device, allocator, queue, commandPool, auxImage, auxImageAllocation, screenExtent, VK_IMAGE_USAGE_STORAGE_BIT, imageFormat, VK_SAMPLE_COUNT_1_BIT, 0, MAX_TEMPORAL_WIND_FILT_SAMPLES);
-		auxImageView = createImageView(device, auxImage, imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
-		transitionImageLayout(device, queue, commandPool, auxImage, imageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
+		createImageP(device, allocator, queue, commandPool, depthAccumImage, depthAccumImageAllocation, screenExtent, VK_IMAGE_USAGE_STORAGE_BIT, VK_FORMAT_R32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, 0, MAX_TEMPORAL_WIND_FILT_SAMPLES);
+		depthAccumImageView = createImageView(device, depthAccumImage, VK_FORMAT_R32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
+		transitionImageLayout(device, queue, commandPool, depthAccumImage, VK_FORMAT_R32_SFLOAT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, 1, MAX_TEMPORAL_WIND_FILT_SAMPLES);
+
+		createBuffer(device, allocator, queue, commandPool, viewProjBuffer, viewProjBufferAllocation, sizeof(glm::mat4) * 2 * MAX_TEMPORAL_WIND_FILT_SAMPLES, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 				
 		buffersUpdated = true;
 	}
@@ -305,8 +309,9 @@ public:
 	{
 		vkDestroyImageView(device, accumImageView, nullptr);
 		vmaDestroyImage(allocator, accumImage, accumImageAllocation);
-		vkDestroyImageView(device, auxImageView, nullptr);
-		vmaDestroyImage(allocator, auxImage, auxImageAllocation);
+		vkDestroyImageView(device, depthAccumImageView, nullptr);
+		vmaDestroyImage(allocator, depthAccumImage, depthAccumImageAllocation);
+		vmaDestroyBuffer(allocator, viewProjBuffer, viewProjBufferAllocation);
 		vkDestroyPipeline(device, pipeline, nullptr);
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
@@ -333,7 +338,7 @@ public:
 	TemporalWindowFilter()
 	{
 		pcb.frameIndex = 0;
-		pcb.windowSize = 10;
+		pcb.windowSize = 21;
 		pcb.reset = 0;
 	
 		buffersUpdated = false;
@@ -342,9 +347,12 @@ public:
 		accumImageAllocation = VK_NULL_HANDLE;
 		accumImageView = VK_NULL_HANDLE;
 
-		auxImage = VK_NULL_HANDLE;
-		auxImageAllocation = VK_NULL_HANDLE;
-		auxImageView = VK_NULL_HANDLE;
+		depthAccumImage = VK_NULL_HANDLE;
+		depthAccumImageAllocation = VK_NULL_HANDLE;
+		depthAccumImageView = VK_NULL_HANDLE;
+
+		viewProjBuffer = VK_NULL_HANDLE;
+		viewProjBufferAllocation = VK_NULL_HANDLE;
 	}
 private:
 	VkPipeline pipeline;
@@ -368,9 +376,12 @@ private:
 	VmaAllocation accumImageAllocation;
 	VkImageView accumImageView;
 
-	VkImage auxImage;
-	VmaAllocation auxImageAllocation;
-	VkImageView auxImageView;
+	VkImage depthAccumImage;
+	VmaAllocation depthAccumImageAllocation;
+	VkImageView depthAccumImageView;
+
+	VkBuffer viewProjBuffer;
+	VmaAllocation viewProjBufferAllocation;
 
 	bool buffersUpdated;
 };

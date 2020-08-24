@@ -338,7 +338,7 @@ private:
 
 	bool dataUpdated;
 	int moveSampleInTime;
-	int choosePattern; // Random or deterministic
+	int choosePattern; // Psuedo Random or structured
 	int nLines;
 
 	std::vector<glm::vec2> randomSamplesSpherical;
@@ -448,8 +448,9 @@ public:
 		}
 
 		if (moveSampleInTime) {
+			float stepSize = 0.05f;
 			for (uint32_t i = 0; i < nSamples; i++) {
-				randomSamplesSquare[i].y += 0.05f;
+				randomSamplesSquare[i].y += stepSize * (1 + (rGen.getNextUint32_t() / 4294967295.0f - 0.5f) * 0.f);
 				randomSamplesSquare[i].y = randomSamplesSquare[i].y > 1.0 ? randomSamplesSquare[i].y - 1 : randomSamplesSquare[i].y;
 			}
 			writeToBuffer = true;
@@ -578,8 +579,10 @@ private:
 
 	bool dataUpdated;
 	int moveSampleInTime;
-	int choosePattern; // Random or deterministic
+	int choosePattern; // Psuedo random or structured
 	int nLines;
+
+	RandomGenerator rGen;
 
 	std::vector<glm::vec2> randomSamplesSquare;
 	VkBuffer sampleSquareBuffer;

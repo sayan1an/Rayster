@@ -36,4 +36,6 @@ void main()
    
     // Depth is the distance of hit point from camera origin.
     outDepthMatInfo = vec4(length((worldPos - ubo.viewInv[3]).xyz), alphaIntExtIor.yz, bsdfType);
+    // Does not work??
+    //outDepthMatInfo = vec4(gl_FragCoord.z / gl_FragCoord.w, alphaIntExtIor.yz, bsdfType);
 }

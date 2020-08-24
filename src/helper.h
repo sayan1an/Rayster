@@ -15,7 +15,7 @@
 #include "imgui.h"
 #include <glm/glm.hpp>
 
-#define ROOT std::string("D:/projects/VkExperiment")
+#define ROOT std::string("D:/projects/Rayster")
 
 #define NDEBUG
 
