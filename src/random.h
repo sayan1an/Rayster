@@ -382,7 +382,7 @@ public:
 		ptrFeedbackBuffer = nullptr;
 
 		seed = 5;
-		nSamples = 64;
+		nSamples = 4;
 
 		dataUpdated = false;
 		moveSampleInTime = true;

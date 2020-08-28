@@ -73,7 +73,7 @@ vec3 computeWeightedOutput(in ivec2 pixel)
 ivec2 findPixelPosition(in vec4 wPos, in ivec2 screenExtent, in uint windowFrameIdx)
 {
 	ViewProjMat vpMat = viewProjMatrices.mat[windowFrameIdx];
-	vec4 ndcSpace = vpMat.proj * vpMat.view * wPos;
+	vec4 ndcSpace = vpMat.proj * (vpMat.view * wPos);
 	ndcSpace /= ndcSpace.w;
 	ndcSpace.xy = ndcSpace.xy * 0.5 + 0.5;
 	
@@ -83,10 +83,12 @@ ivec2 findPixelPosition(in vec4 wPos, in ivec2 screenExtent, in uint windowFrame
 	return ivec2(ndcSpace.xy * screenExtent);
 }
 
-vec3 computeCameraMotionFix(in vec4 wPos, in ivec2 screenExtent, in uint midIndex, in ivec2 currentPixel)
+vec3 computeCameraMotionFix(in vec4 wPos, in ivec2 screenExtent, in uint midIndex, in float refDepth, in ivec2 currentPixel)
 {
 	vec3 color = vec3(0);
 	float normalization = 0;
+	float weight = 0;
+	float depth = 0;
 	ivec2 pixel;
 	for (uint i = 0; i < pcb.windowSize; i++) {
 		uint index  = i; //(pcb.frameIndex + i + 1) % pcb.windowSize;
@@ -97,8 +99,10 @@ vec3 computeCameraMotionFix(in vec4 wPos, in ivec2 screenExtent, in uint midInde
 			pixel = findPixelPosition(wPos, screenExtent, i);
 
 		if (pixel.x >= 0) {
-			color += imageLoad(accumImage, ivec3(pixel, index)).rgb;
-			normalization += 1.0;
+			depth = imageLoad(depthAccumImage, ivec3(pixel, index)).r;
+			weight = abs(depth - refDepth) > 0.001 * refDepth ? 0 : 1;
+			color += imageLoad(accumImage, ivec3(pixel, index)).rgb * weight;
+			normalization += weight;
 		}
 	}
 
@@ -155,7 +159,7 @@ void main()
 		color = imageLoad(outFilteredImage, pixel).rgba + (new - old) / pcb.windowSize;
 	}
 	else 
-		color = vec4(computeCameraMotionFix(wPos, screenExtent, midIndex, pixel), 1);
+		color = vec4(computeCameraMotionFix(wPos, screenExtent, midIndex, depth, pixel), 1);
 
 	// test findPixelPosition
 	//color = vec4(abs(vec2(pixel - findPixelPosition(wPos, screenExtent, pcb.frameIndex % pcb.windowSize))), 0, 1);

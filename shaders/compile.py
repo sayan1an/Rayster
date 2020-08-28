@@ -68,6 +68,13 @@ compileList.append(("./RtxFiltering_1/01_miss.rmiss", "./RtxFiltering_1/01_miss.
 compileList.append(("./RtxFiltering_1/02_miss.rmiss", "./RtxFiltering_1/02_miss.spv"))
 compileList.append(("./RtxFiltering_1/02_close.rchit", "./RtxFiltering_1/02_close.spv"))
 
+compileList.append(("./RtxFiltering_2/gShow.vert", "./RtxFiltering_2/gShowVert.spv"))
+compileList.append(("./RtxFiltering_2/gShow.frag", "./RtxFiltering_2/gShowFrag.spv"))
+compileList.append(("./RtxFiltering_2/01_raygen.rgen", "./RtxFiltering_2/01_raygen.spv"))
+compileList.append(("./RtxFiltering_2/01_miss.rmiss", "./RtxFiltering_2/01_miss.spv"))
+compileList.append(("./RtxFiltering_2/02_miss.rmiss", "./RtxFiltering_2/02_miss.spv"))
+compileList.append(("./RtxFiltering_2/02_close.rchit", "./RtxFiltering_2/02_close.spv"))
+
 compileList.append(("./Filters/crossBilateralFilter.comp", "./Filters/crossBilateralFilter.spv"))
 compileList.append(("./Filters/temporalFilter.comp", "./Filters/temporalFilter.spv"))
 compileList.append(("./Filters/temporalWindowFilter.comp", "./Filters/temporalWindowFilter.spv"))
