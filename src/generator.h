@@ -61,12 +61,12 @@ public:
 	}
 
 	VkAttachmentReference getAttachmentReference(std::string name, VkImageLayout layout)
-	{	
+	{
 		CHECK(attachments.find(name) != attachments.end(), appName + " FboManager: Attachment name - " + name + " not found");
 
 		VkAttachmentReference ref = {};
 		const FboData data = attachments[name];
-		
+
 		ref.attachment = data.index;
 		ref.layout = layout;
 
@@ -76,7 +76,7 @@ public:
 	VkFormat getFormat(std::string name)
 	{
 		CHECK(attachments.find(name) != attachments.end(), appName + " FboManager: Attachment name - " + name + " not found");
-		
+
 		return attachments[name].format;
 	}
 
@@ -88,26 +88,26 @@ public:
 	}
 
 	void updateAttachmentDescription(std::string name, VkAttachmentDescription description)
-	{	
+	{
 		CHECK(attachments.find(name) != attachments.end(), appName + " FboManager: Attachment name - " + name + " not found");
-		
+
 		FboData data = attachments[name];
 		description.format = data.format;
 		description.samples = data.samples;
-		
+
 		auto iter = attachmentDescriptions.insert(std::make_pair(name, description));
 
 		if (iter.second == false)
 			attachmentDescriptions[name] = description;
 	}
 
-	void getAttachmentDescriptions(std::vector<VkAttachmentDescription> &_attachmentDescriptions) 
+	void getAttachmentDescriptions(std::vector<VkAttachmentDescription>& _attachmentDescriptions)
 	{
 		CHECK(attachmentDescriptions.size() == attachments.size(), appName + " FboManager: One or more of the attachment descriptions has not been updated");
 
 		_attachmentDescriptions.resize(attachments.size());
 		for (const auto& attachment : attachments) {
-			CHECK(attachmentDescriptions.find(attachment.first) != attachmentDescriptions.end(), 
+			CHECK(attachmentDescriptions.find(attachment.first) != attachmentDescriptions.end(),
 				appName + " FboManager: This should not be happening, something wrong with the logic; attchemnt name not found");
 
 			_attachmentDescriptions[attachment.second.index] = attachmentDescriptions[attachment.first];
@@ -120,7 +120,7 @@ public:
 
 		for (const auto& attachment : attachments) {
 			uint32_t count = attachment.second.count;
-			
+
 			_attachmentImageViews[attachment.second.index] = attachment.second.view[index < count ? index : count - 1];
 		}
 	}
@@ -133,13 +133,25 @@ public:
 		return attachments[name].view[index < count ? index : count - 1];
 	}
 
-	std::vector<VkClearValue>& getClearValues() 
+	std::vector<VkClearValue>& getClearValues()
 	{
 		return clearValues;
 	}
 
+	void setSize(const VkExtent2D& fboExtent)
+	{
+		extent = fboExtent;
+	}
+
+	VkExtent2D getSize()
+	{
+		CHECK_DBG_ONLY(extent.width != 0 || extent.height != 0, appName + " FboManager: Size not set");
+		return extent;
+	}
+
 private:
 	std::string appName;
+	VkExtent2D extent;
 
 	struct FboData
 	{	
@@ -153,7 +165,7 @@ private:
 	std::vector<VkClearValue> clearValues;
 	std::map<std::string, VkAttachmentDescription> attachmentDescriptions;
 	std::map<std::string, FboData> attachments;
-
+	
 	void addAttachment(std::string name, VkFormat format, VkSampleCountFlagBits sample, 
 		const VkImageView* view, uint32_t count, VkClearValue clear)
 	{

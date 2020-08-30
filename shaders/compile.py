@@ -74,6 +74,7 @@ compileList.append(("./RtxFiltering_2/01_raygen.rgen", "./RtxFiltering_2/01_rayg
 compileList.append(("./RtxFiltering_2/01_miss.rmiss", "./RtxFiltering_2/01_miss.spv"))
 compileList.append(("./RtxFiltering_2/02_miss.rmiss", "./RtxFiltering_2/02_miss.spv"))
 compileList.append(("./RtxFiltering_2/02_close.rchit", "./RtxFiltering_2/02_close.spv"))
+compileList.append(("./RtxFiltering_2/subSample.comp", "./RtxFiltering_2/subSample.spv"))
 
 compileList.append(("./Filters/crossBilateralFilter.comp", "./Filters/crossBilateralFilter.spv"))
 compileList.append(("./Filters/temporalFilter.comp", "./Filters/temporalFilter.spv"))

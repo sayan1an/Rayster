@@ -1,0 +1,32 @@
+#version 450
+
+layout (local_size_x = 4, local_size_y = 4) in;
+
+layout (binding = 0, rgba8) uniform readonly image2D inDiffuseCol;
+layout (binding = 1, rgba8) uniform readonly image2D inSpecularCol;
+layout (binding = 2, rgba32f) uniform readonly image2D inNormal;
+layout (binding = 3, rgba32f) uniform readonly image2D inOtherParam;
+layout (binding = 4, rgba8) uniform image2D outDiffuseCol;
+layout (binding = 5, rgba8) uniform image2D outSpecularCol;
+layout (binding = 6, rgba32f) uniform image2D outNormal;
+layout (binding = 7, rgba32f) uniform image2D outOtherParam;
+
+// Performance note : try and reduce memory-bandwidth 4-5x
+void main()
+{	
+	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
+	ivec2 screenExtent = imageSize(outDiffuseCol);
+
+	if (pixel.x >= screenExtent.x || pixel.y >= screenExtent.y)
+		return;
+	
+	vec4 diffCol = imageLoad(inDiffuseCol, pixel * 2).rgba;
+	vec4 specCol = imageLoad(inSpecularCol, pixel * 2).rgba;
+	vec4 normal = imageLoad(inNormal, pixel * 2).rgba;
+	vec4 otherParam = imageLoad(inOtherParam, pixel * 2).rgba;
+	
+	imageStore(outDiffuseCol, pixel, diffCol);
+	imageStore(outSpecularCol, pixel, specCol);
+	imageStore(outNormal, pixel, normal);
+	imageStore(outOtherParam, pixel, otherParam);
+}
