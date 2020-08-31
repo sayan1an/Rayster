@@ -6,7 +6,7 @@
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
 layout(binding = 1, set = 0, rgba8) uniform readonly image2D diffuseImage;
 layout(binding = 2, set = 0, rgba8) uniform readonly image2D specularImage;
-layout(binding = 3, set = 0, rgba32f) uniform readonly image2D normalImage;
+layout(binding = 3, set = 0, rgba16f) uniform readonly image2D normalImage;
 layout(binding = 4, set = 0, rgba32f) uniform readonly image2D otherImage;
 layout(binding = 5, set = 0, rgba32f) uniform image2D outImage;
 layout(binding = 6, set = 0) uniform CameraProperties 
@@ -32,12 +32,12 @@ layout(location = 1) rayPayloadNV vec3 radiance;
 
 uint xorshiftState;
 
-vec3 shadowRayAreaLight(vec3 lightPosition, vec3 viewDir, vec3 origin, vec4 surfaceNormal, float bsdfType, vec3 diffRef, vec3 specRef)
+vec3 shadowRayAreaLight(vec3 lightPosition, vec3 viewDir, vec3 origin, vec3 surfaceNormal, float bsdfType, float specularAlpha, vec3 diffRef, vec3 specRef)
 {	
 	float distance = length(lightPosition - origin);
 	vec3 lightDir = (lightPosition - origin) / distance;
 	
-	float cos = dot(lightDir, surfaceNormal.xyz);	
+	float cos = dot(lightDir, surfaceNormal);	
 	
 	if (cos < 0)
 		return vec3(0, 0, 0);
@@ -46,7 +46,7 @@ vec3 shadowRayAreaLight(vec3 lightPosition, vec3 viewDir, vec3 origin, vec4 surf
 	traceNV(topLevelAS, gl_RayFlagsOpaqueNV, gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
 		, 1, 0, 1, origin, 0.01f, lightDir, 10000.0f, 1);
 
-	vec3 specularColor = bsdfType > 0.5f ? specRef *  ggxBrdf(viewDir, lightDir, surfaceNormal.xyz, surfaceNormal.w) : vec3(0, 0, 0);
+	vec3 specularColor = bsdfType > 0.5f ? specRef *  ggxBrdf(viewDir, lightDir, surfaceNormal, specularAlpha) : vec3(0, 0, 0);
 	vec3 diffuseColor = diffRef * cos / PI;
 		
 	return (diffuseColor + specularColor) * radiance  / (distance * distance);
@@ -74,7 +74,7 @@ void main()
 	// primary hit point is valid
 	else if (other.w > -0.5f){
 		const vec4 specularColor = imageLoad(specularImage, pixel).rgba;
-		const vec4 normal = imageLoad(normalImage, pixel).rgba;
+		const vec4 normalDepth = imageLoad(normalImage, pixel).rgba;
 
 		const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
 		const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeNV.xy);
@@ -85,14 +85,14 @@ void main()
 		vec4 viewDir = cam.viewInv * vec4(normalize(target.xyz), 0) ;
 	
 		// for shadow rays
-		origin = origin + (other.x - 0.000f) * viewDir;
+		origin = origin + (normalDepth.w - 0.000f) * viewDir;
 			
 		for (uint i = 0; i < pcb.numSamples; i++) {
 			vec2 bary = uvToBary(i); 
 			uint index = i & 1;
 			
 			color.xyz += shadowRayAreaLight((lightVertices.v[3*index] * bary.x + lightVertices.v[3*index + 1] * bary.y + lightVertices.v[3*index + 2] * (1 - bary.x - bary.y)).xyz,
-				-viewDir.xyz, origin.xyz, normal, other.w, diffuseColor.xyz, specularColor.xyz) / pcb.numSamples;
+				-viewDir.xyz, origin.xyz, normalDepth.xyz, other.w, other.x, diffuseColor.xyz, specularColor.xyz) / pcb.numSamples;
 
 		}
 		
