@@ -107,3 +107,52 @@ private:
 
 	bool buffersUpdated;
 };
+
+class StencilCompositionPass
+{
+public:
+	void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& stencilView, const VkImageView& stencilView2, const VkImageView& stencilView3)
+	{
+		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , stencilView,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , stencilView2,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , stencilView3,  VK_IMAGE_LAYOUT_GENERAL });
+
+		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
+
+		//filterPipeGen.addPushConstantRange({ VK_SHADER_STAGE_COMPUTE_BIT , 0, sizeof(PushConstantBlock) });
+		filterPipeGen.addComputeShaderStage(device, ROOT + "/shaders/RtxFiltering_2/stencilCompositionPass.spv");
+		filterPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
+	}
+
+	void cmdDispatch(const VkCommandBuffer& cmdBuf, const VkExtent2D &extent)
+	{
+		VkExtent2D globalWorkDim = { extent.width / 2, extent.height / 2 };
+		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+		vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
+		vkCmdDispatch(cmdBuf, 1 + (globalWorkDim.width - 1) / 4, 1 + (globalWorkDim.height - 1) /4, 1);
+	}
+
+	void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
+	{
+		vkDestroyPipeline(device, pipeline, nullptr);
+		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+	}
+
+	void widget()
+	{
+
+	}
+
+private:
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+
+	ComputePipelineGenerator filterPipeGen = ComputePipelineGenerator("StencilCompositionPass");
+
+	DescriptorSetGenerator descGen = DescriptorSetGenerator("StencilCompositionPass");
+	VkDescriptorSetLayout descriptorSetLayout;
+	VkDescriptorPool descriptorPool;
+	VkDescriptorSet descriptorSet;
+};

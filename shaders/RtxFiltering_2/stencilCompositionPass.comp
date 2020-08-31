@@ -1,0 +1,67 @@
+#version 450
+
+layout (local_size_x = 4, local_size_y = 4) in;
+
+layout (binding = 0, rgba16f) uniform image2D outStencil;
+layout (binding = 1, rgba16f) uniform image2D outStencil2;
+layout (binding = 2, rgba16f) uniform image2D outStencil3;
+
+shared uint tagLowerLevel[2][2];
+
+uint enableRayTrace(in vec4 var) 
+{
+	uint rtNormal = var.x < 0.02 ? 1 : 0;
+	uint rtDepth = var.y < 0.02 ? 1 : 0;
+
+	return rtNormal | rtDepth;
+}
+
+void main()
+{	
+	ivec2 lid = ivec2(gl_LocalInvocationID.x, gl_LocalInvocationID.y);
+	
+	vec4 stencil;
+	uint token;
+	ivec2 loc;
+
+	if (lid.x == 0 && lid.y == 0) {
+		loc = ivec2(gl_WorkGroupID.xy);
+		stencil = imageLoad(outStencil3, loc).rgba;
+		token = enableRayTrace(stencil);
+		stencil.w = token;
+		tagLowerLevel[0][0] = token;
+		tagLowerLevel[0][1] = token;
+		tagLowerLevel[1][0] = token;
+		tagLowerLevel[1][1] = token;
+
+		imageStore(outStencil3, loc, stencil);
+	}
+
+	memoryBarrierShared();
+	barrier();
+
+	if (lid.x < 2 && lid.y < 2) {
+		loc = 2 * ivec2(gl_WorkGroupID.xy) + lid;
+		if (tagLowerLevel[0][0] > 0) {
+			stencil.w = 2;
+			token = 0;
+		}
+		else {
+			stencil = imageLoad(outStencil2, loc).rgba;
+			token = enableRayTrace(stencil);
+			stencil.w = token;
+		}
+
+		tagLowerLevel[lid.y][lid.x] += token;
+		imageStore(outStencil2, loc, stencil);
+	}
+
+	memoryBarrierShared();
+	barrier();
+
+	if (lid.x < 4 && lid.y < 4) {
+		loc = 4 * ivec2(gl_WorkGroupID.xy) + lid;
+		stencil.w = tagLowerLevel[lid.y/2][lid.x/2] > 0 ? 2 : 1;
+		imageStore(outStencil, loc, stencil);
+	}
+}
