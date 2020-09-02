@@ -20,8 +20,7 @@ layout(location = 4) in vec4 worldPos;
 layout(location = 0) out vec4 outDiffuseColor;
 layout(location = 1) out vec4 outSpecularColor;
 layout(location = 2) out vec4 outNormalDepth;
-layout(location = 3) out vec4 outNormalDepth16;
-layout(location = 4) out vec4 outOtherInfo;
+layout(location = 3) out vec4 outOtherInfo;
 
 void main() 
 {
@@ -35,6 +34,5 @@ void main()
     // Depth is the distance of hit point from camera origin.
     // Does not work?? gl_FragCoord.z / gl_FragCoord.w
     outNormalDepth = vec4(normalize(fragNormal), length((worldPos - ubo.viewInv[3]).xyz));
-    outNormalDepth16 = outNormalDepth;
     outOtherInfo = vec4(alphaIntExtIor.xyz, bsdfType);
 }

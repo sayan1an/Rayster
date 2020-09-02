@@ -18,10 +18,13 @@ uint between(in float val, in float min, in float max)
 void main()
 {	
 	vec2 pixel = gl_FragCoord.xy / vec2(pcb.viewportSize);
-	
+	/*
 	uint b = between(texture(inSampler1, pixel).a, 0.5, 1.5);
 	uint g = between(texture(inSampler2, pixel).a, 0.5, 1.5);
 	uint r = between(texture(inSampler3, pixel).a, 0.5, 1.5);
 
 	outColor = vec4(r, g, b, 1);
+	*/
+
+	outColor = vec4(texture(inSampler2, pixel).rgba);
 }

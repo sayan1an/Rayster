@@ -4,12 +4,10 @@
 #include "../commonMath.h"
 
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
-layout(binding = 1, set = 0, rgba8) uniform readonly image2D diffuseImage;
-layout(binding = 2, set = 0, rgba8) uniform readonly image2D specularImage;
-layout(binding = 3, set = 0, rgba16f) uniform readonly image2D normalImage;
-layout(binding = 4, set = 0, rgba32f) uniform readonly image2D otherImage;
-layout(binding = 5, set = 0, rgba32f) uniform image2D outImage;
-layout(binding = 6, set = 0) uniform CameraProperties 
+layout(binding = 1, set = 0, rgba32f) uniform readonly image2D normalImage;
+layout(binding = 2, set = 0, rgba16f) uniform readonly image2D otherImage;
+layout(binding = 3, set = 0, rgba32f) uniform image2DArray outImage;
+layout(binding = 4, set = 0) uniform CameraProperties 
 {
 	mat4 view;
     mat4 proj;
@@ -17,9 +15,9 @@ layout(binding = 6, set = 0) uniform CameraProperties
     mat4 projInv;
 } cam;
 
-layout(binding = 7, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
-layout(binding = 8, set = 0) readonly buffer DiscretePdf { float bins[]; } discretePdf;
-layout(binding = 9, set = 0) readonly buffer RandomSquareSamples { vec2 v[]; } randSqSamples;
+layout(binding = 5, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 6, set = 0) readonly buffer DiscretePdf { float bins[]; } discretePdf;
+layout(binding = 7, set = 0) readonly buffer RandomSquareSamples { vec2 v[]; } randSqSamples;
 
 layout (push_constant) uniform pcBlock {
 	float power;
@@ -30,26 +28,25 @@ layout (push_constant) uniform pcBlock {
 layout(location = 0) rayPayloadNV uint hit;
 layout(location = 1) rayPayloadNV vec3 radiance;
 
-uint xorshiftState;
-
-vec3 shadowRayAreaLight(vec3 lightPosition, vec3 viewDir, vec3 origin, vec3 surfaceNormal, float bsdfType, float specularAlpha, vec3 diffRef, vec3 specRef)
+void shadowRayAreaLight(in vec3 lightPosition, in vec3 viewDir, in vec3 origin, in vec3 surfaceNormal, in float bsdfType, in float specularAlpha, out vec3 diffComp, out vec3 specComp)
 {	
+	diffComp = vec3(0);
+	specComp = vec3(0);
+
 	float distance = length(lightPosition - origin);
 	vec3 lightDir = (lightPosition - origin) / distance;
 	
-	float cos = dot(lightDir, surfaceNormal);	
+	float cos = dot(lightDir, surfaceNormal);
 	
-	if (cos < 0)
-		return vec3(0, 0, 0);
-
+	if (cos < 0) return;
+	
 	radiance = -lightDir;
 	traceNV(topLevelAS, gl_RayFlagsOpaqueNV, gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
 		, 1, 0, 1, origin, 0.01f, lightDir, 10000.0f, 1);
 
-	vec3 specularColor = bsdfType > 0.5f ? specRef *  ggxBrdf(viewDir, lightDir, surfaceNormal, specularAlpha) : vec3(0, 0, 0);
-	vec3 diffuseColor = diffRef * cos / PI;
-		
-	return (diffuseColor + specularColor) * radiance  / (distance * distance);
+	radiance /= (distance * distance);
+	specComp = bsdfType > 0.5f ? radiance * ggxBrdf(viewDir, lightDir, surfaceNormal, specularAlpha) : vec3(0);
+	diffComp = radiance * cos / PI;
 }
 
 vec2 uvToBary(in uint index)
@@ -64,18 +61,18 @@ vec2 uvToBary(in uint index)
 void main()
 {	
 	const ivec2 pixel = ivec2(gl_LaunchIDNV.xy);
-	const vec4 diffuseColor = imageLoad(diffuseImage, pixel).rgba;
 	const vec4 other = imageLoad(otherImage, pixel).rgba;
+	const vec4 normalDepth = imageLoad(normalImage, pixel).rgba;
 
-	vec4 color = vec4(0, 0, 0, 1);
+	vec3 diffComp = vec3(0);
+	vec3 specComp = vec3(0);
+	
 	// If the primary intersection is a light source
-	if (other.w > 3.5 && other.w < 4.5)
-		color = diffuseColor;
+	if (other.w > 3.5 && other.w < 4.5) 
+		diffComp = vec3(1.0);
+			
 	// primary hit point is valid
 	else if (other.w > -0.5f){
-		const vec4 specularColor = imageLoad(specularImage, pixel).rgba;
-		const vec4 normalDepth = imageLoad(normalImage, pixel).rgba;
-
 		const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
 		const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeNV.xy);
 		vec2 d = inUV * 2.0 - 1.0;
@@ -86,18 +83,23 @@ void main()
 	
 		// for shadow rays
 		origin = origin + (normalDepth.w - 0.000f) * viewDir;
-			
+		
+		vec3 spec, diff;
 		for (uint i = 0; i < pcb.numSamples; i++) {
 			vec2 bary = uvToBary(i); 
 			uint index = i & 1;
 			
-			color.xyz += shadowRayAreaLight((lightVertices.v[3*index] * bary.x + lightVertices.v[3*index + 1] * bary.y + lightVertices.v[3*index + 2] * (1 - bary.x - bary.y)).xyz,
-				-viewDir.xyz, origin.xyz, normalDepth.xyz, other.w, other.x, diffuseColor.xyz, specularColor.xyz) / pcb.numSamples;
+			shadowRayAreaLight((lightVertices.v[3*index] * bary.x + lightVertices.v[3*index + 1] * bary.y + lightVertices.v[3*index + 2] * (1 - bary.x - bary.y)).xyz,
+				-viewDir.xyz, origin.xyz, normalDepth.xyz, other.w, other.x, diff, spec);
 
+			diffComp += diff;
+			specComp += spec;
 		}
-		
-		color *= pcb.power;
+				
+		diffComp *= (pcb.power / pcb.numSamples);
+		specComp *= (pcb.power / pcb.numSamples);
 	}
 
-	imageStore(outImage, pixel, color);
+	imageStore(outImage, ivec3(pixel, 0), vec4(diffComp, 0));
+	imageStore(outImage, ivec3(pixel, 1), vec4(specComp, 0));
 }

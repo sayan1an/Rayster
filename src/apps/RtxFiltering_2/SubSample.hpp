@@ -4,18 +4,16 @@
 class SubSamplePass
 {
 public:
-	void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& inDiffuseCol, const VkImageView& inSpecularCol, const VkImageView& inNormal, const VkImageView& inOtherParam)
+	void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& inNormal, const VkImageView& inOther)
 	{
-		CHECK_DBG_ONLY(buffersUpdated, "TemporalWindowFilter : call createBuffers first.");
+		CHECK_DBG_ONLY(buffersUpdated, "SubSamplePass : call createBuffers first.");
 
-		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inDiffuseCol,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inSpecularCol,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNormal,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inOtherParam,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outDiffuseColView,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outSpecularColView,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outNormalView,  VK_IMAGE_LAYOUT_GENERAL });
-		descGen.bindImage({ 7, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outOtherParamView,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNormal,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inOther,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outNormalHalfView,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outOtherHalfView,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outNormalQuatView,  VK_IMAGE_LAYOUT_GENERAL });
+		descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outOtherQuatView,  VK_IMAGE_LAYOUT_GENERAL });
 		
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
@@ -25,29 +23,28 @@ public:
 		filterPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
 	}
 
-	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, 
-		VkImageView& _outDiffuseCol, VkImageView& _outSpecularCol, VkImageView& _outNormal, VkImageView& _outOtherParam)
+	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, const VkFormat normalFmt, const VkFormat otherFmt,
+		VkImageView& _outNormalHalf, VkImageView& _outOtherHalf, VkImageView& _outNormalQuat, VkImageView& _outOtherQuat)
 	{
 		auto makeImage = [&device = device, &queue = queue, &commandPool = commandPool, 
-			&allocator = allocator, &extent = extent](VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation)
+			&allocator = allocator](const VkExtent2D extent, VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation)
 		{
-			createImage(device, allocator, queue, commandPool, image, allocation, extent, VK_IMAGE_USAGE_STORAGE_BIT, format);
+			createImage(device, allocator, queue, commandPool, image, allocation, extent, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, format);
 			imageView = createImageView(device, image, format, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 			transitionImageLayout(device, queue, commandPool, image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
 		};
 		
-		makeImage(VK_FORMAT_R8G8B8A8_UNORM, outDiffuseCol, outDiffuseColView, outDiffuseColAlloc);
-		makeImage(VK_FORMAT_R8G8B8A8_UNORM, outSpecularCol, outSpecularColView, outSpecularColAlloc);
-		makeImage(VK_FORMAT_R32G32B32A32_SFLOAT, outNormal, outNormalView, outNormalAlloc);
-		makeImage(VK_FORMAT_R32G32B32A32_SFLOAT, outOtherParam, outOtherParamView, outOtherParamAlloc);
+		makeImage({ extent.width / 2, extent.height / 2}, normalFmt, outNormalHalfImg, outNormalHalfView, outNormalHalfAlloc);
+		makeImage({ extent.width / 2, extent.height / 2 }, otherFmt, outOtherHalfImg, outOtherHalfView, outOtherHalfAlloc);
+		makeImage({ extent.width / 4, extent.height / 4 }, normalFmt, outNormalQuatImg, outNormalQuatView, outNormalQuatAlloc);
+		makeImage({ extent.width / 4, extent.height / 4 }, otherFmt, outOtherQuatImg, outOtherQuatView, outOtherQuatAlloc);
 
-		_outDiffuseCol = outDiffuseColView;
-		_outSpecularCol = outSpecularColView;
-		_outNormal = outNormalView;
-		_outOtherParam = outOtherParamView;
-
-		
-		outImageSize = extent;
+		_outNormalHalf = outNormalHalfView;
+		_outOtherHalf = outOtherHalfView;
+		_outNormalQuat = outNormalQuatView;
+		_outOtherQuat = outOtherQuatView;
+				
+		globalWorkDim = extent;
 
 		buffersUpdated = true;
 	}
@@ -56,7 +53,7 @@ public:
 	{
 		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 		vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
-		vkCmdDispatch(cmdBuf, 1 + (outImageSize.width - 1) / 4, 1 + (outImageSize.height - 1) / 4, 1);
+		vkCmdDispatch(cmdBuf, 1 + (globalWorkDim.width - 1) / 8, 1 + (globalWorkDim.height - 1) / 8, 1);
 	}
 
 	void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
@@ -67,10 +64,10 @@ public:
 			vmaDestroyImage(allocator, image, allocation);
 		};
 		
-		destroyImage(outDiffuseCol, outDiffuseColView, outDiffuseColAlloc);
-		destroyImage(outSpecularCol, outSpecularColView, outSpecularColAlloc);
-		destroyImage(outNormal, outNormalView, outNormalAlloc);
-		destroyImage(outOtherParam, outOtherParamView, outOtherParamAlloc);
+		destroyImage(outNormalHalfImg, outNormalHalfView, outNormalHalfAlloc);
+		destroyImage(outOtherHalfImg, outOtherHalfView, outOtherHalfAlloc);
+		destroyImage(outNormalQuatImg, outNormalQuatView, outNormalQuatAlloc);
+		destroyImage(outOtherQuatImg, outOtherQuatView, outOtherQuatAlloc);
 
 		vkDestroyPipeline(device, pipeline, nullptr);
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -100,23 +97,23 @@ private:
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSet descriptorSet;
 
-	VkImage outDiffuseCol;
-	VkImageView outDiffuseColView;
-	VmaAllocation outDiffuseColAlloc;
+	VkImage outNormalHalfImg;
+	VkImageView outNormalHalfView;
+	VmaAllocation outNormalHalfAlloc;
 	
-	VkImage outSpecularCol;
-	VkImageView outSpecularColView;
-	VmaAllocation outSpecularColAlloc;
+	VkImage outOtherHalfImg;
+	VkImageView outOtherHalfView;
+	VmaAllocation outOtherHalfAlloc;
 
-	VkImage outNormal;
-	VkImageView outNormalView;
-	VmaAllocation outNormalAlloc;
+	VkImage outNormalQuatImg;
+	VkImageView outNormalQuatView;
+	VmaAllocation outNormalQuatAlloc;
 
-	VkImage outOtherParam;
-	VkImageView outOtherParamView;
-	VmaAllocation outOtherParamAlloc;
+	VkImage outOtherQuatImg;
+	VkImageView outOtherQuatView;
+	VmaAllocation outOtherQuatAlloc;
 
-	VkExtent2D outImageSize;
+	VkExtent2D globalWorkDim;
 
 	bool buffersUpdated;
 };

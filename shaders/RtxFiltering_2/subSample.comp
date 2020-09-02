@@ -1,32 +1,45 @@
 #version 450
 
-layout (local_size_x = 4, local_size_y = 4) in;
+layout (local_size_x = 8, local_size_y = 8) in;
 
-layout (binding = 0, rgba8) uniform readonly image2D inDiffuseCol;
-layout (binding = 1, rgba8) uniform readonly image2D inSpecularCol;
-layout (binding = 2, rgba32f) uniform readonly image2D inNormal;
-layout (binding = 3, rgba32f) uniform readonly image2D inOtherParam;
-layout (binding = 4, rgba8) uniform image2D outDiffuseCol;
-layout (binding = 5, rgba8) uniform image2D outSpecularCol;
-layout (binding = 6, rgba32f) uniform image2D outNormal;
-layout (binding = 7, rgba32f) uniform image2D outOtherParam;
+layout (binding = 0, rgba32f) uniform readonly image2D inNormal;
+layout (binding = 1, rgba16f) uniform readonly image2D inOther;
+layout (binding = 2, rgba32f) uniform image2D normalHalf;
+layout (binding = 3, rgba16f) uniform image2D otherHalf;
+layout (binding = 4, rgba32f) uniform image2D normalQuat;
+layout (binding = 5, rgba16f) uniform image2D otherQuat;
 
-// Performance note : try and reduce memory-bandwidth 4-5x
+shared vec4 sNormal[8][8];
+shared vec4 sOther[8][8];
+
 void main()
 {	
-	ivec2 pixel = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
-	ivec2 screenExtent = imageSize(outDiffuseCol);
+	ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 lid = ivec2(gl_LocalInvocationID.xy);
+	ivec2 wid = ivec2(gl_WorkGroupID.xy);
 
-	if (pixel.x >= screenExtent.x || pixel.y >= screenExtent.y)
+	ivec2 screenExtent = imageSize(inNormal);
+
+	if (gid.x >= screenExtent.x || gid.y >= screenExtent.y)
 		return;
+
+	sNormal[lid.y][lid.x] = imageLoad(inNormal, gid);
+	sOther[lid.y][lid.x] = imageLoad(inOther, gid);
+
+	memoryBarrierShared();
+	barrier();
+
+	if (lid.x < 4 && lid.y < 4)
+	{
+		ivec2 loc = 2 * lid; // Add offset when ready, ivec(0,0)--ivec(1,1)
+		imageStore(normalHalf, 4*wid + lid, sNormal[loc.y][loc.x]);
+		imageStore(otherHalf, 4*wid + lid, sOther[loc.y][loc.x]);
+	}
 	
-	vec4 diffCol = imageLoad(inDiffuseCol, pixel * 2).rgba;
-	vec4 specCol = imageLoad(inSpecularCol, pixel * 2).rgba;
-	vec4 normal = imageLoad(inNormal, pixel * 2).rgba;
-	vec4 otherParam = imageLoad(inOtherParam, pixel * 2).rgba;
-	
-	imageStore(outDiffuseCol, pixel, diffCol);
-	imageStore(outSpecularCol, pixel, specCol);
-	imageStore(outNormal, pixel, normal);
-	imageStore(outOtherParam, pixel, otherParam);
+	if (lid.x < 2 && lid.y < 2)
+	{
+		ivec2 loc = 4 * lid; // Add offset when ready, ivec(0,0)--ivec(3,3)
+		imageStore(normalQuat, 2*wid + lid, sNormal[loc.y][loc.x]);
+		imageStore(otherQuat, 2*wid + lid, sOther[loc.y][loc.x]);
+	}
 }
