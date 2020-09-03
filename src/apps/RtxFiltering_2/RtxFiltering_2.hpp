@@ -43,6 +43,7 @@ public:
 	Camera* cam;
 	RandomSquarePattern* pSqPat;
 	TemporalWindowFilter* tWindFilt;
+	StencilCompositionPass* sCmpPass;
 	int denoise = 0;
 	uint32_t numSamples;
 private:
@@ -56,7 +57,7 @@ private:
 		cam->cameraWidget();
 		uint32_t collectData, pixelInfo;
 		pSqPat->widget(collectData, pixelInfo, numSamples);
-		ImGui::SliderFloat("Emitter power", &power, 1.0f, 100.0f);
+		sCmpPass->widget();
 		ImGui::Text("Filter"); ImGui::SameLine();
 		ImGui::RadioButton("Off", &denoise, 0); ImGui::SameLine();
 		ImGui::RadioButton("On", &denoise, 1);
@@ -291,6 +292,7 @@ private:
 		gui.cam = &cam;
 		gui.tWindFilt = &temporalWindowFilter;
 		gui.pSqPat = &rPatSq;
+		gui.sCmpPass = &stencilCompPass;
 		gui.setStyle();
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
 		rPatSq.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
@@ -575,7 +577,7 @@ private:
 			imageView = createImageView(device, image, colorFormat, aspectFlagBit, 1, 1);
 		};
 
-		fboManager1.setSize({ 1280, 720});
+		fboManager1.setSize({ 1920*2, 1080*2});
 		makeColorImage(fboManager1.getSize(), fboManager1.getFormat("diffuseColor") , fboManager1.getSampleCount("diffuseColor"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, diffuseColorImage, diffuseColorImageView, diffuseColorImageAllocation);
 		makeColorImage(fboManager1.getSize(), fboManager1.getFormat("specularColor"), fboManager1.getSampleCount("specularColor"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, specularColorImage, specularColorImageView, specularColorImageAllocation);
 		makeColorImage(fboManager1.getSize(), fboManager1.getFormat("normal"), fboManager1.getSampleCount("normal"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, normalImage, normalImageView, normalImageAllocation);
@@ -641,6 +643,8 @@ private:
 		rtxPass.cmdDispatch(commandBuffers[index], areaSources.dPdf.size(), gui.numSamples);
 		rtxPassHalf.cmdDispatch(commandBuffers[index], areaSources.dPdf.size(), gui.numSamples);
 		rtxPassQuat.cmdDispatch(commandBuffers[index], areaSources.dPdf.size(), gui.numSamples);
+		vkCmdPipelineBarrier(commandBuffers[index], VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_DEPENDENCY_BY_REGION_BIT,
+			0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
 		rtxCompPass.cmdDispatch(commandBuffers[index]);
 		//temporalWindowFilter.cmdDispatch(commandBuffers[index], fboManager1.getSize());
 

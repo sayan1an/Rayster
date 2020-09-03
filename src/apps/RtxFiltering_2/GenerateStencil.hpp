@@ -119,7 +119,7 @@ public:
 
 		descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
-		//filterPipeGen.addPushConstantRange({ VK_SHADER_STAGE_COMPUTE_BIT , 0, sizeof(PushConstantBlock) });
+		filterPipeGen.addPushConstantRange({ VK_SHADER_STAGE_COMPUTE_BIT , 0, sizeof(PushConstantBlock) });
 		filterPipeGen.addComputeShaderStage(device, ROOT + "/shaders/RtxFiltering_2/stencilCompositionPass.spv");
 		filterPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
 	}
@@ -129,6 +129,7 @@ public:
 		VkExtent2D globalWorkDim = { extent.width / 2, extent.height / 2 };
 		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 		vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
+		vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstantBlock), &pcb);
 		vkCmdDispatch(cmdBuf, 1 + (globalWorkDim.width - 1) / 4, 1 + (globalWorkDim.height - 1) /4, 1);
 	}
 
@@ -142,7 +143,16 @@ public:
 
 	void widget()
 	{
+		if (ImGui::CollapsingHeader("StencilCompositionPass")) {
+			ImGui::SliderFloat("Normal Variance Limit##StencilCompositionPass", &pcb.normalVarianceLimit, 0.001f, 0.01f);
+			ImGui::SliderFloat("Depth Variance Limit##StencilCompositionPass", &pcb.depthVarianceLimit, 0.001f, 0.01f);
+		}
+	}
 
+	StencilCompositionPass()
+	{
+		pcb.normalVarianceLimit = 0.005f;
+		pcb.depthVarianceLimit = 0.001f;
 	}
 
 private:
@@ -155,4 +165,9 @@ private:
 	VkDescriptorSetLayout descriptorSetLayout;
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSet descriptorSet;
+
+	struct PushConstantBlock {
+		float normalVarianceLimit;
+		float depthVarianceLimit;
+	} pcb;
 };
