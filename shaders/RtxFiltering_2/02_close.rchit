@@ -2,12 +2,12 @@
 #extension GL_NV_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : enable
 
-layout(binding = 5, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
-layout(binding = 8, set = 0) readonly buffer StaticInstanceData { uvec4 i[]; } staticInstanceData;
-layout(binding = 9, set = 0) readonly buffer Material { uvec4 textureIdx[]; } materials;
-layout(binding = 10, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
-layout(binding = 11, set = 0) readonly buffer Indices { uint i[]; } indices;
-layout(binding = 12, set = 0) uniform sampler2DArray ldrTexSampler;
+layout(binding = 6, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 9, set = 0) readonly buffer StaticInstanceData { uvec4 i[]; } staticInstanceData;
+layout(binding = 10, set = 0) readonly buffer Material { uvec4 textureIdx[]; } materials;
+layout(binding = 11, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
+layout(binding = 12, set = 0) readonly buffer Indices { uint i[]; } indices;
+layout(binding = 13, set = 0) uniform sampler2DArray ldrTexSampler;
 
 layout(location = 1) rayPayloadInNV vec3 radiance;
 hitAttributeNV vec3 attribs;

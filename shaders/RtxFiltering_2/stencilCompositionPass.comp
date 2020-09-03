@@ -10,8 +10,8 @@ shared uint tagLowerLevel[2][2];
 
 uint enableRayTrace(in vec4 var) 
 {
-	uint rtNormal = var.x < 0.02 ? 1 : 0;
-	uint rtDepth = var.y < 0.02 ? 1 : 0;
+	uint rtNormal = var.x < 0.005 ? 1 : 0;
+	uint rtDepth = var.y < 0.001 ? 1 : 0;
 
 	return rtNormal | rtDepth;
 }

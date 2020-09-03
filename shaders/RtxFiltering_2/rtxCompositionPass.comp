@@ -5,19 +5,28 @@ layout (local_size_x = 16, local_size_y = 16) in;
 layout (binding = 0, rgba8) uniform image2D diffuseTex;
 layout (binding = 1, rgba8) uniform image2D specularTex;
 layout (binding = 2, rgba32f) uniform readonly image2DArray rtxIn;
-layout (binding = 3) uniform sampler2D rtxIn2;
-layout (binding = 4) uniform sampler2D rtxIn3;
+layout (binding = 3) uniform sampler2DArray rtxIn2;
+layout (binding = 4) uniform sampler2DArray rtxIn3;
 layout (binding = 5, rgba32f) uniform image2D rtxOut;
 
 void main()
 {	
+	ivec2 viewportSize = imageSize(diffuseTex);
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+	vec2 texCoord = vec2(pixel) / viewportSize;
+
 	vec4 diffTex = imageLoad(diffuseTex, pixel);
 	vec4 specTex = imageLoad(specularTex, pixel);
 	
 	vec4 diffComp1 = imageLoad(rtxIn, ivec3(pixel, 0));
 	vec4 specComp1 = imageLoad(rtxIn, ivec3(pixel, 1));
 
-	vec4 outCol = diffTex * diffComp1 + specTex * specComp1;
+	vec4 diffComp2 = texture(rtxIn2, vec3(texCoord, 0));
+	vec4 specComp2 = texture(rtxIn2, vec3(texCoord, 1));
+
+	vec4 diffComp3 = texture(rtxIn3, vec3(texCoord, 0));
+	vec4 specComp3 = texture(rtxIn3, vec3(texCoord, 1));
+
+	vec4 outCol = diffTex * (diffComp1 + diffComp2 + diffComp3) + specTex * (specComp1 + specComp2 + specComp3);
 	imageStore(rtxOut, pixel, outCol);
 }

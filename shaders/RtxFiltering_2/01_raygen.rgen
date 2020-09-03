@@ -6,8 +6,9 @@
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
 layout(binding = 1, set = 0, rgba32f) uniform readonly image2D normalImage;
 layout(binding = 2, set = 0, rgba16f) uniform readonly image2D otherImage;
-layout(binding = 3, set = 0, rgba32f) uniform image2DArray outImage;
-layout(binding = 4, set = 0) uniform CameraProperties 
+layout(binding = 3, set = 0, rgba16f) uniform readonly image2D stencilImage;
+layout(binding = 4, set = 0, rgba32f) uniform image2DArray outImage;
+layout(binding = 5, set = 0) uniform CameraProperties 
 {
 	mat4 view;
     mat4 proj;
@@ -15,9 +16,9 @@ layout(binding = 4, set = 0) uniform CameraProperties
     mat4 projInv;
 } cam;
 
-layout(binding = 5, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
-layout(binding = 6, set = 0) readonly buffer DiscretePdf { float bins[]; } discretePdf;
-layout(binding = 7, set = 0) readonly buffer RandomSquareSamples { vec2 v[]; } randSqSamples;
+layout(binding = 6, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 7, set = 0) readonly buffer DiscretePdf { float bins[]; } discretePdf;
+layout(binding = 8, set = 0) readonly buffer RandomSquareSamples { vec2 v[]; } randSqSamples;
 
 layout (push_constant) uniform pcBlock {
 	float power;
@@ -61,11 +62,14 @@ vec2 uvToBary(in uint index)
 void main()
 {	
 	const ivec2 pixel = ivec2(gl_LaunchIDNV.xy);
-	const vec4 other = imageLoad(otherImage, pixel).rgba;
-	const vec4 normalDepth = imageLoad(normalImage, pixel).rgba;
-
+	vec4 stencil = imageLoad(stencilImage, pixel / 2);
 	vec3 diffComp = vec3(0);
 	vec3 specComp = vec3(0);
+
+	if (stencil.w > 0.5 && stencil.w < 1.5)
+	{
+	const vec4 other = imageLoad(otherImage, pixel).rgba;
+	const vec4 normalDepth = imageLoad(normalImage, pixel).rgba;
 	
 	// If the primary intersection is a light source
 	if (other.w > 3.5 && other.w < 4.5) 
@@ -99,7 +103,7 @@ void main()
 		diffComp *= (pcb.power / pcb.numSamples);
 		specComp *= (pcb.power / pcb.numSamples);
 	}
-
+	}
 	imageStore(outImage, ivec3(pixel, 0), vec4(diffComp, 0));
 	imageStore(outImage, ivec3(pixel, 1), vec4(specComp, 0));
 }
