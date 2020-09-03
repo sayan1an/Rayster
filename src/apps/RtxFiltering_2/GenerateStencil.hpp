@@ -144,15 +144,21 @@ public:
 	void widget()
 	{
 		if (ImGui::CollapsingHeader("StencilCompositionPass")) {
-			ImGui::SliderFloat("Normal Variance Limit##StencilCompositionPass", &pcb.normalVarianceLimit, 0.001f, 0.01f);
-			ImGui::SliderFloat("Depth Variance Limit##StencilCompositionPass", &pcb.depthVarianceLimit, 0.001f, 0.01f);
+			float normalVar = pcb.normalVarianceLimit * 1000.0f;
+			float depthVar = pcb.depthVarianceLimit * 1000.0f;
+			ImGui::SliderFloat("Normal Variance Limit##StencilCompositionPass", &normalVar, 0, 10);
+			ImGui::SliderFloat("Depth Variance Limit##StencilCompositionPass", &depthVar, 0, 10);
+
+			pcb.normalVarianceLimit = normalVar / 1000.f;
+			pcb.depthVarianceLimit = depthVar / 1000.f;
+
 		}
 	}
 
 	StencilCompositionPass()
 	{
-		pcb.normalVarianceLimit = 0.005f;
-		pcb.depthVarianceLimit = 0.001f;
+		pcb.normalVarianceLimit = 0.005;
+		pcb.depthVarianceLimit = 0.001;
 	}
 
 private:
