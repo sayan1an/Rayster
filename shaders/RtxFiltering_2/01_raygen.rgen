@@ -24,6 +24,7 @@ layout (push_constant) uniform pcBlock {
 	float power;
 	uint discretePdfSize;
 	uint numSamples;
+	uint level;
 } pcb;
 
 layout(location = 0) rayPayloadNV uint hit;
@@ -59,6 +60,12 @@ vec2 uvToBary(in uint index)
 	return bary;
 }
 
+float offsetCalc(in uint x, in uint level)
+{	
+	uint den = (1 << (level - 1)); // den = 1,2,4 when level = 1,2,3
+	return (x == 0 ? 0.5f  / den : 1.0f - 0.5f / den); 
+}
+
 void main()
 {	
 	const ivec2 pixel = ivec2(gl_LaunchIDNV.xy);
@@ -77,7 +84,8 @@ void main()
 			
 	// primary hit point is valid
 	else if (other.w > -0.5f){
-		const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
+		vec2 offset = vec2(offsetCalc(pixel.x & 1, pcb.level), offsetCalc(pixel.y & 1, pcb.level));
+		const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + offset;
 		const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeNV.xy);
 		vec2 d = inUV * 2.0 - 1.0;
 

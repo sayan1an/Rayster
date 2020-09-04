@@ -13,7 +13,7 @@ void main()
 {	
 	ivec2 viewportSize = imageSize(diffuseTex);
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-	vec2 texCoord = vec2(pixel) / viewportSize;
+	vec2 texCoord = (vec2(pixel) + vec2(0.5)) / viewportSize;
 
 	vec4 diffTex = imageLoad(diffuseTex, pixel);
 	vec4 specTex = imageLoad(specularTex, pixel);

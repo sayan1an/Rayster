@@ -19,16 +19,16 @@ uint between(in float val, in float min, in float max)
 
 void main()
 {	
-	vec2 pixel = gl_FragCoord.xy / vec2(pcb.viewportSize);
+	vec2 texCoord = gl_FragCoord.xy / vec2(pcb.viewportSize);
 	
 	if (pcb.choice.x == 0) {
-		uint b = between(texture(inSampler2, pixel).a, 0.5, 1.5);
-		uint g = between(texture(inSampler3, pixel).a, 0.5, 1.5);
-		uint r = between(texture(inSampler4, pixel).a, 0.5, 1.5);
+		uint b = between(texture(inSampler2, texCoord).a, 0.5, 1.5);
+		uint g = between(texture(inSampler3, texCoord).a, 0.5, 1.5);
+		uint r = between(texture(inSampler4, texCoord).a, 0.5, 1.5);
 
 		outColor = vec4(r, g, b, 1);
 	}
 
 	else
-		outColor = vec4(texture(inSampler1, pixel).rgba);
+		outColor = vec4(texture(inSampler1, texCoord).rgba);
 }
