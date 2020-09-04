@@ -17,9 +17,9 @@ void meanVar(in vec4 n00, in vec4 n01, in vec4 n10, in vec4 n11, out vec4 mean, 
 	var = var / 4.0f;
 }
 
-vec2 var2Std(in vec4 var)
+vec2 var2Std(in vec4 var, in vec4 mean)
 {
-	return vec2(sqrt(var.x + var.y + var.z), sqrt(var.w));
+	return vec2(sqrt(var.x + var.y + var.z), sqrt(var.w) / (mean.w  + 0.0000001));
 }
 
 void meanVarShared(ivec2 block, out vec4 mean, out vec4 var)
@@ -56,7 +56,7 @@ void main()
 	sMean[ty][tx] = mean;
 	sVar[ty][tx] = var;
 	
-	imageStore(outStencil, pixel, vec4(var2Std(var), 0, 0));
+	imageStore(outStencil, pixel, vec4(var2Std(var, mean), 0, 0));
 
 	memoryBarrierShared();
 	barrier();
@@ -66,7 +66,7 @@ void main()
 		sMean[ty][tx] = mean;
 		sVar[ty][tx] = var;
 
-		imageStore(outStencil2, 4 * ivec2(gl_WorkGroupID.xy) + ivec2(tx, ty), vec4(var2Std(var), 0, 0));
+		imageStore(outStencil2, 4 * ivec2(gl_WorkGroupID.xy) + ivec2(tx, ty), vec4(var2Std(var, mean), 0, 0));
 	}
 
 	memoryBarrierShared();
@@ -77,6 +77,6 @@ void main()
 		sMean[ty][tx] = mean;
 		sVar[ty][tx] = var;
 
-		imageStore(outStencil3, 2 * ivec2(gl_WorkGroupID.xy) + ivec2(tx, ty), vec4(var2Std(var), 0, 0));
+		imageStore(outStencil3, 2 * ivec2(gl_WorkGroupID.xy) + ivec2(tx, ty), vec4(var2Std(var, mean), 0, 0));
 	}
 }

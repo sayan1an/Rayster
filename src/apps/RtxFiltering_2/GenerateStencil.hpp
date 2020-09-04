@@ -147,7 +147,7 @@ public:
 			float normalVar = pcb.normalVarianceLimit * 1000.0f;
 			float depthVar = pcb.depthVarianceLimit * 1000.0f;
 			ImGui::SliderFloat("Normal Variance Limit##StencilCompositionPass", &normalVar, 0, 10);
-			ImGui::SliderFloat("Depth Variance Limit##StencilCompositionPass", &depthVar, 0, 10);
+			ImGui::SliderFloat("Depth Variance Limit##StencilCompositionPass", &depthVar, 0, 20);
 
 			pcb.normalVarianceLimit = normalVar / 1000.f;
 			pcb.depthVarianceLimit = depthVar / 1000.f;
@@ -157,8 +157,8 @@ public:
 
 	StencilCompositionPass()
 	{
-		pcb.normalVarianceLimit = 0.005;
-		pcb.depthVarianceLimit = 0.001;
+		pcb.normalVarianceLimit = 0.005f;
+		pcb.depthVarianceLimit = 0.01f;
 	}
 
 private:

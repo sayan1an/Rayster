@@ -17,7 +17,7 @@ uint enableRayTrace(in vec4 var)
 	uint rtNormal = var.x < pcb.limits.x ? 1 : 0;
 	uint rtDepth = var.y < pcb.limits.y ? 1 : 0;
 
-	return rtNormal | rtDepth;
+	return rtNormal & rtDepth;
 }
 
 void main()
