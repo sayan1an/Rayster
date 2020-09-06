@@ -27,6 +27,7 @@ void main()
 	vec4 diffComp3 = texture(rtxIn3, vec3(texCoord, 0));
 	vec4 specComp3 = texture(rtxIn3, vec3(texCoord, 1));
 
-	vec4 outCol = diffTex * (diffComp1 + diffComp2 + diffComp3) + specTex * (specComp1 + specComp2 + specComp3);
-	imageStore(rtxOut, pixel, outCol);
+	float weight = diffComp1.w + diffComp2.w + diffComp3.w;
+	vec4 outCol = diffTex * (diffComp1 + diffComp2 + diffComp3)  + specTex * (specComp1 + specComp2 + specComp3);
+	imageStore(rtxOut, pixel, outCol / weight);
 }

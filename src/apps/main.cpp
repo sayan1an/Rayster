@@ -100,7 +100,7 @@ int main()
 			std::vector<const char*> instanceExtensions = { VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
 			std::vector<const char*> deviceFeatures = { "shaderStorageImageExtendedFormats" };
 			// experimental technique, samples move across the emitter space in time and implements pixel reprorojection in time
-			RtxFiltering_2 app(instanceExtensions, deviceExtensions, deviceFeatures);
+			RtxFiltering_2::RtxFiltering_2 app(instanceExtensions, deviceExtensions, deviceFeatures);
 			app.run(1280, 720, false);
 		}
 		
