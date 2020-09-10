@@ -37,37 +37,6 @@ namespace RtxFiltering_2
 	class RtxFiltering_2 : public WindowApplication
 	{
 	private:
-
-		class NewGui : public Gui
-		{
-		public:
-			const IO* io;
-			Camera* cam;
-			SquarePattern* pSqPat;
-			//TemporalWindowFilter* tWindFilt;
-			StencilCompositionPass* sCmpPass;
-			int denoise = 0;
-			uint32_t numSamples;
-		private:
-
-			float power = 10;
-
-
-			void guiSetup()
-			{
-				io->frameRateWidget();
-				cam->cameraWidget();
-				//uint32_t collectData, pixelInfo;
-				pSqPat->widget(/*collectData, pixelInfo,*/ numSamples);
-				sCmpPass->widget();
-				ImGui::Text("Filter"); ImGui::SameLine();
-				ImGui::RadioButton("Off", &denoise, 0); ImGui::SameLine();
-				ImGui::RadioButton("On", &denoise, 1);
-				//if (denoise == 1)
-					//tWindFilt->widget();
-			}
-		};
-
 		class Subpass1 {
 		public:
 			VkSubpassDescription subpassDescription;
@@ -172,12 +141,13 @@ namespace RtxFiltering_2
 					std::string(" RtxFiltering_2: failed to create texture sampler!"));
 			}
 
-			void createSubpass(const VkDevice& device, const VkRenderPass& renderPass, FboManager& fboMgr, const VkImageView& v1, const VkImageView& v2, const VkImageView& v3, const VkImageView& v4)
+			void createSubpass(const VkDevice& device, const VkRenderPass& renderPass, FboManager& fboMgr, const VkImageView& v1, const VkImageView& v2, const VkImageView& v3, const VkImageView& v4, const VkImageView& v5)
 			{
 				descGen.bindImage({ 0,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { texSampler, v1, VK_IMAGE_LAYOUT_GENERAL });
 				descGen.bindImage({ 1,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { texSampler, v2, VK_IMAGE_LAYOUT_GENERAL });
 				descGen.bindImage({ 2,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { texSampler, v3, VK_IMAGE_LAYOUT_GENERAL });
 				descGen.bindImage({ 3,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { texSampler, v4, VK_IMAGE_LAYOUT_GENERAL });
+				descGen.bindImage({ 4,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT }, { texSampler, v5, VK_IMAGE_LAYOUT_GENERAL });
 				descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
 				gfxPipeGen.addVertexShaderStage(device, ROOT + "/shaders/RtxFiltering_2/gShowVert.spv");
@@ -188,6 +158,18 @@ namespace RtxFiltering_2
 				gfxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantBlock) });
 
 				gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 0, &pipeline, &pipelineLayout);
+			}
+
+			void widget()
+			{	
+				if (ImGui::CollapsingHeader("Display pass")) {
+					int choice = pcb.choice.x;
+					ImGui::Text("Select:");
+					ImGui::RadioButton("Stencil:", &choice, 0);
+					ImGui::RadioButton("RTX raw:", &choice, 1);
+					ImGui::RadioButton("Temporal Filter:", &choice, 2);
+					pcb.choice.x = choice;
+				}
 			}
 
 			void cleanUp(const VkDevice& device)
@@ -202,6 +184,31 @@ namespace RtxFiltering_2
 			GraphicsPipelineGenerator gfxPipeGen;
 		};
 
+		class NewGui : public Gui
+		{
+		public:
+			const IO* io;
+			Camera* cam;
+			SquarePattern* pSqPat;
+			//TemporalWindowFilter* tWindFilt;
+			StencilCompositionPass* sCmpPass;
+			Subpass2* displayPass;
+			uint32_t numSamples;
+		private:
+
+			float power = 10;
+
+			void guiSetup()
+			{
+				io->frameRateWidget();
+				cam->cameraWidget();
+				//uint32_t collectData, pixelInfo;
+				pSqPat->widget(/*collectData, pixelInfo,*/ numSamples);
+				sCmpPass->widget();
+				displayPass->widget();
+
+			}
+		};
 
 	public:
 		RtxFiltering_2(const std::vector<const char*>& _instanceExtensions, const std::vector<const char*>& _deviceExtensions, const std::vector<const char*>& _deviceFeatures) :
@@ -291,6 +298,7 @@ namespace RtxFiltering_2
 			//gui.tWindFilt = &temporalFilter;
 			gui.pSqPat = &rPatSq;
 			gui.sCmpPass = &stencilCompPass;
+			gui.displayPass = &subpass2;
 			gui.setStyle();
 			gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
 			rPatSq.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
@@ -313,7 +321,7 @@ namespace RtxFiltering_2
 			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"));
 			stencilCompPass.createPipeline(physicalDevice, device, stencilView, stencilView2, stencilView3);
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
-			subpass2.createSubpass(device, renderPass2, fboManager2, rtxComposedView, stencilView, stencilView2, stencilView3); //filterOutImageView
+			subpass2.createSubpass(device, renderPass2, fboManager2, rtxComposedView, filterOutImageView, stencilView, stencilView2, stencilView3);
 			rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), rtxPassView, rtxPassHalfView, rtxPassQuatView);
 
 			createCommandBuffers();
@@ -396,7 +404,7 @@ namespace RtxFiltering_2
 			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"));
 			stencilCompPass.createPipeline(physicalDevice, device, stencilView, stencilView2, stencilView3);
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
-			subpass2.createSubpass(device, renderPass2, fboManager2, rtxComposedView, stencilView, stencilView2, stencilView3); //filterOutImageView
+			subpass2.createSubpass(device, renderPass2, fboManager2, rtxComposedView, filterOutImageView, stencilView, stencilView2, stencilView3); //filterOutImageView
 			rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), rtxPassView, rtxPassHalfView, rtxPassQuatView);
 
 			createCommandBuffers();
@@ -636,7 +644,8 @@ namespace RtxFiltering_2
 			vkCmdPipelineBarrier(commandBuffers[index], VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_DEPENDENCY_BY_REGION_BIT,
 				0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
 			rtxCompPass.cmdDispatch(commandBuffers[index]);
-			//temporalWindowFilter.cmdDispatch(commandBuffers[index], fboManager1.getSize());
+			
+			temporalFilter.cmdDispatch(commandBuffers[index]);
 
 			// begin second render-pass
 			renderPassInfo.renderPass = renderPass2;
@@ -651,7 +660,6 @@ namespace RtxFiltering_2
 			vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipeline);
 			vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass2.pipelineLayout, 0, 1, &subpass2.descriptorSet, 0, nullptr);
 			subpass2.pcb.viewport = swapChainExtent;
-			subpass2.pcb.choice.x = gui.denoise;
 			vkCmdPushConstants(commandBuffers[index], subpass2.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(subpass2.pcb), &subpass2.pcb);
 			vkCmdDraw(commandBuffers[index], 3, 1, 0, 0);
 

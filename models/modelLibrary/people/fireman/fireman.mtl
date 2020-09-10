@@ -1,0 +1,9 @@
+newmtl blinn1SG
+illum 2
+Kd 1.0 1.00 1.00
+Ka 0.30 0.30 0.30
+Ks 1.00 1.00 1.00
+Ke 0.00 0.00 0.00
+Ns 59.99999
+map_Kd fireman_2.png
+

@@ -1,0 +1,7 @@
+newmtl Texture_0
+Ns 1024
+Ka 0 0 0
+Kd 0.428962 0.585519 0.30927
+Ks 0 0 0
+map_Kd Texture_02.jpg
+d 1

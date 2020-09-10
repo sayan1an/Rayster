@@ -3,7 +3,7 @@
 
 namespace RtxFiltering_2
 {	
-	const uint32_t windowSize = 11;
+	const uint32_t windowSize = 10;
 	
 	class SquarePattern
 	{
@@ -26,7 +26,7 @@ namespace RtxFiltering_2
 
 			dataUpdated = false;
 			moveSampleInTime = true;
-			choosePattern = 0;
+			choosePattern = 1;
 			nLines = 1;
 
 			//xPixelQuery = 1;
@@ -88,7 +88,7 @@ namespace RtxFiltering_2
 			}
 
 			if (moveSampleInTime) {
-				float stepSize = 1.0f / (windowSize - 1) ;
+				float stepSize = 1.0f / windowSize ;
 				for (uint32_t i = 0; i < nSamples; i++) {
 					randomSamplesSquare[i].y += stepSize * (1 + (rGen.getNextUint32_t() / 4294967295.0f - 0.5f) * 0.f);
 					randomSamplesSquare[i].y = randomSamplesSquare[i].y > 1.0 ? randomSamplesSquare[i].y - 1 : randomSamplesSquare[i].y;
@@ -258,22 +258,30 @@ namespace RtxFiltering_2
 			};
 
 			makeImage(extent, VK_FORMAT_R32G32B32A32_SFLOAT, windowSize, windowImg, windowView, windowAllocation);
-			makeImage(extent, VK_FORMAT_R32G32B32A32_SFLOAT, windowSize, windowOldImg, windowOldView, windowOldAllocation);
+			makeImage(extent, VK_FORMAT_R32G32B32A32_SFLOAT, windowSize, windowGradImg, windowGradView, windowGradAllocation);
+			makeImage(extent, VK_FORMAT_R32G32B32A32_SFLOAT, windowSize / 2 +1, windowFilteredNoGradImg, windowFilteredNoGradView, windowFilteredNoGradAllocation);
+			makeImage(extent, VK_FORMAT_R32G32B32A32_SFLOAT, 1, gradCorrectionImg, gradCorrectionView, gradCorrectionAllocation);
+			makeImage(extent, VK_FORMAT_R32G32B32A32_SFLOAT, 1, gradAccumImg, gradAccumView, gradAccumAllocation);
 			makeImage(extent, VK_FORMAT_R32G32B32A32_SFLOAT, 1, filteredImg, filteredView, filteredAllocation, true);
 
 			filteredImgView = filteredView;
 			pcb.windowSize = windowSize;
+			pcb.frameIndex = 0;
+			globalWorkDim = extent;
 			buffersUpdated = true;
 		}
 
 		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& inRtxPass)
 		{
-			CHECK_DBG_ONLY(buffersUpdated, "SubSamplePass : call createBuffers first.");
+			CHECK_DBG_ONLY(buffersUpdated, "TemporalFilterPass : call createBuffers first.");
 
 			descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inRtxPass,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , windowView,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , windowOldView,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , filteredView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , windowGradView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , windowFilteredNoGradView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , gradCorrectionView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , gradAccumView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , filteredView,  VK_IMAGE_LAYOUT_GENERAL });
 			
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -282,6 +290,15 @@ namespace RtxFiltering_2
 			filterPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
 		}
 
+		void cmdDispatch(const VkCommandBuffer& cmdBuf)
+		{
+			vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+			vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
+			vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstantBlock), &pcb);
+			vkCmdDispatch(cmdBuf, 1 + (globalWorkDim.width - 1) / 16, 1 + (globalWorkDim.height - 1) / 16, 1);
+			pcb.frameIndex++;
+		}
+		
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
 		{
 			auto destroyImage = [&device = device, &allocator = allocator](VkImage& image, VkImageView& imageView, VmaAllocation& allocation)
@@ -291,7 +308,10 @@ namespace RtxFiltering_2
 			};
 
 			destroyImage(windowImg, windowView, windowAllocation);
-			destroyImage(windowOldImg, windowOldView, windowOldAllocation);
+			destroyImage(windowGradImg, windowGradView, windowGradAllocation);
+			destroyImage(windowFilteredNoGradImg, windowFilteredNoGradView, windowFilteredNoGradAllocation);
+			destroyImage(gradCorrectionImg, gradCorrectionView, gradCorrectionAllocation);
+			destroyImage(gradAccumImg, gradAccumView, gradAccumAllocation);
 			destroyImage(filteredImg, filteredView, filteredAllocation);
 			
 			vkDestroyPipeline(device, pipeline, nullptr);
@@ -299,6 +319,7 @@ namespace RtxFiltering_2
 			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 			vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 		}
+
 	private:
 		VkPipeline pipeline;
 		VkPipelineLayout pipelineLayout;
@@ -314,9 +335,21 @@ namespace RtxFiltering_2
 		VkImageView windowView;
 		VmaAllocation windowAllocation;
 
-		VkImage windowOldImg;
-		VkImageView windowOldView;
-		VmaAllocation windowOldAllocation;
+		VkImage windowGradImg;
+		VkImageView windowGradView;
+		VmaAllocation windowGradAllocation;
+
+		VkImage windowFilteredNoGradImg;
+		VkImageView windowFilteredNoGradView;
+		VmaAllocation windowFilteredNoGradAllocation;
+
+		VkImage gradCorrectionImg;
+		VkImageView gradCorrectionView;
+		VmaAllocation gradCorrectionAllocation;
+
+		VkImage gradAccumImg;
+		VkImageView gradAccumView;
+		VmaAllocation gradAccumAllocation;
 
 		VkImage filteredImg;
 		VkImageView filteredView;
@@ -326,7 +359,10 @@ namespace RtxFiltering_2
 
 		struct PushConstantBlock {
 			uint32_t windowSize;
+			uint32_t frameIndex;
 		} pcb;
+
+		VkExtent2D globalWorkDim;
 	};
 
 }

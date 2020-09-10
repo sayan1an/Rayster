@@ -1,0 +1,28 @@
+newmtl skin
+Ns 30
+Ka 0 0 0
+Kd 0.172534 0.58822 0
+Ks 0.737255 0.66273 0.509804
+map_Kd frogmap.jpg
+d 1
+newmtl innerMouth
+Ns 30
+Ka 0 0 0
+Kd 0.992157 0.972549 0.968627
+Ks 0.941176 0.972549 0.968627
+map_Kd frogmap.jpg
+d 1
+newmtl eyewhite
+Ns 30
+Ka 0 0 0
+Kd 1 0.921569 0.435294
+Ks 0.988922 0.32255 0.888699
+map_Kd frogmap.jpg
+d 1
+newmtl pupil
+Ns 30
+Ka 0 0 0
+Kd 0.992157 0.992157 0.992157
+Ks 0.530381 0.455 0.348521
+map_Kd frogmap.jpg
+d 1

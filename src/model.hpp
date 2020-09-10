@@ -489,12 +489,21 @@ public:
 		return descriptorBufferInfo;
 	}
 
-	void updateMeshData() 
+	void updateMeshData()
 	{
+		uint32_t idx = 0;
 		for (auto& instance : instanceData_dynamic) {
 			instance.model = glm::translate<float>(instance.model, glm::vec3(0.0, 0.0, 0.0));
-			//instance.model = glm::rotate<float>(instance.model, 0.001f, glm::vec3(0, 1, 0));
+			glm::mat4 rotate = glm::identity<glm::mat4>();
+			if (idx == 1) {
+				instance.model = glm::rotate<float>(instance.model, 0.005f, glm::vec3(1, 1, 0));
+			}
+			else if (idx == 2 || idx == 3) {
+				rotate = glm::rotate<float>(rotate, 0.005f, glm::vec3(0, 1, 0));
+				instance.model = rotate * instance.model;
+			}
 			instance.modelIT = glm::transpose(glm::inverse(instance.model));
+			idx++;
 		}
 		memcpy(mappedDynamicInstancePtr, instanceData_dynamic.data(), sizeof(instanceData_dynamic[0]) * instanceData_dynamic.size());
 	}

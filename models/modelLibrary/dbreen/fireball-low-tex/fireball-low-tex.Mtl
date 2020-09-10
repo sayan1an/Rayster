@@ -1,0 +1,52 @@
+# Created By Carrara 7.0
+
+newmtl Texture_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.784314 0.368627 0.168627
+ Ks 0.25 0.25 0.25
+ map_Kd Texture_0.jpg
+
+newmtl outside
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.784314 0.368627 0.168627
+ Ks 0.25 0.25 0.25
+ map_Kd Texture_0.jpg
+
+newmtl inner
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.784314 0.368627 0.168627
+ Ks 0.25 0.25 0.25
+ map_Kd Texture_0.jpg
+
+newmtl in
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.784314 0.368627 0.168627
+ Ks 0.25 0.25 0.25
+ map_Kd Texture_0.jpg
+
+newmtl out
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.784314 0.368627 0.168627
+ Ks 0.25 0.25 0.25
+ map_Kd Texture_0.jpg
+

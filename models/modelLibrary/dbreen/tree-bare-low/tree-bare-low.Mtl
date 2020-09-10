@@ -1,0 +1,38 @@
+# Created By Carrara 7.0
+
+newmtl Trunk
+ Ns 234
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.511711 0.31249 0
+ Ks 0 0 0
+
+newmtl Branch1
+ Ns 234
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.515618 0.316396 0
+ Ks 0 0 0
+
+newmtl Branch2
+ Ns 234
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.519524 0.320302 0
+ Ks 0 0 0
+
+newmtl Leaf
+ Ns 1383
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.054673 0.707027 0
+ Ks 1 1 1
+

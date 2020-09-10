@@ -129,7 +129,7 @@ static Mesh* loadMeshTiny(const char* meshPath, bool invertNormal = false)
 	return mesh;
 }
 
-static void loadModelTiny(const char* meshPath, Model &model)
+static void loadModelTiny(const char* meshPath, const char* materialPath, Model &model, bool normalize = false, float normScale = 1.0f)
 {	
 	std::cout << "Loading Model...";
 	Mesh* mesh = new Mesh();
@@ -139,15 +139,15 @@ static void loadModelTiny(const char* meshPath, Model &model)
 	std::vector<tinyobj::material_t> materials;
 	std::string warn, err;
 
-	std::string materialPath = get_path(meshPath) + "materials/";
-
-	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, meshPath, materialPath.c_str())) {
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, meshPath, materialPath)) {
 		throw std::runtime_error(warn + err);
 	}
 	
+	uint32_t ldrTexSize = 0;
+	uint32_t hdrTexSize = 0;
 	if (materials.size() < 1) {
-		model.addLdrTexture(Image2d(1, 1, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f)));
-		model.addHdrTexture(Image2d(1, 1, glm::vec4(0.1f, 1.0f, 1.0f, 1.0f), true));
+		ldrTexSize = model.addLdrTexture(Image2d(1, 1, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f)));
+		hdrTexSize = model.addHdrTexture(Image2d(1, 1, glm::vec4(0.1f, 1.0f, 1.0f, 1.0f), true));
 		model.addMaterial(0, 0, 0, 0);
 	}
 
@@ -157,9 +157,8 @@ static void loadModelTiny(const char* meshPath, Model &model)
 	for (const auto& material : materials)
 	{	
 		uint32_t diffuseTexureIdx, specularTextureIdx, alphaIntExtIorIdx;
-		if (!material.diffuse_texname.empty()) {
-			diffuseTexureIdx = model.addLdrTexture(Image2d(materialPath + material.diffuse_texname));
-		}
+		if (!material.diffuse_texname.empty())
+			diffuseTexureIdx = model.addLdrTexture(Image2d(std::string(materialPath) + material.diffuse_texname));
 		else
 			diffuseTexureIdx = model.addLdrTexture(Image2d(1, 1, glm::vec4(material.diffuse[0], material.diffuse[1], material.diffuse[2], 1.0f)));
 
@@ -175,8 +174,15 @@ static void loadModelTiny(const char* meshPath, Model &model)
 			alphaIntExtIorIdx = model.addHdrTexture(Image2d(1, 1, glm::vec4(std::sqrt(2 / (material.shininess + 2)), material.ior, 1.0f, 1.0f), true));
 		
 		materialSize = model.addMaterial(diffuseTexureIdx - 1, specularTextureIdx - 1, alphaIntExtIorIdx - 1, 1); // the last 1 corresponds to some-non diffuse material
+		ldrTexSize = diffuseTexureIdx + specularTextureIdx;
+		hdrTexSize = alphaIntExtIorIdx;
 	}
 
+	// Model loader expects multi-layer tex image, add a dummy texture to shut up the model loader 
+	if (ldrTexSize < 2)
+		model.addLdrTexture(Image2d(1, 1, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f)));
+	if (hdrTexSize < 2)
+		model.addHdrTexture(Image2d(1, 1, glm::vec4(0.1f, 1.0f, 1.0f, 1.0f), true));
 	
 	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
 	
@@ -262,6 +268,8 @@ static void loadModelTiny(const char* meshPath, Model &model)
 	}
 
 	mesh->computeBoundingSphere();
+	if (normalize)
+		mesh->normailze(normScale);
 	model.addMesh(mesh);
 	glm::mat4 tf = glm::identity<glm::mat4>();
 	model.addInstance(0, tf);
@@ -286,7 +294,7 @@ static void loadMedievalHouse(Model& model, Camera& cam)
 static void loadMedievalHouse(Model& model, Camera& cam)
 {	
 	cam.changeKeyFrameFileName(ROOT + "/models/medievalHouse/medievalHouse.bin");
-	loadModelTiny((ROOT + "/models/medievalHouse/medievalHouse.obj").c_str(), model);
+	loadModelTiny((ROOT + "/models/medievalHouse/medievalHouse.obj").c_str(), (ROOT + "/models/medievalHouse/materials/").c_str(), model);
 }
 
 
@@ -468,7 +476,6 @@ static void loadSpaceship(Model& model, Camera& cam)
 	addInstance("AreaLight", quadLightIndex, 0.5f, 2.0f, 1);
 }
 
-
 static void loadDefault(Model &model, Camera &cam)
 {	
 	cam.changeKeyFrameFileName(ROOT + "/models/default/defailt.bin");
@@ -514,10 +521,73 @@ static void loadDefault(Model &model, Camera &cam)
 	model.addInstance(1, tf, 0);
 }
 
+static void loadBasicShapes(Model& model, Camera &cam)
+{	
+	cam.setCamera({ -0.99069f, 0.007035f, 0.135953f, -0.519664f,
+			9.40074e-010f, 0.998664f, -0.0516768f, 0.817007f,
+			-0.136134f, -0.0511957f, -0.989367f, 3.82439f,
+			0, 0, 0, 1 }, 5, 60);
+	cam.changeKeyFrameFileName(ROOT + "/models/modelLibrary/basicShapes.bin");
+	cam.setAngleIncrement(0.01f);
+	cam.setDistanceIncrement(0.01f);
+
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f))); // 0
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.929f, 0.333f, 0.231f, 1.0f))); // 1
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.125f, 0.388f, 0.608f, 1.0f))); // 2
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.235f, 0.682f, 0.639f, 1.0f))); // 3
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.2f, 0.2f, 0.2f, 1.0f))); // 4
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0929f, 0.0333f, 0.0231f, 1.0f))); // 5
+
+	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.4f, 1.5f, 1.0f, 1.0f), true)); // 0
+	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.05f, 1.5f, 1.0f, 1.0f), true)); // 1
+
+	model.addMaterial(0, 5, 0, DIFFUSE); // floor
+	model.addMaterial(1, 4, 1, GGX); // urchin
+	model.addMaterial(2, 4, 1, GGX); // sphere
+	model.addMaterial(3, 4, 1, GGX); // cube
+	model.addMaterial(0, 5, 0, AREA); // quadLight
+
+	Mesh* mesh = loadMeshTiny((ROOT + "/models/modelLibrary/groundPlane.obj").c_str());
+	mesh->normailze(6.0f);
+	model.addMesh(mesh);
+
+	mesh = loadMeshTiny((ROOT + "/models/modelLibrary/basic-shapes/cube/cube.obj").c_str());
+	mesh->normailze(0.5f);
+	model.addMesh(mesh);
+
+	mesh = loadMeshTiny((ROOT + "/models/modelLibrary/basic-shapes/sphere/sphere.obj").c_str());
+	mesh->normailze(0.5f);
+	model.addMesh(mesh);
+
+	mesh = loadMeshTiny((ROOT + "/models/modelLibrary/animals/urchin/urchin.obj").c_str());
+	mesh->normailze(0.5f);
+	model.addMesh(mesh);
+
+	mesh = loadMeshTiny((ROOT + "/models/modelLibrary/quadLight.obj").c_str());
+	mesh->normailze(1.25f);
+	model.addMesh(mesh);
+	
+	glm::mat4 tf = glm::identity<glm::mat4>();
+	model.addInstance(0, tf, 0);
+
+	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 1.0f, 0));
+	model.addInstance(1, tf, 3);
+
+	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(-1.6f, 1.2f, 0));
+	model.addInstance(2, tf, 2);
+
+	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(1.6f, 1.2f, 0));
+	model.addInstance(3, tf, 1);
+
+	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0.0f, 4.5f, 0));
+	model.addInstance(4, tf, 4, 7.0f);
+}
+
 extern void loadScene(Model& model, Camera& cam, const std::string& name)
 {	
 	//loadMedievalHouse(model, cam);
-	loadSpaceship(model, cam);
+	loadBasicShapes(model, cam);
+	//loadSpaceship(model, cam);
 	//loadDefault(model, cam);
 
 	/*if (name.compare("default") == 0)

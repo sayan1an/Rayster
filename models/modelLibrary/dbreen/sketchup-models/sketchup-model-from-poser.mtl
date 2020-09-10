@@ -1,0 +1,13 @@
+newmtl FrontColor
+Ns 10
+Ka 0 0 0
+Kd 1 1 1
+Ks 0.33 0.33 0.33
+d 1
+newmtl Brick_Antique
+Ns 10
+Ka 0 0 0
+Kd 0.576471 0.411765 0.278431
+Ks 0.33 0.33 0.33
+map_Kd Brick_Antique.jpg
+d 1

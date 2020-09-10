@@ -1,0 +1,13 @@
+# Created By Carrara 7.0
+
+newmtl Texture_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.541176 0.580392 0.537255
+ Ks 0.25 0.25 0.25
+ map_Kd Texture_01.jpg
+ map_Bump Texture_02.jpg
+

@@ -1,0 +1,7 @@
+newmtl Texture_0
+Ns 163
+Ka 0 0 0
+Kd 0.996078 0.996078 0.996078
+Ks 0.00784314 0.00784314 0.00784314
+map_Kd reptile-skin-green.jpg
+d 1

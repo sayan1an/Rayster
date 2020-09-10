@@ -1,0 +1,14 @@
+# This model’s design was inspired by PigArt’s YouTube tutorial on low-poly forest assets # at https://www.youtube.com/watch?v=rtO9maU709k. The model was constructed independently.
+
+# Blender MTL File: 'plants.blend'
+# Material Count: 1
+
+newmtl Broad_deciduous_tree_green_leavesTexture
+Ns 96.078431
+Ka 0.000000 0.000000 0.000000
+Kd 0.640000 0.640000 0.640000
+Ks 0.500000 0.500000 0.500000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd broad_deciduous_tree_green_leaves.png

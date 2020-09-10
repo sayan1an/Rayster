@@ -1,0 +1,39 @@
+# Created By Carrara 7.0
+
+newmtl Texture_0
+ Ns 14
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.650136 0.643225 0.614113
+ Ks 0.310016 0.336538 0.357694
+ map_Bump Texture_0.jpg
+
+newmtl sides
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.999954 0.999954 0.999954
+ Ks 0.25 0.25 0.25
+
+newmtl doorway
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.999954 0.999954 0.999954
+ Ks 0.25 0.25 0.25
+
+newmtl top
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.999954 0.999954 0.999954
+ Ks 0.25 0.25 0.25
+

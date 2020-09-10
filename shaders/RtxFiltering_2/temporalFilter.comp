@@ -5,7 +5,10 @@ layout (local_size_x = 16, local_size_y = 16) in;
 layout (binding = 0, rgba32f) uniform readonly image2D inRtx;
 layout (binding = 1, rgba32f) uniform image2DArray window;
 layout (binding = 2, rgba32f) uniform image2DArray windowGrad;
-layout (binding = 3, rgba32f) uniform image2D outFilter;
+layout (binding = 3, rgba32f) uniform image2DArray windowFilteredNoGrad;
+layout (binding = 4, rgba32f) uniform image2D gradCorrection;
+layout (binding = 5, rgba32f) uniform image2D gradSum;
+layout (binding = 6, rgba32f) uniform image2D outFilter;
 
 layout (push_constant) uniform pcBlock {
 	uint windowSize;
@@ -17,14 +20,26 @@ void main()
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
 	
 	ivec3 currentFrameIdx = ivec3(pixel, pcb.frameIndex % pcb.windowSize);
-	vec4 inCol = imageLoad(inRtx, pixel);
-	vec4 grad =  inCol - imageLoad(window, currentFrameIdx);
-	vec4 gradGrad = grad - imageLoad(windowGrad, currentFrameIdx);
+	uint halfWindowSz = pcb.windowSize / 2;
+	ivec3 currentFrameIdxHalf = ivec3(pixel, pcb.frameIndex % halfWindowSz);
 
-	imageStore(window, currentFrameIdx, inCol);
-	imageStore(windowGrad, currentFrameIdx, grad);
-	
-	inCol = imageLoad(outFilter, pixel);
-	//
-	imageStore(outFilter, pixel, vec4(inCol.xyz + grad.xyz / pcb.windowSize, 1));
+	vec4 newCol = imageLoad(inRtx, pixel);
+	vec4 oldCol = imageLoad(window, currentFrameIdx);
+	vec4 oldGrad = imageLoad(windowGrad, currentFrameIdx);
+	vec4 oldFilteredNoGrad = imageLoad(windowFilteredNoGrad, currentFrameIdxHalf);
+	vec4 filteredNoGradPrev = imageLoad(windowFilteredNoGrad, ivec3(pixel, (pcb.frameIndex + halfWindowSz - 1) % halfWindowSz));
+	vec4 oldCorrection = imageLoad(gradCorrection, pixel);
+	vec4 oldGradSum = imageLoad(gradSum, pixel);
+
+	vec4 newGrad = (newCol - oldCol) / pcb.windowSize; 
+	vec4 newCorrection = oldCorrection - (halfWindowSz + 1) * oldGrad - halfWindowSz * newGrad + oldGradSum;
+	vec4 newFilteredNoGrad = filteredNoGradPrev + newGrad;
+	vec4 newGradSum = oldGradSum + newGrad - oldGrad;
+
+	imageStore(gradCorrection, pixel, newCorrection);
+	imageStore(gradSum, pixel, newGradSum);
+	imageStore(windowFilteredNoGrad, currentFrameIdxHalf, newFilteredNoGrad);
+	imageStore(window, currentFrameIdx, newCol);
+	imageStore(windowGrad, currentFrameIdx, newGrad);
+	imageStore(outFilter, pixel, vec4(oldFilteredNoGrad.xyz + newCorrection.xyz / pcb.windowSize, 1));
 }

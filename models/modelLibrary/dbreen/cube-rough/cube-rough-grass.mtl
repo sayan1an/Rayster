@@ -1,0 +1,7 @@
+newmtl Default_Material
+Ns 499
+Ka 0 0 0
+Kd 0.999954 0.999954 0.999954
+Ks 0.25 0.25 0.25
+map_Kd grass-512.jpg
+d 1
