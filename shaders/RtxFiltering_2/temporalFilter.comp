@@ -13,6 +13,7 @@ layout (binding = 6, rgba32f) uniform image2D outFilter;
 layout (push_constant) uniform pcBlock {
 	uint windowSize;
 	uint frameIndex;
+	uint useGradient;
 } pcb;
 
 void main()
@@ -41,5 +42,8 @@ void main()
 	imageStore(windowFilteredNoGrad, currentFrameIdxHalf, newFilteredNoGrad);
 	imageStore(window, currentFrameIdx, newCol);
 	imageStore(windowGrad, currentFrameIdx, newGrad);
-	imageStore(outFilter, pixel, vec4(oldFilteredNoGrad.xyz + newCorrection.xyz / pcb.windowSize, 1));
+	if (pcb.useGradient == 1)
+		imageStore(outFilter, pixel, vec4(oldFilteredNoGrad.xyz + newCorrection.xyz / pcb.windowSize, 1));
+	else
+		imageStore(outFilter, pixel, vec4(newFilteredNoGrad.xyz, 1));
 }
