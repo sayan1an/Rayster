@@ -267,6 +267,7 @@ namespace RtxFiltering_2
 			filteredImgView = filteredView;
 			pcb.windowSize = windowSize;
 			pcb.frameIndex = 0;
+			pcb.useGradient = 1;
 			globalWorkDim = extent;
 			buffersUpdated = true;
 		}
@@ -288,6 +289,17 @@ namespace RtxFiltering_2
 			filterPipeGen.addPushConstantRange({ VK_SHADER_STAGE_COMPUTE_BIT , 0, sizeof(PushConstantBlock) });
 			filterPipeGen.addComputeShaderStage(device, ROOT + "/shaders/RtxFiltering_2/temporalFilter.spv");
 			filterPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
+		}
+
+		void widget()
+		{
+			if (ImGui::CollapsingHeader("TemporalFilter")) {
+				int useGradient = static_cast<int>(pcb.useGradient);
+				ImGui::Text("Use gradient:"); ImGui::SameLine();
+				ImGui::RadioButton("Yes:##UID_TemporalFilter", &useGradient, 1); ImGui::SameLine();
+				ImGui::RadioButton("No:##UID_TemporalFilter", &useGradient, 0);
+				pcb.useGradient = static_cast<uint32_t>(useGradient);
+			}
 		}
 
 		void cmdDispatch(const VkCommandBuffer& cmdBuf)
@@ -360,6 +372,7 @@ namespace RtxFiltering_2
 		struct PushConstantBlock {
 			uint32_t windowSize;
 			uint32_t frameIndex;
+			uint32_t useGradient;
 		} pcb;
 
 		VkExtent2D globalWorkDim;

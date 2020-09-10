@@ -14,7 +14,7 @@
 
 int main()
 {	
-	int select = 7;
+	int select = 10;
 	try {
 		if (select == 0) {
 			// Show Rasterization based GBuffer

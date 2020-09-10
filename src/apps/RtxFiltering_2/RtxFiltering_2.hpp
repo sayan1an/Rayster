@@ -190,10 +190,11 @@ namespace RtxFiltering_2
 			const IO* io;
 			Camera* cam;
 			SquarePattern* pSqPat;
-			//TemporalWindowFilter* tWindFilt;
+			TemporalFilter* tempFilt;
 			StencilCompositionPass* sCmpPass;
 			Subpass2* displayPass;
 			uint32_t numSamples;
+			int animate = 0;
 		private:
 
 			float power = 10;
@@ -202,9 +203,13 @@ namespace RtxFiltering_2
 			{
 				io->frameRateWidget();
 				cam->cameraWidget();
+				ImGui::Text("Animate:"); ImGui::SameLine();
+				ImGui::RadioButton("Yes:", &animate, 1); ImGui::SameLine();
+				ImGui::RadioButton("No:", &animate, 0);
 				//uint32_t collectData, pixelInfo;
 				pSqPat->widget(/*collectData, pixelInfo,*/ numSamples);
 				sCmpPass->widget();
+				tempFilt->widget();
 				displayPass->widget();
 
 			}
@@ -298,6 +303,7 @@ namespace RtxFiltering_2
 			//gui.tWindFilt = &temporalFilter;
 			gui.pSqPat = &rPatSq;
 			gui.sCmpPass = &stencilCompPass;
+			gui.tempFilt = &temporalFilter;
 			gui.displayPass = &subpass2;
 			gui.setStyle();
 			gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
@@ -679,7 +685,7 @@ namespace RtxFiltering_2
 
 			gui.buildGui(io);
 			gui.uploadData(device, allocator);
-			model.updateMeshData();
+			model.updateMeshData(gui.animate);
 			model.updateTlasData();
 			areaSources.updateData();
 			cam.updateProjViewMat(io, fboManager1.getSize().width, fboManager1.getSize().height);
