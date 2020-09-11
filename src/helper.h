@@ -229,29 +229,34 @@ private:
 	bool forceMipLevelToOne = false;
 };
 
-
+/*
+ * Utility functions
+ */
 std::vector<char> readFile(const std::string& filename); 
 VkPhysicalDeviceFeatures checkSupportedDeviceFeatures(const VkPhysicalDevice& physicalDevice, const std::vector<const char*>& requiredFeatures);
 VkCommandBuffer beginSingleTimeCommands(const VkDevice& device, const VkCommandPool& commandPool);
 void endSingleTimeCommands(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool, const VkCommandBuffer& commandBuffer);
-void copyBuffer(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool, const VkBuffer& srcBuffer, const VkBuffer& dstBuffer, VkDeviceSize size);
-VkImageView createImageView(const VkDevice& device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, uint32_t layerCount);
 bool hasStencilComponent(VkFormat format);
-void cmdTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount);
-void transitionImageLayout(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,
-	VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount);
-void copyBufferToImage(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,
-	VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 VkFormat findSupportedFormat(VkPhysicalDevice& physicalDevice, const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 VkFormat findDepthFormat(VkPhysicalDevice& physicalDevice);
 SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
 QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice& device, const VkSurfaceKHR& surface);
 VkDeviceSize imageFormatToBytes(VkFormat format);
+uint32_t queryComputeSharedMemSize(const VkPhysicalDevice& device);
+//(r, theta, phi) -> (x, y, z)
+glm::vec3 sphericalToCartesian(const glm::vec3&);
+//(x, y, z) -> (r, theta, phi)
+glm::vec3 cartesianToSpherical(const glm::vec3&);
+
+/* 
+ * Image and buffer management functions
+ */
+VkImageView createImageView(const VkDevice& device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, uint32_t layerCount);
 // create image without initialization
 void createImage(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
 	const VkExtent2D& extent, const VkImageUsageFlags& usage, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT,
 	const uint32_t layers = 1);
-// create image with initialized with 64bit pattern
+// create image initialized with 64bit pattern
 void createImageP(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
 	const VkExtent2D& extent, const VkImageUsageFlags& usage, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT,
 	const uint64_t pattern = 0, const uint32_t layers = 1, const uint32_t mipLevels = 1);
@@ -259,6 +264,8 @@ void createImageP(const VkDevice& device, const VmaAllocator& allocator, const V
 void createImageD(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation,
 	const VkExtent2D& extent, const VkImageUsageFlags& usage, const std::vector<const void*>& srcData, const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT, 
 	const VkSampleCountFlagBits& sampleCount = VK_SAMPLE_COUNT_1_BIT, const uint32_t mipLevels = 1);
+// Create a memory mapped host side statging buffer for gpu to cpu transfer
+void* createStagingBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& stagingBuffer, VmaAllocation& stagingBufferAllocation, VkDeviceSize sizeInBytes);
 // create a host side memory mapped staging buffer and device side buffer. Required explicit transfer of data from staging to device buffers. 
 // Suitable for large buffers requiring frequent updates.  
 void* createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkBuffer& stagingBuffer, VmaAllocation& stagingBufferAllocation, VkDeviceSize sizeInBytes);
@@ -268,10 +275,19 @@ void* createBuffer(const VmaAllocator& allocator, VkBuffer& buffer, VmaAllocatio
 void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsageFlags, uint64_t pattern = 0);
 // create buffer with initialized with raw binary data
 void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkDeviceSize bufferSize, const void* srcData, VkBufferUsageFlags bufferUsageFlags);
-// query shared memory size
-uint32_t queryComputeSharedMemSize(const VkPhysicalDevice& device);
 
-//(r, theta, phi) -> (x, y, z)
-glm::vec3 sphericalToCartesian(const glm::vec3&);
-//(x, y, z) -> (r, theta, phi)
-glm::vec3 cartesianToSpherical(const glm::vec3&);
+/*
+ * Cmd functions
+ */
+void cmdTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount);
+// copy a buffer to image. image layout must be TRANSFER_DST_OPTIMAL.
+void cmdCopyBufferToImage(const VkCommandBuffer& cmdBuf, const VkBuffer& srcBuf, const VkImage& dstImage, VkExtent2D extent, VkFormat imageFormat, uint32_t layers);
+// copy a image to buffer. image layout must be TRANSFER_SRC_OPTIMAL.
+void cmdCopyImageToBuffer(const VkCommandBuffer& cmdBuf, const VkImage& srcImage, const VkBuffer& dstBuffer, VkExtent2D extent, VkFormat imageFormat, uint32_t layers);
+
+/*
+ * One time functions
+ */
+void copyBufferToBuffer(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool, const VkBuffer& srcBuffer, const VkBuffer& dstBuffer, VkDeviceSize size);
+void copyBufferToImage(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool, const VkBuffer& srcBuffer, const VkImage& dstImage, VkExtent2D extent, VkFormat imageFormat, uint32_t layers);
+void transitionImageLayout(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount);

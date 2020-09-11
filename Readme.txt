@@ -7,6 +7,7 @@ Include folders
 ..Rayster\external\glfw-3.2.1.bin.WIN64\include
 ..Rayster\external\imgui
 ..Rayster\external\implot
+..Rayster\external\tinyexr
 ..Rayster\external\tinyobjloader
 ..Rayster\external\stb
 ..Rayster\external\glm
@@ -31,6 +32,6 @@ vulkan-1.lib
 Optional:
     assimp-vc142-mt.lib // this is for assimp binaries
 
-Note for imgui and implot
+Note for imgui, implot and tinyexr
 
-Add all imgui/implot files in your project
+Add all imgui/implot/tinyexr files in your project

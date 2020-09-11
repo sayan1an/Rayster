@@ -78,7 +78,7 @@ extern void endSingleTimeCommands(const VkDevice& device, const VkQueue& queue, 
 	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
-extern void copyBuffer(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool, const VkBuffer& srcBuffer, const VkBuffer& dstBuffer, VkDeviceSize size) 
+extern void copyBufferToBuffer(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool, const VkBuffer& srcBuffer, const VkBuffer& dstBuffer, VkDeviceSize size) 
 {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
 
@@ -87,6 +87,28 @@ extern void copyBuffer(const VkDevice& device, const VkQueue& queue, const VkCom
 	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
 	endSingleTimeCommands(device, queue, commandPool, commandBuffer);
+}
+
+extern void* createStagingBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& stagingBuffer, VmaAllocation& stagingBufferAllocation, VkDeviceSize sizeInBytes)
+{
+	void* mptrStagingBuffer = nullptr;
+
+	VkBufferCreateInfo bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.size = sizeInBytes;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo allocCreateInfo = {};
+	allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+	VK_CHECK(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr),
+		"createBuffer: Failed to create staging buffer!");
+
+	vmaMapMemory(allocator, stagingBufferAllocation, &mptrStagingBuffer);
+	CHECK(mptrStagingBuffer != nullptr, "createBuffer: Failed to create mapper ptr to staging buffer!");
+
+	return mptrStagingBuffer;
 }
 
 extern void* createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkBuffer& buffer, VmaAllocation& bufferAllocation, VkBuffer& stagingBuffer, VmaAllocation& stagingBufferAllocation, VkDeviceSize sizeInBytes)
@@ -176,7 +198,7 @@ extern void createBuffer(const VkDevice& device, const VmaAllocator& allocator, 
 	VK_CHECK(vmaCreateBuffer(allocator, &bufferCreateInfo, &allocCreateInfo, &buffer, &bufferAllocation, nullptr),
 		"Failed to create vertex buffer!");
 
-	copyBuffer(device, queue, commandPool, stagingBuffer, buffer, bufferSize);
+	copyBufferToBuffer(device, queue, commandPool, stagingBuffer, buffer, bufferSize);
 
 	vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
 }
@@ -235,6 +257,42 @@ extern void createImageP(const VkDevice& device, const VmaAllocator& allocator, 
 	createImageD(device, allocator, queue, commandPool, image, imageAllocation, extent, usage, layerData, format, sampleCount, mipLevels);
 }
 
+static void cmdCpyBufImg(const VkCommandBuffer& cmdBuf, const VkBuffer& buffer, const VkImage& image, VkExtent2D extent, VkFormat imageFormat, uint32_t layers, bool cpyBufToImg)
+{
+
+	VkDeviceSize imageSizeBytes = extent.height * (extent.width * imageFormatToBytes(imageFormat));
+
+	std::vector<VkBufferImageCopy> bufferCopyRegions;
+	for (uint32_t layer = 0; layer < layers; layer++) {
+		VkBufferImageCopy bufferCopyRegion = {};
+		bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		bufferCopyRegion.imageSubresource.mipLevel = 0;
+		bufferCopyRegion.imageSubresource.baseArrayLayer = layer;
+		bufferCopyRegion.imageSubresource.layerCount = 1;
+		bufferCopyRegion.imageExtent.width = extent.width;
+		bufferCopyRegion.imageExtent.height = extent.height;
+		bufferCopyRegion.imageExtent.depth = 1;
+		bufferCopyRegion.bufferOffset = layer * imageSizeBytes;
+
+		bufferCopyRegions.push_back(bufferCopyRegion);
+	}
+
+	if (cpyBufToImg)
+		vkCmdCopyBufferToImage(cmdBuf, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<uint32_t>(bufferCopyRegions.size()), bufferCopyRegions.data());
+	else
+		vkCmdCopyImageToBuffer(cmdBuf, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, static_cast<uint32_t>(bufferCopyRegions.size()), bufferCopyRegions.data());
+}
+
+extern void cmdCopyBufferToImage(const VkCommandBuffer& cmdBuf, const VkBuffer& srcBuf, const VkImage &dstImage,  VkExtent2D extent, VkFormat imageFormat, uint32_t layers)
+{	
+	cmdCpyBufImg(cmdBuf, srcBuf, dstImage, extent, imageFormat, layers, true);
+}
+
+extern void cmdCopyImageToBuffer(const VkCommandBuffer& cmdBuf, const VkImage& srcImage, const VkBuffer& dstBuffer, VkExtent2D extent, VkFormat imageFormat, uint32_t layers)
+{
+	cmdCpyBufImg(cmdBuf, dstBuffer, srcImage, extent, imageFormat, layers, false);
+}
+
 extern void createImageD(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, VkImage& image, VmaAllocation& imageAllocation, 
 	const VkExtent2D& extent, const VkImageUsageFlags& usage, const std::vector<const void*>& layerData, 
 	const VkFormat format, const VkSampleCountFlagBits& sampleCount, const uint32_t mipLevels)
@@ -271,22 +329,7 @@ extern void createImageD(const VkDevice& device, const VmaAllocator& allocator, 
 		memcpy(&start[i * imageSizeBytes], layerData[i], static_cast<size_t>(imageSizeBytes));
 	}
 	vmaUnmapMemory(allocator, stagingBufferAllocation);
-
-	std::vector<VkBufferImageCopy> bufferCopyRegions;
-	for (uint32_t layer = 0; layer < layers; layer++) {
-		VkBufferImageCopy bufferCopyRegion = {};
-		bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		bufferCopyRegion.imageSubresource.mipLevel = 0;
-		bufferCopyRegion.imageSubresource.baseArrayLayer = layer;
-		bufferCopyRegion.imageSubresource.layerCount = 1;
-		bufferCopyRegion.imageExtent.width = extent.width;
-		bufferCopyRegion.imageExtent.height = extent.height;
-		bufferCopyRegion.imageExtent.depth = 1;
-		bufferCopyRegion.bufferOffset = layer * imageSizeBytes;
-
-		bufferCopyRegions.push_back(bufferCopyRegion);
-	}
-
+	
 	VkImageCreateInfo imageCreateInfo = {};
 	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -306,12 +349,9 @@ extern void createImageD(const VkDevice& device, const VmaAllocator& allocator, 
 	VK_CHECK(vmaCreateImage(allocator, &imageCreateInfo, &allocCreateInfo, &image, &imageAllocation, nullptr),
 		"Failed to create image!");
 
-	transitionImageLayout(device, queue, commandPool, image, format,
-		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels, layers);
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
-
-	vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		static_cast<uint32_t>(bufferCopyRegions.size()), bufferCopyRegions.data());
+	cmdTransitionImageLayout(commandBuffer, image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels, layers);
+	cmdCopyBufferToImage(commandBuffer, stagingBuffer, image, extent, format, layers);
 	endSingleTimeCommands(device, queue, commandPool, commandBuffer);
 
 	vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
@@ -449,27 +489,10 @@ extern void transitionImageLayout(const VkDevice& device, const VkQueue& queue, 
 }
 
 extern void copyBufferToImage(const VkDevice& device, const VkQueue& queue, const VkCommandPool& commandPool,
-	VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) 
+	const VkBuffer& srcBuffer, const VkImage& dstImage, VkExtent2D extent, VkFormat imageFormat, uint32_t layers) 
 {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
-
-	VkBufferImageCopy region = {};
-	region.bufferOffset = 0;
-	region.bufferRowLength = 0;
-	region.bufferImageHeight = 0;
-	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	region.imageSubresource.mipLevel = 0;
-	region.imageSubresource.baseArrayLayer = 0;
-	region.imageSubresource.layerCount = 1;
-	region.imageOffset = { 0, 0, 0 };
-	region.imageExtent = {
-		width,
-		height,
-		1
-	};
-
-	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
+	cmdCopyBufferToImage(commandBuffer, srcBuffer, dstImage, extent, imageFormat, layers);
 	endSingleTimeCommands(device, queue, commandPool, commandBuffer);
 }
 

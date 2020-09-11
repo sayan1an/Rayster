@@ -246,6 +246,8 @@ namespace RtxFiltering_2
 	class TemporalFilter
 	{
 	public:
+		SaveFramePass saveFramePass;
+
 		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& filteredImgView) 
 		{
 			auto makeImage = [&device = device, &queue = queue, &commandPool = commandPool,
@@ -269,6 +271,8 @@ namespace RtxFiltering_2
 			pcb.frameIndex = 0;
 			pcb.useGradient = 1;
 			globalWorkDim = extent;
+
+			saveFramePass.createBuffer(device, allocator, queue, commandPool, VK_IMAGE_LAYOUT_GENERAL, extent, VK_FORMAT_R32G32B32A32_SFLOAT, 1, 1);
 			buffersUpdated = true;
 		}
 
@@ -300,6 +304,7 @@ namespace RtxFiltering_2
 				ImGui::RadioButton("No:##UID_TemporalFilter", &useGradient, 0);
 				pcb.useGradient = static_cast<uint32_t>(useGradient);
 			}
+			saveFramePass.widget();
 		}
 
 		void cmdDispatch(const VkCommandBuffer& cmdBuf)
@@ -308,6 +313,7 @@ namespace RtxFiltering_2
 			vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
 			vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstantBlock), &pcb);
 			vkCmdDispatch(cmdBuf, 1 + (globalWorkDim.width - 1) / 16, 1 + (globalWorkDim.height - 1) / 16, 1);
+			saveFramePass.cmdDispatch(cmdBuf, filteredImg);
 			pcb.frameIndex++;
 		}
 		
@@ -330,6 +336,8 @@ namespace RtxFiltering_2
 			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 			vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+
+			saveFramePass.cleanUp(allocator);
 		}
 
 	private:

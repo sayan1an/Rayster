@@ -264,7 +264,7 @@ namespace RtxFiltering_2
 		StencilCompositionPass stencilCompPass;
 		RtxCompositionPass rtxCompPass;
 		SubSamplePass subSamplePass;
-
+		
 		VkImageView stencilView, stencilView2, stencilView3;
 		VkImageView normalHalf, otherHalf, normalQuat, otherQuat;
 		VkImageView rtxComposedView;
@@ -306,6 +306,7 @@ namespace RtxFiltering_2
 			gui.tempFilt = &temporalFilter;
 			gui.displayPass = &subpass2;
 			gui.setStyle();
+			
 			gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
 			rPatSq.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
 			randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
@@ -318,7 +319,7 @@ namespace RtxFiltering_2
 			rtxPassHalf.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, { fboManager1.getSize().width / 2, fboManager1.getSize().height / 2 }, 2, rtxPassHalfView);
 			rtxPassQuat.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, { fboManager1.getSize().width / 4, fboManager1.getSize().height / 4 }, 3, rtxPassQuatView);
 			rtxCompPass.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxComposedView);
-
+			
 			subpass1.createSubpass(device, fboManager1.getSize(), renderPass1, cam, model);
 			rtxPass.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView);
 			rtxPassHalf.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, normalHalf, otherHalf, stencilView2);
@@ -362,7 +363,7 @@ namespace RtxFiltering_2
 			stencilPass.cleanUp(device, allocator);
 			stencilCompPass.cleanUp(device, allocator);
 			subSamplePass.cleanUp(device, allocator);
-
+			
 			vkFreeCommandBuffers(device, graphicsCommandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
 			vkDestroyPipeline(device, subpass1.pipeline, nullptr);
@@ -401,7 +402,7 @@ namespace RtxFiltering_2
 			rtxPassHalf.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, { fboManager1.getSize().width / 2, fboManager1.getSize().height / 2 }, 2, rtxPassHalfView);
 			rtxPassQuat.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, { fboManager1.getSize().width / 4, fboManager1.getSize().height / 4 }, 3, rtxPassQuatView);
 			rtxCompPass.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxComposedView);
-
+		
 			subpass1.createSubpass(device, fboManager1.getSize(), renderPass1, cam, model);
 			rtxPass.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView);
 			rtxPassHalf.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, normalHalf, otherHalf, stencilView2);
@@ -584,7 +585,7 @@ namespace RtxFiltering_2
 				imageView = createImageView(device, image, colorFormat, aspectFlagBit, 1, 1);
 			};
 
-			fboManager1.setSize({ 1920 * 2, 1080 * 2 });
+			fboManager1.setSize({ 1280 , 720 });
 			makeColorImage(fboManager1.getSize(), fboManager1.getFormat("diffuseColor"), fboManager1.getSampleCount("diffuseColor"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, diffuseColorImage, diffuseColorImageView, diffuseColorImageAllocation);
 			makeColorImage(fboManager1.getSize(), fboManager1.getFormat("specularColor"), fboManager1.getSampleCount("specularColor"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, specularColorImage, specularColorImageView, specularColorImageAllocation);
 			makeColorImage(fboManager1.getSize(), fboManager1.getFormat("normal"), fboManager1.getSampleCount("normal"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, normalImage, normalImageView, normalImageAllocation);
@@ -652,7 +653,7 @@ namespace RtxFiltering_2
 			rtxCompPass.cmdDispatch(commandBuffers[index]);
 			
 			temporalFilter.cmdDispatch(commandBuffers[index]);
-
+			
 			// begin second render-pass
 			renderPassInfo.renderPass = renderPass2;
 			renderPassInfo.framebuffer = swapChainFramebuffers[index];
@@ -695,6 +696,7 @@ namespace RtxFiltering_2
 			submitRenderCmd(commandBuffers[imageIndex]);
 			frameEnd(imageIndex);
 			rPatSq.updateDataPost();
+			temporalFilter.saveFramePass.toDisk("D:/results/");
 		}
 	};
 }

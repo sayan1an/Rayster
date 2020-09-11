@@ -2,6 +2,8 @@
 
 #include "generator.h"
 #include "helper.h"
+#include "stb_image_write.h"
+#include "tinyexr.h"
 #include "../shaders/Filters/filterParams.h"
 
 class DummyFilter
@@ -569,5 +571,190 @@ private:
 
 		return descriptorBufferInfo;
 	}
+};
 
+class SaveFramePass
+{	
+public:
+	void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkImageLayout layout, const VkExtent2D& extent, const VkFormat format, const uint32_t mipLevels, const uint32_t layers)
+	{	
+		VkDeviceSize bufferSizeBytes = layers * extent.height * (extent.width * imageFormatToBytes(format));
+		mptrStagingBuffer = createStagingBuffer(device, allocator, queue, commandPool, stagingBuffer, stagingBufferAllocation, bufferSizeBytes);
+
+		uint8Pixels = new uint8_t[extent.width * extent.height * numChannelsToSave];
+
+		imgExtent = extent;
+		imgFormat = format;
+		imgLayout = layout;
+		imgMips = mipLevels;
+		imgLayers = layers;
+
+		exrBlob.createBlob(imgExtent, numChannelsToSave);
+		buffersUpdated = true;
+	}
+
+	void cmdDispatch(const VkCommandBuffer& cmdBuf, VkImage &image)
+	{	
+		if (saveFrame > 0) {
+			CHECK_DBG_ONLY(buffersUpdated, "SaveFramePass : call createBuffers first.");
+			vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_DEPENDENCY_BY_REGION_BIT,
+				0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
+			cmdTransitionImageLayout(cmdBuf, image, imgFormat, imgLayout, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, imgMips, imgLayers);
+			cmdCopyImageToBuffer(cmdBuf, image, stagingBuffer, imgExtent, imgFormat, imgLayers);
+			cmdTransitionImageLayout(cmdBuf, image, imgFormat, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, imgLayout, imgMips, imgLayers);
+		}
+	}
+
+	void cleanUp(const VmaAllocator& allocator)
+	{	
+		vmaUnmapMemory(allocator, stagingBufferAllocation);
+		vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferAllocation);
+		delete[] uint8Pixels;
+		exrBlob.cleanUp();
+		buffersUpdated = false;
+	}
+
+	void toDisk(std::string path)
+	{	
+		if (saveFrame > 0) {
+
+			if (type == 0)
+				exrBlob.toExr(imgExtent, mptrStagingBuffer, path + std::to_string(frameIndex) + ".exr");
+			else if (type == 1) {
+				floatToUcharImage();
+				stbi_write_jpg((path + std::to_string(frameIndex) + ".jpg").c_str(), imgExtent.width, imgExtent.height, numChannelsToSave, uint8Pixels, 100);
+			}
+			frameIndex++;
+		}
+	}
+
+	void widget()
+	{
+		if (ImGui::CollapsingHeader("SaveFramePass")) {
+			ImGui::Text("Save Frame:"); ImGui::SameLine();
+			ImGui::RadioButton(("Yes" + randomUID).c_str(), &saveFrame, 1); ImGui::SameLine();
+			ImGui::RadioButton(("No" + randomUID).c_str(), &saveFrame, 0);
+
+			ImGui::Text("Type:"); ImGui::SameLine();
+			ImGui::RadioButton(("Exr" + randomUID).c_str(), &type, 0); ImGui::SameLine();
+			ImGui::RadioButton(("Jpg" + randomUID).c_str(), &type, 1);
+		}
+	}
+
+	SaveFramePass()
+	{
+		buffersUpdated = false;
+		saveFrame = 0;
+		frameIndex = 0;
+		type = 0;
+		randomUID = "##UID_SaveFramePass" + std::to_string(rGen.getNextUint32_t());
+	}
+private:
+	VkBuffer stagingBuffer;
+	VmaAllocation stagingBufferAllocation;
+	void* mptrStagingBuffer;
+	uint8_t* uint8Pixels;
+	
+	VkExtent2D imgExtent;
+	VkFormat imgFormat;
+	VkImageLayout imgLayout;
+	uint32_t imgMips;
+	uint32_t imgLayers;
+	
+	RandomGenerator rGen;
+	std::string randomUID;
+	bool buffersUpdated;
+	int saveFrame;
+	uint64_t frameIndex;
+	uint32_t numChannelsToSave = 3;
+	int type; // 0 -exr, 1-jpg
+	
+	void floatToUcharImage()
+	{	
+		uint32_t indexDst = 0;
+		uint32_t indexSrc = 0;
+		float* pBuffer = static_cast<float*>(mptrStagingBuffer);
+
+		for (uint32_t j = imgExtent.height - 1; (int)j >= 0; --j)
+		{
+			for (uint32_t i = 0; i < imgExtent.width; ++i)
+			{	
+				for (uint32_t c = 0; c < numChannelsToSave; c++)
+				{
+					int d = static_cast<int>(pBuffer[indexSrc + c] * 255.9f);
+					uint8Pixels[indexDst + c] = std::clamp(d, 0, 255);
+				}
+
+				indexDst += numChannelsToSave;
+				indexSrc += 4;
+			}
+		}
+	}
+
+	struct ExrBlob {
+		std::vector<float> images[4];
+		EXRHeader header;
+		EXRImage image;
+
+		void createBlob(VkExtent2D imgExtent, uint32_t numChannels) 
+		{
+			CHECK(numChannels == 3 || numChannels == 4, "Could not save to EXR, number of channels must be 3 or 4.");
+			InitEXRHeader(&header);
+			InitEXRImage(&image);
+
+			image.num_channels = numChannels;
+
+			for (uint32_t c = 0; c < numChannels; c++)
+				images[c].resize(imgExtent.width * imgExtent.height);
+			
+						
+			image_ptr[0] = &(images[2].at(0)); // B
+			image_ptr[1] = &(images[1].at(0)); // G
+			image_ptr[2] = &(images[0].at(0)); // R
+			if (numChannels == 4)
+				image_ptr[3] = &(images[3].at(0)); // A
+
+			image.images = (unsigned char**)image_ptr;
+			image.width = static_cast<int>(imgExtent.width);
+			image.height = static_cast<int>(imgExtent.height);
+
+			header.num_channels = numChannels;
+			header.channels = new EXRChannelInfo[header.num_channels];
+			
+			// Must be BGR(A) order, since most of EXR viewers expect this channel order.
+			header.channels[0].name[0] = 'B'; header.channels[0].name[1] = '\0';
+			header.channels[1].name[0] = 'G'; header.channels[1].name[1] = '\0';
+			header.channels[2].name[0] = 'R'; header.channels[2].name[1] = '\0';
+			if (numChannels == 4)
+				header.channels[3].name[0] = 'A'; header.channels[3].name[1] = '\0';
+			
+			header.pixel_types = new int[header.num_channels];
+			header.requested_pixel_types = new int[header.num_channels];
+			for (int i = 0; i < header.num_channels; i++) {
+				header.pixel_types[i] = TINYEXR_PIXELTYPE_FLOAT; // pixel type of input image
+				header.requested_pixel_types[i] = TINYEXR_PIXELTYPE_FLOAT; // pixel type of output image to be stored in .EXR
+			}
+		}
+
+		void toExr(VkExtent2D imgExtent, void* mptrStagingBuffer, std::string filename)
+		{	
+			float* pBuffer = static_cast<float*>(mptrStagingBuffer);
+
+			for (uint32_t i = 0; i < imgExtent.width * imgExtent.height; i++)
+				for (int c = 0; c < header.num_channels; c++)
+					images[c][i] = pBuffer[4 * i + c];
+			
+			const char* err;
+			CHECK(SaveEXRImageToFile(&image, &header, filename.c_str(), &err) == TINYEXR_SUCCESS, "Filed to save as .exr" + std::string(err));
+		}
+
+		void cleanUp()
+		{
+			delete []header.channels;
+			delete []header.pixel_types;
+			delete []header.requested_pixel_types;
+		}
+	private:
+		float* image_ptr[4];
+	} exrBlob;
 };

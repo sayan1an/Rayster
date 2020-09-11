@@ -497,10 +497,10 @@ public:
 				instance.model = glm::translate<float>(instance.model, glm::vec3(0.0, 0.0, 0.0));
 				glm::mat4 rotate = glm::identity<glm::mat4>();
 				if (idx == 1) {
-					instance.model = glm::rotate<float>(instance.model, 0.005f, glm::vec3(1, 1, 0));
+					instance.model = glm::rotate<float>(instance.model, 0.05f, glm::vec3(1, 1, 0));
 				}
 				else if (idx == 2 || idx == 3) {
-					rotate = glm::rotate<float>(rotate, 0.005f, glm::vec3(0, 1, 0));
+					rotate = glm::rotate<float>(rotate, 0.05f, glm::vec3(0, 1, 0));
 					instance.model = rotate * instance.model;
 				}
 				instance.modelIT = glm::transpose(glm::inverse(instance.model));

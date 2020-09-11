@@ -26,3 +26,6 @@
 [submodule "external/implot"]
 	path = external/implot
 	url = https://github.com/epezent/implot.git
+[submodule "external/tinyexr"]
+	path = external/tinyexr
+	url = https://github.com/syoyo/tinyexr.git

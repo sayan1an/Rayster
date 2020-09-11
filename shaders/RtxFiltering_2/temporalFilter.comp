@@ -23,6 +23,7 @@ void main()
 	ivec3 currentFrameIdx = ivec3(pixel, pcb.frameIndex % pcb.windowSize);
 	uint halfWindowSz = pcb.windowSize / 2;
 	ivec3 currentFrameIdxHalf = ivec3(pixel, pcb.frameIndex % halfWindowSz);
+	bool burnIn = pcb.frameIndex <= pcb.windowSize ? true : false;
 
 	vec4 newCol = imageLoad(inRtx, pixel);
 	vec4 oldCol = imageLoad(window, currentFrameIdx);
@@ -32,7 +33,7 @@ void main()
 	vec4 oldCorrection = imageLoad(gradCorrection, pixel);
 	vec4 oldGradSum = imageLoad(gradSum, pixel);
 
-	vec4 newGrad = (newCol - oldCol) / pcb.windowSize; 
+	vec4 newGrad = ((newCol - oldCol) / pcb.windowSize);
 	vec4 newCorrection = oldCorrection - (halfWindowSz + 1) * oldGrad - halfWindowSz * newGrad + oldGradSum;
 	vec4 newFilteredNoGrad = filteredNoGradPrev + newGrad;
 	vec4 newGradSum = oldGradSum + newGrad - oldGrad;
