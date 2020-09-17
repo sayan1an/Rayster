@@ -6,6 +6,7 @@ glslangValidator = "C:/VulkanSDK/1.1.106.0/Bin32/glslangValidator.exe"
 forceFullCompilationList = []
 forceFullCompilationList.append(("./commonMath.h", "null"))
 forceFullCompilationList.append(("./Filters/filterParams.h", "null"))
+forceFullCompilationList.append(("./RtxFiltering_2/hostDeviceShared.h", "null"))
 
 compileList =[]
 compileList.append(("./GBuffer/gBuf.vert", "./GBuffer/gBufVert.spv"))

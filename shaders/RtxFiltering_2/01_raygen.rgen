@@ -30,10 +30,11 @@ layout (push_constant) uniform pcBlock {
 layout(location = 0) rayPayloadNV uint hit;
 layout(location = 1) rayPayloadNV vec3 radiance;
 
-void shadowRayAreaLight(in vec3 lightPosition, in vec3 viewDir, in vec3 origin, in vec3 surfaceNormal, in float bsdfType, in float specularAlpha, out vec3 diffComp, out vec3 specComp)
+void shadowRayAreaLight(in vec3 lightPosition, in vec3 viewDir, in vec3 origin, in vec3 surfaceNormal, in float bsdfType, in float specularAlpha, out vec3 diffComp, out vec3 specComp, out float lightHit)
 {	
 	diffComp = vec3(0);
 	specComp = vec3(0);
+	lightHit = 0;
 
 	float distance = length(lightPosition - origin);
 	vec3 lightDir = (lightPosition - origin) / distance;
@@ -46,6 +47,7 @@ void shadowRayAreaLight(in vec3 lightPosition, in vec3 viewDir, in vec3 origin, 
 	traceNV(topLevelAS, gl_RayFlagsOpaqueNV, gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV
 		, 1, 0, 1, origin, 0.01f, lightDir, 10000.0f, 1);
 
+	lightHit = radiance.x + radiance.y + radiance.z > 0 ? 1 : 0;
 	radiance /= (distance * distance);
 	specComp = bsdfType > 0.5f ? radiance * ggxBrdf(viewDir, lightDir, surfaceNormal, specularAlpha) : vec3(0);
 	diffComp = radiance * cos / PI;
@@ -73,6 +75,7 @@ void main()
 	vec3 diffComp = vec3(0);
 	vec3 specComp = vec3(0);
 	float alpha = 0;
+	float lightPercent = 0;
 	if (stencil.w > 0.5 && stencil.w < 1.5)
 	{
 	alpha = 1;
@@ -98,21 +101,24 @@ void main()
 		origin = origin + (normalDepth.w - 0.000f) * viewDir;
 		
 		vec3 spec, diff;
+		float lightHit;
 		for (uint i = 0; i < pcb.numSamples; i++) {
 			vec2 bary = uvToBary(i); 
 			uint index = i & 1;
 			
 			shadowRayAreaLight((lightVertices.v[3*index] * bary.x + lightVertices.v[3*index + 1] * bary.y + lightVertices.v[3*index + 2] * (1 - bary.x - bary.y)).xyz,
-				-viewDir.xyz, origin.xyz, normalDepth.xyz, other.w, other.x, diff, spec);
+				-viewDir.xyz, origin.xyz, normalDepth.xyz, other.w, other.x, diff, spec, lightHit);
 
 			diffComp += diff;
 			specComp += spec;
+			lightPercent += lightHit;
 		}
 				
 		diffComp *= (pcb.power / pcb.numSamples);
 		specComp *= (pcb.power / pcb.numSamples);
+		lightPercent /= pcb.numSamples;
 	}
 	}
 	imageStore(outImage, ivec3(pixel, 0), vec4(diffComp, alpha));
-	imageStore(outImage, ivec3(pixel, 1), vec4(specComp, alpha));
+	imageStore(outImage, ivec3(pixel, 1), vec4(specComp, lightPercent));
 }

@@ -298,7 +298,7 @@ public:
 	}
 
 	void cmdDispatch(const VkCommandBuffer& cmdBuf, const VkExtent2D& screenExtent)
-	{
+	{	
 		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 		vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
 		// update push constant block
@@ -617,7 +617,6 @@ public:
 	void toDisk(std::string path)
 	{	
 		if (saveFrame > 0) {
-
 			if (type == 0)
 				exrBlob.toExr(imgExtent, mptrStagingBuffer, path + std::to_string(frameIndex) + ".exr");
 			else if (type == 1) {

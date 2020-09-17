@@ -61,8 +61,13 @@ void main()
 	memoryBarrierShared();
 	barrier();
 
-	if (tx < 4 && ty < 4) {
+	if (tx < 4 && ty < 4)
 		meanVarShared(ivec2(tx,ty), mean, var);
+	
+	memoryBarrierShared();
+	barrier();
+
+	if (tx < 4 && ty < 4) {
 		sMean[ty][tx] = mean;
 		sVar[ty][tx] = var;
 
@@ -74,8 +79,8 @@ void main()
 
 	if (tx < 2 && ty < 2) {
 		meanVarShared(ivec2(tx,ty), mean, var);
-		sMean[ty][tx] = mean;
-		sVar[ty][tx] = var;
+		//sMean[ty][tx] = mean;
+		//sVar[ty][tx] = var;
 
 		imageStore(outStencil3, 2 * ivec2(gl_WorkGroupID.xy) + ivec2(tx, ty), vec4(var2Std(var, mean), 0, 0));
 	}

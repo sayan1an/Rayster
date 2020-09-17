@@ -4,6 +4,7 @@
 #include "../../lightSources.h"
 #include "../../camera.hpp"
 #include "../../random.h"
+#include "../../../shaders/RtxFiltering_2/hostDeviceShared.h"
 
 #include "TemporalFiltering.hpp"
 
@@ -153,7 +154,7 @@ namespace RtxFiltering_2
 	class RtxCompositionPass
 	{
 	public:
-		void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& rtxComposedView)
+		void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& rtxComposedView, VkImageView& smView, VkImageView& smBlurView)
 		{
 			auto makeImage = [&device = device, &queue = queue, &commandPool = commandPool,
 				&allocator = allocator](VkExtent2D extent, VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation)
@@ -164,8 +165,13 @@ namespace RtxFiltering_2
 			};
 
 			makeImage(extent, VK_FORMAT_R32G32B32A32_SFLOAT, rtxComposedImage, rtxComposedImageView, rtxComposedImageAllocation);
+			makeImage(extent, VK_FORMAT_R32_SFLOAT, shadowMap, shadowMapView, shadowMapAllocation);
+			makeImage({ extent.width / SHADOW_MAP_SUBSAMPLE, extent.height / SHADOW_MAP_SUBSAMPLE }, VK_FORMAT_R32_SFLOAT, shadowMapBlur, shadowMapBlurView, shadowMapBlurAllocation);
+
 			createTexSampler(device);
 			rtxComposedView = rtxComposedImageView;
+			smView = shadowMapView;
+			smBlurView = shadowMapBlurView;
 			globalWorkDim = extent;
 		}
 
@@ -177,6 +183,8 @@ namespace RtxFiltering_2
 			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { texSampler , rtxView2,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { texSampler , rtxView3,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , rtxComposedImageView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , shadowMapView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 7, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , shadowMapBlurView,  VK_IMAGE_LAYOUT_GENERAL });
 
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -189,13 +197,17 @@ namespace RtxFiltering_2
 		{
 			vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 			vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
-			vkCmdDispatch(cmdBuf, 1 + (globalWorkDim.width - 1) / 16, 1 + (globalWorkDim.height - 1) / 16, 1);
+			vkCmdDispatch(cmdBuf, 1 + (globalWorkDim.width - 1) / SHADOW_MAP_SUBSAMPLE, 1 + (globalWorkDim.height - 1) / SHADOW_MAP_SUBSAMPLE, 1);
 		}
 
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
 		{
 			vkDestroyImageView(device, rtxComposedImageView, nullptr);
 			vmaDestroyImage(allocator, rtxComposedImage, rtxComposedImageAllocation);
+			vkDestroyImageView(device, shadowMapView, nullptr);
+			vmaDestroyImage(allocator, shadowMap, shadowMapAllocation);
+			vkDestroyImageView(device, shadowMapBlurView, nullptr);
+			vmaDestroyImage(allocator, shadowMapBlur, shadowMapBlurAllocation);
 			vkDestroySampler(device, texSampler, nullptr);
 			vkDestroyPipeline(device, pipeline, nullptr);
 			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -222,6 +234,14 @@ namespace RtxFiltering_2
 		VkImage rtxComposedImage;
 		VkImageView rtxComposedImageView;
 		VmaAllocation rtxComposedImageAllocation;
+
+		VkImage shadowMap;
+		VkImageView shadowMapView;
+		VmaAllocation shadowMapAllocation;
+
+		VkImage shadowMapBlur;
+		VkImageView shadowMapBlurView;
+		VmaAllocation shadowMapBlurAllocation;
 
 		VkExtent2D globalWorkDim;
 		VkSampler texSampler;
