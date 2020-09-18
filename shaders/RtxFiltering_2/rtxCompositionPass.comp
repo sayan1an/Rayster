@@ -41,7 +41,7 @@ void main()
 
 	float weight = diffComp1.w + diffComp2.w + diffComp3.w;
 	vec4 specComp = specComp1 + specComp2 + specComp3;
-	vec4 outCol = diffTex * (diffComp1 + diffComp2 + diffComp3)  + specTex * specComp * 0;
+	vec4 outCol = diffTex * (diffComp1 + diffComp2 + diffComp3)  + specTex * specComp;
 	outCol.w = weight;
 
 	shadow[lid.y][lid.x] = specComp.w/weight;

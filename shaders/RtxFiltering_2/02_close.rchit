@@ -8,6 +8,7 @@ layout(binding = 10, set = 0) readonly buffer Material { uvec4 textureIdx[]; } m
 layout(binding = 11, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
 layout(binding = 12, set = 0) readonly buffer Indices { uint i[]; } indices;
 layout(binding = 13, set = 0) uniform sampler2DArray ldrTexSampler;
+//layout(binding = 14, set = 0) readonly buffer LightInstanceToGlobalInstance { uint i[]; } lightInstanceToGlobalInstance;
 
 layout(location = 1) rayPayloadInNV vec3 radiance;
 hitAttributeNV vec3 attribs;

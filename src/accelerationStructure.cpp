@@ -86,9 +86,9 @@ void BottomLevelAccelerationStructure::create(const VkDevice& device, const VmaA
 		"AccelarationStructure: failed to allocate scratch buffer for bottom level accelaration structure!");
 }
 
-void BottomLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, const std::vector<VkGeometryNV>& geometries, bool partialRebuild)
+void BottomLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, const std::vector<VkGeometryNV>& geometries, bool update)
 {
-	CHECK_DBG_ONLY(!partialRebuild || allowUpdate == partialRebuild,
+	CHECK_DBG_ONLY(!update || allowUpdate == update,
 		"AccelartionStructure: Partial rebuild for bottom level accelaration structure is not allowed. First create the BLAS with appropriate flag!");
 
 	// Build the actual bottom-level acceleration structure
@@ -100,8 +100,8 @@ void BottomLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, c
 	buildInfo.geometryCount = static_cast<uint32_t>(geometries.size());
 	buildInfo.pGeometries = geometries.data();
 
-	vkCmdBuildAccelerationStructureNV(cmdBuf, &buildInfo, VK_NULL_HANDLE, 0, partialRebuild,
-		accelerationStructure, partialRebuild ? accelerationStructure : VK_NULL_HANDLE, scratchBuffer,
+	vkCmdBuildAccelerationStructureNV(cmdBuf, &buildInfo, VK_NULL_HANDLE, 0, update,
+		accelerationStructure, update ? accelerationStructure : VK_NULL_HANDLE, scratchBuffer,
 		0);
 
 	// Wait for the builder to complete by setting a barrier on the resulting buffer. This is
@@ -233,9 +233,9 @@ void TopLevelAccelerationStructure::create(const VkDevice& device, const VmaAllo
 		"AccelarationStructure: failed to map instance buffer for top level accelaration structure!");
 }
 
-void TopLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, const uint32_t instanceCount, bool rebuild)
+void TopLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, const uint32_t instanceCount, bool update)
 {	
-	CHECK_DBG_ONLY(!rebuild || allowUpdate == rebuild,
+	CHECK_DBG_ONLY(!update || allowUpdate == update,
 		"AccelartionStructure: Partial rebuild for bottom level accelaration structure is not allowed. First create the BLAS with appropriate flag!");
 
 	VkBufferCopy copyRegion = {};
@@ -266,8 +266,8 @@ void TopLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, cons
 	buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_NV;
 	buildInfo.instanceCount = instanceCount;
 	
-	vkCmdBuildAccelerationStructureNV(cmdBuf, &buildInfo, instanceBuffer, 0, rebuild,
-		accelerationStructure, rebuild ? accelerationStructure : VK_NULL_HANDLE, scratchBuffer, 0);
+	vkCmdBuildAccelerationStructureNV(cmdBuf, &buildInfo, instanceBuffer, 0, update,
+		accelerationStructure, update ? accelerationStructure : VK_NULL_HANDLE, scratchBuffer, 0);
 
 	// Wait for the builder to complete by setting a barrier on the resulting buffer. This is
 	// particularly important as the construction of the top-level hierarchy may be called right

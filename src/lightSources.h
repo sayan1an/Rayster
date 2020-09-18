@@ -95,10 +95,13 @@ public:
 			
 			const Mesh* mesh = nullptr;
 			
+			// Check whether the instance is a light source and material information is per-vertex
+			// Note that if the material is per vertex, then all vertex should be of type light source. Checked
+			// in model.hpp when adding an instance
 			if (instance.data.z > 0 && instance.data.x >= 0xffffffff) {
 				uint32_t meshIdx = model->meshPointers[globalInstanceIdx];
 				mesh = model->meshes[meshIdx];
-			}
+			} // Check whether the instance is a light source and material information is per-instance
 			else if (instance.data.z > 0) {
 				uint32_t materialIdx = instance.data.x;
 				Material mat = model->materials[materialIdx];
@@ -143,10 +146,17 @@ public:
 		mptrLightVertices = createBuffer(device, allocator, queue, commandPool, lightVerticesBuffer, lightVerticesBufferAllocation, lightVerticesStagingBuffer, lightVerticesStagingBufferAllocation, sizeof(lightVertices[0]) * lightVertices.size());
 		mptrBoundingSpheres = createBuffer(device, allocator, queue, commandPool, bndSphBuffer, bndSphBufferAllocation, bndSphStagingBuffer, bndSphStagingBufferAllocation, sizeof(boundingSpheres[0]) * boundingSpheres.size());
 		dPdf.createBuffers(device, allocator, queue, commandPool);
+
+		// create the TLAS solely for light sources
+		// We use reference the same BLAS from model.hpp for light meshes.
+		as_topLevel.create(device, allocator, static_cast<uint32_t>(boundingSpheres.size()), false);
+		createBuffer(device, allocator, queue, commandPool, lightInstanceToGlobalInstanceBuffer, lightInstanceToGlobalInstanceAllocation, boundingSphereInstanceIndexes.size() * sizeof(boundingSphereInstanceIndexes[0]), boundingSphereInstanceIndexes.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	}
 
 	void cmdTransferData(const VkCommandBuffer& cmdBuffer)
-	{
+	{	
+		as_topLevel.cmdBuild(cmdBuffer, static_cast<uint32_t>(boundingSpheres.size()), false);
+
 		VkBufferCopy copyRegion = {};
 		copyRegion.size = sizeof(lightVertices[0]) * lightVertices.size();
 		vkCmdCopyBuffer(cmdBuffer, lightVerticesStagingBuffer, lightVerticesBuffer, 1, &copyRegion);
@@ -198,6 +208,7 @@ public:
 		}
 
 		uint32_t boundingSphereIdx = 0;
+		tlas_instanceData.clear();
 		for (uint32_t bndSphInstIdx : boundingSphereInstanceIndexes) {
 			uint32_t meshIdx = model->meshPointers[bndSphInstIdx];
 			const Mesh* mesh = model->meshes[meshIdx];
@@ -207,14 +218,32 @@ public:
 			// multiply radius with largest eigenvalue of orthogonal matrix
 			center.w = std::max(std::max(glm::length(l2w_3[0]), glm::length(l2w_3[1])), glm::length(l2w_3[2])) * mesh->boundingSphere.w;
 			boundingSpheres[boundingSphereIdx] = center;
+			
+			
+			TopLevelAccelerationStructureData data;
+			// Copy first three rows of transformation matrix of each instance
+			glm::mat4 modelTrans = glm::transpose(l2w);
+			memcpy(data.transform, &modelTrans, sizeof(data.transform));
+			data.instanceId = boundingSphereIdx;
+			data.mask = 0xff;
+			data.instanceOffset = 0; // Since this is used to determine hit group index compuation, this may change
+			data.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
+			data.blasHandle = mesh->as_bottomLevel.handle;
+			tlas_instanceData.push_back(data);
+						
 			boundingSphereIdx++;
 		}
+
+		CHECK_DBG_ONLY(boundingSphereIdx == boundingSpheres.size(),
+			"LightSources: Number of instances for Top Level Accelaration structure should match dynamic instance data count.");
+
+		as_topLevel.updateInstanceData(tlas_instanceData);
 
 		memcpy(mptrLightVertices, lightVertices.data(), sizeof(lightVertices[0]) * lightVertices.size());
 		memcpy(mptrBoundingSpheres, boundingSpheres.data(), sizeof(boundingSpheres[0]) * boundingSpheres.size());
 	}
 
-	void cleanUp(const VmaAllocator& allocator)
+	void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
 	{	
 		vmaDestroyBuffer(allocator, lightVerticesBuffer, lightVerticesBufferAllocation);
 		vmaUnmapMemory(allocator, lightVerticesStagingBufferAllocation);
@@ -223,6 +252,10 @@ public:
 		vmaDestroyBuffer(allocator, bndSphBuffer, bndSphBufferAllocation);
 		vmaUnmapMemory(allocator, bndSphStagingBufferAllocation);
 		vmaDestroyBuffer(allocator, bndSphStagingBuffer, bndSphStagingBufferAllocation);
+
+		vmaDestroyBuffer(allocator, lightInstanceToGlobalInstanceBuffer, lightInstanceToGlobalInstanceAllocation);
+
+		as_topLevel.cleanUp(device, allocator);
 
 		dPdf.cleanUp(allocator);
 	}
@@ -252,14 +285,28 @@ public:
 		return descriptorBufferInfo;
 	}
 
+	VkDescriptorBufferInfo getLightInstanceDescriptorBufferInfo() const
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = lightInstanceToGlobalInstanceBuffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		return descriptorBufferInfo;
+	}
+
+	VkWriteDescriptorSetAccelerationStructureNV getDescriptorTlas() const
+	{
+		return as_topLevel.getDescriptorTlasInfo();
+	}
+
 private:
 	const Model* model;
 	std::vector<uint32_t> triangleIdxs; // MSB 16 bit - instance index, LSB 16 bit primitive index
 	std::vector<glm::vec4> lightVertices;
 	std::vector<glm::vec4> boundingSpheres;
 	std::vector<uint32_t> boundingSphereInstanceIndexes;
-
-
+	
 	VkBuffer lightVerticesStagingBuffer;
 	VmaAllocation lightVerticesStagingBufferAllocation;
 	void* mptrLightVertices;
@@ -276,4 +323,12 @@ private:
 	{	
 		return glm::length(glm::cross(v0 - v1, v0 - v2)) * 0.5f;
 	}
+
+	// Top level AS for meshes containing light sources
+	TopLevelAccelerationStructure as_topLevel;
+	std::vector<TopLevelAccelerationStructureData> tlas_instanceData;
+
+	// map gl_InstanceId to global instance index
+	VkBuffer lightInstanceToGlobalInstanceBuffer;
+	VmaAllocation lightInstanceToGlobalInstanceAllocation;
 };

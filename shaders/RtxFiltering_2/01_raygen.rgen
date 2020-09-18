@@ -114,8 +114,8 @@ void main()
 			lightPercent += lightHit;
 		}
 				
-		diffComp *= (pcb.power / pcb.numSamples);
-		specComp *= (pcb.power / pcb.numSamples);
+		diffComp *= pcb.power / pcb.numSamples;
+		specComp *= pcb.power / pcb.numSamples;
 		lightPercent /= pcb.numSamples;
 	}
 	}

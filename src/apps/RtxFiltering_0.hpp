@@ -473,7 +473,7 @@ private:
 		gui.cleanUp(device, allocator);
 		model.cleanUpRtx(device, allocator);
 		model.cleanUp(device, allocator);
-		areaSources.cleanUp(allocator);
+		areaSources.cleanUp(device, allocator);
 		randomPattern.cleanUp(allocator);
 	}
 	
