@@ -2,15 +2,15 @@
 #extension GL_NV_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : enable
 
-layout(binding = 6, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
-layout(binding = 9, set = 0) readonly buffer StaticInstanceData { uvec4 i[]; } staticInstanceData;
-layout(binding = 10, set = 0) readonly buffer Material { uvec4 textureIdx[]; } materials;
-layout(binding = 11, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
-layout(binding = 12, set = 0) readonly buffer Indices { uint i[]; } indices;
-layout(binding = 13, set = 0) uniform sampler2DArray ldrTexSampler;
-//layout(binding = 14, set = 0) readonly buffer LightInstanceToGlobalInstance { uint i[]; } lightInstanceToGlobalInstance;
+layout(binding = 7, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 10, set = 0) readonly buffer StaticInstanceData { uvec4 i[]; } staticInstanceData;
+layout(binding = 11, set = 0) readonly buffer Material { uvec4 textureIdx[]; } materials;
+layout(binding = 12, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
+layout(binding = 13, set = 0) readonly buffer Indices { uint i[]; } indices;
+layout(binding = 14, set = 0) uniform sampler2DArray ldrTexSampler;
+layout(binding = 15, set = 0) readonly buffer LightInstanceToGlobalInstance { uint i[]; } lightInstanceToGlobalInstance;
 
-layout(location = 1) rayPayloadInNV vec3 radiance;
+layout(location = 0) rayPayloadInNV vec3 radiance;
 hitAttributeNV vec3 attribs;
 
 struct Vertex 
@@ -44,7 +44,7 @@ Vertex unpackVertex(uint index)
 
 void main()
 {  
-   uvec4 staticInstanceDataUnit = staticInstanceData.i[gl_InstanceID];
+   uvec4 staticInstanceDataUnit = staticInstanceData.i[lightInstanceToGlobalInstance.i[gl_InstanceID]];
    vec3 lightDir = radiance;
 
    radiance = vec3(0, 0, 0);

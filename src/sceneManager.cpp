@@ -532,17 +532,18 @@ static void loadBasicShapes(Model& model, Camera &cam)
 	cam.setDistanceIncrement(0.01f);
 
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f))); // 0
+	//model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.929f, 0.333f, 0.231f, 1.0f))); // 1
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.125f, 0.388f, 0.608f, 1.0f))); // 2
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.235f, 0.682f, 0.639f, 1.0f))); // 3
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.2f, 0.2f, 0.2f, 1.0f))); // 4
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0929f, 0.0333f, 0.0231f, 1.0f))); // 5
-	
+	//model.addLdrTexture(Image2d(1, 1, glm::vec4(1.f, 1.f, 1.f, 1.0f)));
 
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.4f, 1.5f, 1.0f, 1.0f), true)); // 0
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.05f, 1.5f, 1.0f, 1.0f), true)); // 1
 
-	model.addMaterial(0, 5, 1, GGX); // floor
+	model.addMaterial(0, 5, 0, GGX); // floor
 	model.addMaterial(1, 4, 1, GGX); // urchin
 	model.addMaterial(2, 4, 1, GGX); // sphere
 	model.addMaterial(3, 4, 1, GGX); // cube
@@ -582,13 +583,16 @@ static void loadBasicShapes(Model& model, Camera &cam)
 
 	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0.0f, 4.5f, 0));
 	model.addInstance(4, tf, 4, 7);
+
+	//tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(4.5f, 4.5f, 0));
+	//model.addInstance(4, tf, 4, 7);
 }
 
 extern void loadScene(Model& model, Camera& cam, const std::string& name)
 {	
 	//loadMedievalHouse(model, cam);
-	loadBasicShapes(model, cam);
-	//loadSpaceship(model, cam);
+	//loadBasicShapes(model, cam);
+	loadSpaceship(model, cam);
 	//loadDefault(model, cam);
 
 	/*if (name.compare("default") == 0)
