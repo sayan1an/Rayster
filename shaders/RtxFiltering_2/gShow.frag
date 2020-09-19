@@ -44,6 +44,8 @@ void main()
 		uint b = between(val, 0.0002, 1 - 0.0002);
 
 		outColor = vec4(r, g, b, 1);
+		//float rayTraceProb = exp(-(val - 0.5) * (val - 0.5)/ 0.125);
+		//outColor = vec4(vec3(), 1);
 	}
 
 }

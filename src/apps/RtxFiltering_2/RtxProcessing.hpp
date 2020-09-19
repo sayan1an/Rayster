@@ -25,33 +25,38 @@ namespace RtxFiltering_2
 			};
 
 			makeImage(extent, VK_FORMAT_R32G32B32A32_SFLOAT, rtxOutImage, rtxOutImageView, rtxOutImageAllocation, 2);
+			createTexSampler(device);
 
 			rtxOutView = rtxOutImageView;
 			globalWorkDim = extent;
 
 			vkCmdTraceRaysNV = reinterpret_cast<PFN_vkCmdTraceRaysNV>(vkGetDeviceProcAddr(device, "vkCmdTraceRaysNV"));
 			pcb.level = level;
+			pcb.shadowRayCutoff = 0.45f;
+			pcb.shadowRayCutoffProb = 0.05f;
 		}
 
 		void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator,
-			const Model& model, const Camera& cam, const AreaLightSources& areaSource, const SquarePattern& randomPattern, const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& stencil)
+			const Model& model, const Camera& cam, const AreaLightSources& areaSource, const SquarePattern& coherentSamples, const RandomGenerator& randGen, const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& stencil, const VkImageView& shadowMap)
 		{
 			descGen.bindTLAS({ 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, model.getDescriptorTlas());
 			descGen.bindTLAS({ 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.getDescriptorTlas());
 			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, inNormal, VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, inOther, VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, stencil, VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, rtxOutImageView, VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindBuffer({ 6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, cam.getDescriptorBufferInfo());
-			descGen.bindBuffer({ 7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, areaSource.getVerticesDescriptorBufferInfo());
-			descGen.bindBuffer({ 8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.dPdf.getCdfNormDescriptorBufferInfo());
-			descGen.bindBuffer({ 9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, randomPattern.getSquareSamplesDescriptorBufferInfo());
-			descGen.bindBuffer({ 10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getStaticInstanceDescriptorBufferInfo());
-			descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getMaterialDescriptorBufferInfo());
-			descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getVertexDescriptorBufferInfo());
-			descGen.bindBuffer({ 13, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getIndexDescriptorBufferInfo());
-			descGen.bindImage({ 14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, { model.ldrTextureSampler,  model.ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-			descGen.bindBuffer({ 15, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, areaSource.getLightInstanceDescriptorBufferInfo());
+			descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { texSampler, shadowMap, VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, rtxOutImageView, VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindBuffer({ 7, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, cam.getDescriptorBufferInfo());
+			descGen.bindBuffer({ 8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, areaSource.getVerticesDescriptorBufferInfo());
+			descGen.bindBuffer({ 9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.dPdf.getCdfNormDescriptorBufferInfo());
+			descGen.bindBuffer({ 10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, coherentSamples.getSquareSamplesDescriptorBufferInfo());
+			descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, randGen.getDescriptorBufferInfo());
+			descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getStaticInstanceDescriptorBufferInfo());
+			descGen.bindBuffer({ 13, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getMaterialDescriptorBufferInfo());
+			descGen.bindBuffer({ 14, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getVertexDescriptorBufferInfo());
+			descGen.bindBuffer({ 15, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getIndexDescriptorBufferInfo());
+			descGen.bindImage({ 16, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, { model.ldrTextureSampler,  model.ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+			descGen.bindBuffer({ 17, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, areaSource.getLightInstanceDescriptorBufferInfo());
 
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -94,6 +99,7 @@ namespace RtxFiltering_2
 		{
 			vkDestroyImageView(device, rtxOutImageView, nullptr);
 			vmaDestroyImage(allocator, rtxOutImage, rtxOutImageAllocation);
+			vkDestroySampler(device, texSampler, nullptr);
 
 			vkDestroyPipeline(device, pipeline, nullptr);
 			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -102,10 +108,12 @@ namespace RtxFiltering_2
 			vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 		}
 
-		void cmdDispatch(const VkCommandBuffer& cmdBuf, const uint32_t dPdfSize, const uint32_t numSamples)
+		void cmdDispatch(const VkCommandBuffer& cmdBuf, const uint32_t dPdfSize, const uint32_t numSamples, float shadowRayCutoff, float shadowRayCutoffProb)
 		{
 			pcb.discretePdfSize = dPdfSize;
 			pcb.numSamples = numSamples;
+			pcb.shadowRayCutoff = shadowRayCutoff;
+			pcb.shadowRayCutoffProb = shadowRayCutoffProb;
 			vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipeline);
 			vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 			vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_RAYGEN_BIT_NV, 0, sizeof(PushConstantBlock), &pcb);
@@ -119,7 +127,6 @@ namespace RtxFiltering_2
 			vkCmdTraceRaysNV(cmdBuf, sbtBuffer, rayGenOffset, sbtBuffer, missOffset, missStride, sbtBuffer, hitGroupOffset, hitGroupStride,
 				VK_NULL_HANDLE, 0, 0, globalWorkDim.width, globalWorkDim.height, 1);
 		}
-
 	private:
 		DescriptorSetGenerator descGen;
 		RayTracingPipelineGenerator rtxPipeGen;
@@ -140,6 +147,8 @@ namespace RtxFiltering_2
 			uint32_t discretePdfSize;
 			uint32_t numSamples;
 			uint32_t level;
+			float shadowRayCutoff;
+			float shadowRayCutoffProb;
 		} pcb;
 
 		VkImage rtxOutImage;
@@ -149,6 +158,32 @@ namespace RtxFiltering_2
 		VkExtent2D globalWorkDim;
 
 		PFN_vkCmdTraceRaysNV vkCmdTraceRaysNV = nullptr;
+
+		VkSampler texSampler;
+
+		void createTexSampler(const VkDevice& device)
+		{
+			VkSamplerCreateInfo samplerInfo = {};
+			samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerInfo.magFilter = VK_FILTER_LINEAR;
+			samplerInfo.minFilter = VK_FILTER_LINEAR;
+			samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerInfo.anisotropyEnable = VK_TRUE;
+			samplerInfo.maxAnisotropy = 16;
+			samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+			samplerInfo.unnormalizedCoordinates = VK_FALSE;
+			samplerInfo.compareEnable = VK_FALSE;
+			samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+			samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+			samplerInfo.minLod = 0;
+			samplerInfo.maxLod = 1;
+			samplerInfo.mipLodBias = 0;
+
+			VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &texSampler),
+				std::string(" RtxFiltering_2: failed to create texture sampler!"));
+		}
 	};
 
 	class RtxCompositionPass
@@ -216,7 +251,8 @@ namespace RtxFiltering_2
 		}
 
 		void widget()
-		{
+		{	
+
 
 		}
 

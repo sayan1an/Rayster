@@ -67,6 +67,8 @@ void main()
 		barrier();
 	}
 
-	if (lid.x == 0 && lid.y == 0)
-		imageStore(shadowMapBlur, ivec2(gl_WorkGroupID.xy), vec4(mean));
+	if (lid.x == 0 && lid.y == 0) {
+		float oldVal = imageLoad(shadowMapBlur, ivec2(gl_WorkGroupID.xy)).r;
+		imageStore(shadowMapBlur, ivec2(gl_WorkGroupID.xy), vec4(0.5 * mean + 0.5 * oldVal));
+	}
 }
