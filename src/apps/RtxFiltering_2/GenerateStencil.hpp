@@ -5,14 +5,16 @@ namespace RtxFiltering_2
 	class GenerateStencilPass
 	{
 	public:
-		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& inNormal)
+		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& inNormal, const VkImageView &inShadowFull, const VkImageView &inShadowBlur)
 		{
 			CHECK_DBG_ONLY(buffersUpdated, "StencilPass : call createBuffers first.");
 
 			descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNormal,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outStencilView,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outStencilView2,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outStencilView3,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inShadowFull,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { texSampler , inShadowBlur,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outStencilView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outStencilView2,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outStencilView3,  VK_IMAGE_LAYOUT_GENERAL });
 
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -34,6 +36,7 @@ namespace RtxFiltering_2
 			makeImage({ extent.width / 2, extent.height / 2 }, VK_FORMAT_R16G16B16A16_SFLOAT, outStencil, outStencilView, outStencilAlloc);
 			makeImage({ extent.width / 4, extent.height / 4 }, VK_FORMAT_R16G16B16A16_SFLOAT, outStencil2, outStencilView2, outStencilAlloc2);
 			makeImage({ extent.width / 8, extent.height / 8 }, VK_FORMAT_R16G16B16A16_SFLOAT, outStencil3, outStencilView3, outStencilAlloc3);
+			createTexSampler(device);
 
 			stencilView = outStencilView;
 			stencilView2 = outStencilView2;
@@ -58,11 +61,11 @@ namespace RtxFiltering_2
 				vkDestroyImageView(device, imageView, nullptr);
 				vmaDestroyImage(allocator, image, allocation);
 			};
-
-
+			
 			destroyImage(outStencil, outStencilView, outStencilAlloc);
 			destroyImage(outStencil2, outStencilView2, outStencilAlloc2);
 			destroyImage(outStencil3, outStencilView3, outStencilAlloc3);
+			vkDestroySampler(device, texSampler, nullptr);
 
 			vkDestroyPipeline(device, pipeline, nullptr);
 			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -107,6 +110,31 @@ namespace RtxFiltering_2
 		VkExtent2D globalWorkDim;
 
 		bool buffersUpdated;
+
+		VkSampler texSampler;
+		void createTexSampler(const VkDevice& device)
+		{
+			VkSamplerCreateInfo samplerInfo = {};
+			samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerInfo.magFilter = VK_FILTER_LINEAR;
+			samplerInfo.minFilter = VK_FILTER_LINEAR;
+			samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerInfo.anisotropyEnable = VK_TRUE;
+			samplerInfo.maxAnisotropy = 16;
+			samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+			samplerInfo.unnormalizedCoordinates = VK_FALSE;
+			samplerInfo.compareEnable = VK_FALSE;
+			samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+			samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+			samplerInfo.minLod = 0;
+			samplerInfo.maxLod = 1;
+			samplerInfo.mipLodBias = 0;
+
+			VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &texSampler),
+				std::string(" RtxFiltering_2: failed to create texture sampler!"));
+		}
 	};
 
 	class StencilCompositionPass
@@ -149,10 +177,10 @@ namespace RtxFiltering_2
 				float depthVar = pcb.depthVarianceLimit * 1000.0f;
 				ImGui::SliderFloat("Normal Variance Limit##StencilCompositionPass", &normalVar, 0, 10);
 				ImGui::SliderFloat("Depth Variance Limit##StencilCompositionPass", &depthVar, 0, 20);
+				ImGui::SliderFloat("Shadow Variance Limit##StencilCompositionPass", &pcb.shadowVarianceLimit, 0.0f, 1.0f);
 
 				pcb.normalVarianceLimit = normalVar / 1000.f;
 				pcb.depthVarianceLimit = depthVar / 1000.f;
-
 			}
 		}
 
@@ -160,6 +188,8 @@ namespace RtxFiltering_2
 		{
 			pcb.normalVarianceLimit = 0.005f;
 			pcb.depthVarianceLimit = 0.01f;
+			pcb.shadowVarianceLimit = 0.5;
+			
 		}
 
 	private:
@@ -176,6 +206,7 @@ namespace RtxFiltering_2
 		struct PushConstantBlock {
 			float normalVarianceLimit;
 			float depthVarianceLimit;
+			float shadowVarianceLimit;
 		} pcb;
 	};
 }

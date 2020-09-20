@@ -7,7 +7,7 @@ layout (binding = 1, rgba16f) uniform image2D outStencil2;
 layout (binding = 2, rgba16f) uniform image2D outStencil3;
 
 layout (push_constant) uniform pcBlock {
-	vec2 limits;
+	vec3 limits;
 } pcb;
 
 shared uint tagLowerLevel[2][2];
@@ -16,8 +16,9 @@ uint enableRayTrace(in vec4 var)
 {
 	uint rtNormal = var.x < pcb.limits.x ? 1 : 0;
 	uint rtDepth = var.y < pcb.limits.y ? 1 : 0;
+	uint rtShadow = var.z < pcb.limits.z ? 1 : 0;
 
-	return rtNormal & rtDepth;
+	return rtNormal & rtDepth & rtShadow;
 }
 
 void main()

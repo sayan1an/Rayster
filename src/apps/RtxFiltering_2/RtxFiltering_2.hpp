@@ -339,7 +339,7 @@ namespace RtxFiltering_2
 			rtxPassHalf.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen, normalHalf, otherHalf, stencilView2, shadowMapBlurView);
 			rtxPassQuat.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen, normalQuat, otherQuat, stencilView3, shadowMapBlurView);
 			temporalFilter.createPipeline(physicalDevice, device, rtxComposedView);
-			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"));
+			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), shadowMapView, shadowMapBlurView);
 			stencilCompPass.createPipeline(physicalDevice, device, stencilView, stencilView2, stencilView3);
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
 			subpass2.createSubpass(device, renderPass2, fboManager2, rtxComposedView, filterOutImageView, shadowMapView, shadowMapBlurView, stencilView, stencilView2, stencilView3);
@@ -422,7 +422,7 @@ namespace RtxFiltering_2
 			rtxPassHalf.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen, normalHalf, otherHalf, stencilView2, shadowMapBlurView);
 			rtxPassQuat.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen, normalQuat, otherQuat, stencilView3, shadowMapBlurView);
 			temporalFilter.createPipeline(physicalDevice, device, rtxComposedView);
-			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"));
+			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), shadowMapView, shadowMapBlurView);
 			stencilCompPass.createPipeline(physicalDevice, device, stencilView, stencilView2, stencilView3);
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
 			subpass2.createSubpass(device, renderPass2, fboManager2, rtxComposedView, filterOutImageView, shadowMapView, shadowMapBlurView, stencilView, stencilView2, stencilView3); //filterOutImageView
