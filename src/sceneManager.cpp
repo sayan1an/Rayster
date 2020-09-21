@@ -591,8 +591,8 @@ static void loadBasicShapes(Model& model, Camera &cam)
 extern void loadScene(Model& model, Camera& cam, const std::string& name)
 {	
 	//loadMedievalHouse(model, cam);
-	loadBasicShapes(model, cam);
-	//loadSpaceship(model, cam);
+	//loadBasicShapes(model, cam);
+	loadSpaceship(model, cam);
 	//loadDefault(model, cam);
 
 	/*if (name.compare("default") == 0)

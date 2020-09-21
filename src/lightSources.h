@@ -3,19 +3,20 @@
 #include <vector>
 #include "model.hpp"
 #include "helper.h"
+#include "random.h"
 
 class DiscretePdf
 {
 public:
 	void add(float value)
-	{
+	{	
+		if (value > max)
+			max = value;
+		if (value < min)
+			min = value;
+		
 		float cumSum = dCdf[dCdf.size() - 1] + value;
 		dCdf.push_back(cumSum);
-
-		dCdfNormalized.clear();
-
-		for (const float entry : dCdf)
-			dCdfNormalized.push_back(entry / cumSum);
 	}
 
 	VkDescriptorBufferInfo getCdfDescriptorBufferInfo() const
@@ -41,6 +42,9 @@ public:
 	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool)
 	{	
 		CHECK(dCdf.size() > 1, "DiscretePdf: Cannot create buffer.");
+		
+		convertDcdf2LightIndex();
+
 		CHECK(dCdfNormalized.size() > 1, "DiscretePdf: Cannot create buffer.");
 
 		createBuffer(device, allocator, queue, commandPool, dCdfNormBuffer, dCdfNormBufferAllocation, sizeof(dCdfNormalized[0]) * dCdfNormalized.size(), dCdfNormalized.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -64,17 +68,124 @@ public:
 		dCdfNormalized.reserve(100);
 		dCdf.push_back(0.0f);
 		dCdfNormalized.push_back(0.0f);
+		max = 0;
+		min = std::numeric_limits<float>::max();
 	}
 	
 private:
 	std::vector<float> dCdf;
 	std::vector<float> dCdfNormalized;
+	std::vector<uint32_t> emitterIndexMap; // dcdf stored as a table of light indices. i.e. map from (0 to 1) -> light index 
 	
 	VkBuffer dCdfNormBuffer;
 	VmaAllocation dCdfNormBufferAllocation;
 
 	VkBuffer dCdfBuffer;
 	VmaAllocation dCdfBufferAllocation;
+
+	float max;
+	float min;
+
+	// fill out emitterIndex
+	void convertDcdf2LightIndex(float badSectorTolrance = 0.01, uint32_t subSample = 5, float storageSizeInMB = 5)
+	{	
+		// convert even to odd
+		subSample += !(subSample & 1);
+
+		dCdfNormalized.clear();
+
+		// Normalize dCdf
+		for (const float entry : dCdf)
+			dCdfNormalized.push_back(entry / dCdf.back());
+
+		min /= dCdf.back();
+		max /= dCdf.back();
+
+		// initial guess for grid inteval 
+		uint32_t nElements = static_cast<uint32_t>(2.0f / max);
+
+		// Optimize the size of emitterIndexMap
+		// Increase nElements such that number of bad sectors is less than badSectorTolrance
+		// Bad sector is defined as a bin containing more than one index.
+		bool cond = false;
+		do {
+			float delta = 1.0f / nElements;
+			uint32_t lastIndex = 0;
+			cond = false;
+			uint32_t badSectors = 0;
+			for (uint32_t i = 0; i < nElements; i++) {
+				float intervalEnd = (i + 1) * delta;
+				uint32_t index = searchDpdf(intervalEnd, lastIndex);
+				uint32_t numIndecesInBin = index - lastIndex + 1;
+				badSectors += (numIndecesInBin > 1 ? 1 : 0);
+				lastIndex = index;
+			}
+
+			if (badSectors > badSectorTolrance * nElements) {
+				cond = true;
+				nElements *= 2;
+			}
+		} while (cond);
+
+		nElements = std::min(nElements, static_cast<uint32_t>(1.0f / min));
+		nElements = std::min(nElements, static_cast<uint32_t>(storageSizeInMB * 1024 * 1024 / sizeof(uint32_t)));
+		
+		std::cout << nElements << " " <<  static_cast<uint32_t>(1.0f/min) << std::endl;
+		emitterIndexMap.resize(nElements);
+
+		// grid inteval
+		float delta = 1.0f / nElements;
+
+		uint32_t lastIndex = 0;
+		std::unordered_map<uint32_t, uint32_t> hash; // store the subsampled items and find the most common item in a given interval
+		RandomGenerator rand;
+
+		// Populate emitterIndexMap
+		for (uint32_t i = 0; i < nElements; i++) {
+			float start = i * delta;
+			float end = (i + 1) * delta;
+
+			hash.clear();
+			uint32_t minIndex = std::numeric_limits<uint32_t>::max();
+
+			// sample the interval (start, end) and find the most common light instance
+			for (uint32_t j = 0; j < subSample; j++) {
+				float subRand = rand.getNextUint32_t() / float(0xffffffff);
+				float rand = start * subRand + end * (1.0f - subRand);
+
+				uint32_t index = searchDpdf(rand, lastIndex);
+				hash[index]++;
+				if (index < minIndex)
+					minIndex = index;
+			}
+						
+			// find the max frequency 
+			uint32_t max_count = 0, mostCommonElement = minIndex;
+			for (auto k : hash) {
+				if (max_count < k.second) {
+					mostCommonElement = k.first;
+					max_count = k.second;
+				}
+			}
+
+			emitterIndexMap[i] = mostCommonElement;
+			
+			lastIndex = minIndex >= 2 ? minIndex - 2 : 0;
+		}
+
+		for (auto i : emitterIndexMap)
+			std::cout << i << " ";
+		std::cout << std::endl;
+	}
+
+	uint32_t searchDpdf(float rand, uint32_t startIdx) 
+	{	
+		uint32_t index = startIdx;
+		for (uint32_t j = startIdx; j < dCdfNormalized.size(); j++)
+			index = dCdfNormalized[j] < rand ? j : index;
+
+		return index;
+	}
 };
 
 class AreaLightSources
