@@ -348,7 +348,7 @@ namespace RtxFiltering_2
 			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), shadowMapView, shadowMapBlurView);
 			stencilCompPass.createPipeline(physicalDevice, device, stencilView, stencilView2, stencilView3);
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
-			mcPass.createPipeline(physicalDevice, device,
+			mcPass.createPipeline(physicalDevice, device, randGen,
 				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView,
 				normalHalf, otherHalf, stencilView2,
 				normalQuat, otherQuat, stencilView3);
@@ -437,7 +437,7 @@ namespace RtxFiltering_2
 			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), shadowMapView, shadowMapBlurView);
 			stencilCompPass.createPipeline(physicalDevice, device, stencilView, stencilView2, stencilView3);
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
-			mcPass.createPipeline(physicalDevice, device,
+			mcPass.createPipeline(physicalDevice, device, randGen,
 				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView,
 				normalHalf, otherHalf, stencilView2,
 				normalQuat, otherQuat, stencilView3);

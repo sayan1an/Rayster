@@ -25,15 +25,16 @@ namespace RtxFiltering_2
 			buffersUpdated = true;
 		}
 
-		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& outMcState, const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& inStencil)
+		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const RandomGenerator& randGen, const VkImageView& outMcState, const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& inStencil)
 		{
 			CHECK_DBG_ONLY(buffersUpdated, "MarkovChainNoVisibilityPass : call createBuffers first.");
 
 			descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNormal,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inOther,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inStencil,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , mcmcView,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outMcState,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindBuffer({ 3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, randGen.getDescriptorBufferInfo());
+			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , mcmcView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outMcState,  VK_IMAGE_LAYOUT_GENERAL });
 
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -109,16 +110,16 @@ namespace RtxFiltering_2
 			buffersUpdated = true;
 		}
 
-		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, 
+		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const RandomGenerator& randGen,
 			const VkImageView& inNormal1, const VkImageView& inOther1, const VkImageView& inStencil1,
 			const VkImageView& inNormal2, const VkImageView& inOther2, const VkImageView& inStencil2, 
 			const VkImageView& inNormal3, const VkImageView& inOther3, const VkImageView& inStencil3)
 		{
 			CHECK_DBG_ONLY(buffersUpdated, "MarkovChainNoVisibilityCombined : call createBuffers first.");
 
-			mcPass1.createPipeline(physicalDevice, device, mcStateView, inNormal1, inOther1, inStencil1);
-			mcPass2.createPipeline(physicalDevice, device, mcStateView, inNormal2, inOther2, inStencil2);
-			mcPass3.createPipeline(physicalDevice, device, mcStateView, inNormal3, inOther3, inStencil3);
+			mcPass1.createPipeline(physicalDevice, device, randGen, mcStateView, inNormal1, inOther1, inStencil1);
+			mcPass2.createPipeline(physicalDevice, device, randGen, mcStateView, inNormal2, inOther2, inStencil2);
+			mcPass3.createPipeline(physicalDevice, device, randGen, mcStateView, inNormal3, inOther3, inStencil3);
 		}
 
 		void cmdDispatch(const VkCommandBuffer& cmdBuf)
