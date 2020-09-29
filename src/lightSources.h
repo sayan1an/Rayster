@@ -130,7 +130,7 @@ private:
 		nElements = std::min(nElements, static_cast<uint32_t>(1.0f / min));
 		nElements = std::min(nElements, static_cast<uint32_t>(storageSizeInMB * 1024 * 1024 / sizeof(uint32_t)));
 		
-		std::cout << nElements << " " <<  static_cast<uint32_t>(1.0f/min) << std::endl;
+		//std::cout << nElements << " " <<  static_cast<uint32_t>(1.0f/min) << std::endl;
 		emitterIndexMap.resize(nElements);
 
 		// grid inteval
@@ -173,9 +173,9 @@ private:
 			lastIndex = minIndex >= 2 ? minIndex - 2 : 0;
 		}
 
-		for (auto i : emitterIndexMap)
-			std::cout << i << " ";
-		std::cout << std::endl;
+		//for (auto i : emitterIndexMap)
+			//std::cout << i << " ";
+		//std::cout << std::endl;
 	}
 
 	uint32_t searchDpdf(float rand, uint32_t startIdx) 

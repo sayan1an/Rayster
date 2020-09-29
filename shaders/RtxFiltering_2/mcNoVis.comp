@@ -1,0 +1,38 @@
+#version 450
+#extension GL_GOOGLE_include_directive : enable
+
+layout (local_size_x = 2, local_size_y = 2) in;
+
+layout(binding = 0, rgba32f) uniform readonly image2D normalImage;
+layout(binding = 1, rgba16f) uniform readonly image2D otherImage;
+layout(binding = 2, rgba16f) uniform readonly image2D stencilImage;
+layout(binding = 3, rgba32f) uniform image2D outMcmc;
+layout(binding = 4, rg32f) uniform image2D outMcState;
+
+layout (push_constant) uniform pcBlock {
+    uint level;
+} pcb;
+
+void main()
+{   
+    ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+    vec4 stencil = imageLoad(stencilImage, gid / 2);
+
+    if (stencil.w > 0.5 && stencil.w < 1.5) 
+    {    
+        vec2 mcState = vec2(pcb.level + 1.0);
+
+        const vec4 other = imageLoad(otherImage, pixel).rgba;
+		const vec4 normalDepth = imageLoad(normalImage, pixel).rgba;
+
+        // assign mcState undefined if primary ray hitting a light source or escaping the scene
+
+        // read mcState and use as initial value for the Markov Chain
+        // if initial state is undefined, initialize with random value and run the chain longer if necessary 
+
+        uint iter = uint(pow(2, pcb.level) + 0.1);
+        for (uint i = 0; i < iter; i++)
+            for (uint j = 0; j < iter; j++)
+                imageStore(outMcState, gid * ivec2(iter, iter) + ivec2(i, j), vec4(mcState.x, mcState.y, 0, 0));
+    }
+}

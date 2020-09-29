@@ -81,6 +81,7 @@ compileList.append(("./RtxFiltering_2/stencilPass.comp", "./RtxFiltering_2/stenc
 compileList.append(("./RtxFiltering_2/stencilCompositionPass.comp", "./RtxFiltering_2/stencilCompositionPass.spv"))
 compileList.append(("./RtxFiltering_2/rtxCompositionPass.comp", "./RtxFiltering_2/rtxCompositionPass.spv"))
 compileList.append(("./RtxFiltering_2/temporalFilter.comp", "./RtxFiltering_2/temporalFilter.spv"))
+compileList.append(("./RtxFiltering_2/mcNoVis.comp", "./RtxFiltering_2/mcNoVis.spv"))
 
 compileList.append(("./Filters/crossBilateralFilter.comp", "./Filters/crossBilateralFilter.spv"))
 compileList.append(("./Filters/temporalFilter.comp", "./Filters/temporalFilter.spv"))

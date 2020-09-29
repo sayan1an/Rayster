@@ -7,6 +7,7 @@ layout (binding = 3) uniform sampler2D inSampler4;
 layout (binding = 4) uniform sampler2D inSampler5;
 layout (binding = 5) uniform sampler2D inSampler6;
 layout (binding = 6) uniform sampler2D inSampler7;
+layout (binding = 7) uniform sampler2D inSampler8;
 
 layout (location = 0) out vec4 outColor;
 
@@ -46,6 +47,14 @@ void main()
 		outColor = vec4(r, g, b, 1);
 		//float rayTraceProb = exp(-(val - 0.5) * (val - 0.5)/ 0.125);
 		//outColor = vec4(vec3(), 1);
+	}
+	else if (pcb.choice.x == 5) {
+		float val = texture(inSampler8, texCoord).r;
+		uint r = between(val, 0.5, 1.5);
+		uint g = between(val, 1.5, 2.5);
+		uint b = between(val, 2.5, 3.5);
+
+		outColor = vec4(r,g,b,1);
 	}
 
 }
