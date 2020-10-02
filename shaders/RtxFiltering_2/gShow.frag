@@ -54,7 +54,7 @@ void main()
 		uint g = between(val, 1.5, 2.5);
 		uint b = between(val, 2.5, 3.5);
 
-		outColor = vec4(r,g,b,1);
+		outColor = vec4(val,val,val,1);
 	}
 
 }

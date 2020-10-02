@@ -14,7 +14,7 @@ public:
 			max = value;
 		if (value < min)
 			min = value;
-		
+				
 		float cumSum = dCdf[dCdf.size() - 1] + value;
 		dCdf.push_back(cumSum);
 	}
@@ -38,6 +38,17 @@ public:
 
 		return descriptorBufferInfo;
 	}
+
+	// convert uniform random number to emitter index directly
+	VkDescriptorBufferInfo getEmitterIndexMapDescriptorBufferInfo() const
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = uniformToEmitterIndexMapBuffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		return descriptorBufferInfo;
+	}
 	
 	void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool)
 	{	
@@ -49,17 +60,19 @@ public:
 
 		createBuffer(device, allocator, queue, commandPool, dCdfNormBuffer, dCdfNormBufferAllocation, sizeof(dCdfNormalized[0]) * dCdfNormalized.size(), dCdfNormalized.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		createBuffer(device, allocator, queue, commandPool, dCdfBuffer, dCdfBufferAllocation, sizeof(dCdf[0]) * dCdf.size(), dCdf.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		createBuffer(device, allocator, queue, commandPool, uniformToEmitterIndexMapBuffer, uniformToEmitterIndexMapAllocation, sizeof(uniformToEmitterIndexMap[0]) * uniformToEmitterIndexMap.size(), uniformToEmitterIndexMap.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	}
 
 	void cleanUp(const VmaAllocator& allocator)
 	{
 		vmaDestroyBuffer(allocator, dCdfNormBuffer, dCdfNormBufferAllocation);
 		vmaDestroyBuffer(allocator, dCdfBuffer, dCdfBufferAllocation);
+		vmaDestroyBuffer(allocator, uniformToEmitterIndexMapBuffer, uniformToEmitterIndexMapAllocation);
 	}
 
-	uint32_t size()
+	glm::uvec2 size() const
 	{	
-		return static_cast<uint32_t>(dCdfNormalized.size() - 1);
+		return glm::uvec2(static_cast<uint32_t>(dCdfNormalized.size() - 1), static_cast<uint32_t>(uniformToEmitterIndexMap.size()));
 	}
 
 	DiscretePdf()
@@ -75,13 +88,16 @@ public:
 private:
 	std::vector<float> dCdf;
 	std::vector<float> dCdfNormalized;
-	std::vector<uint32_t> emitterIndexMap; // dcdf stored as a table of light indices. i.e. map from (0 to 1) -> light index 
+	std::vector<uint32_t> uniformToEmitterIndexMap; // dcdf stored as a table of light indices. i.e. map from (0 to 1) -> light index 
 	
 	VkBuffer dCdfNormBuffer;
 	VmaAllocation dCdfNormBufferAllocation;
 
 	VkBuffer dCdfBuffer;
 	VmaAllocation dCdfBufferAllocation;
+
+	VkBuffer uniformToEmitterIndexMapBuffer;
+	VmaAllocation uniformToEmitterIndexMapAllocation;
 
 	float max;
 	float min;
@@ -131,7 +147,7 @@ private:
 		nElements = std::min(nElements, static_cast<uint32_t>(storageSizeInMB * 1024 * 1024 / sizeof(uint32_t)));
 		
 		//std::cout << nElements << " " <<  static_cast<uint32_t>(1.0f/min) << std::endl;
-		emitterIndexMap.resize(nElements);
+		uniformToEmitterIndexMap.resize(nElements);
 
 		// grid inteval
 		float delta = 1.0f / nElements;
@@ -168,7 +184,7 @@ private:
 				}
 			}
 
-			emitterIndexMap[i] = mostCommonElement;
+			uniformToEmitterIndexMap[i] = mostCommonElement;
 			
 			lastIndex = minIndex >= 2 ? minIndex - 2 : 0;
 		}
@@ -238,7 +254,7 @@ public:
 			for (uint32_t i = 0, primitiveIdx = 0; mesh != nullptr && i < mesh->indices.size(); i += 3, primitiveIdx++) {
 				dPdf.add(computeArea(l2w_3 * (mesh->vertices[mesh->indices[i]].pos),
 					l2w_3 * (mesh->vertices[mesh->indices[i + 1]].pos),
-					l2w_3 * (mesh->vertices[mesh->indices[i + 2]].pos)));
+					l2w_3 * (mesh->vertices[mesh->indices[i + 2]].pos)) * (instance.data.z & 0xff));
 				CHECK(primitiveIdx <= 0xffff, "AreaLightSources : Number of primitives must be <= 0xffff.");
 				triangleIdxs.push_back(globalInstanceIdx << 16 | primitiveIdx);
 			}

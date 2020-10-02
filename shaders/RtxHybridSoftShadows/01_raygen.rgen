@@ -19,12 +19,14 @@ layout(binding = 6, set = 0) uniform CameraProperties
 
 layout(binding = 7, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
 layout(binding = 8, set = 0) readonly buffer DiscretePdf { float bins[]; } discretePdf;
-layout(binding = 14, set = 0) buffer RandomGeneratorState { uint state[]; } randGenState;
+layout(binding = 9, set = 0) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
+layout(binding = 15, set = 0) buffer RandomGeneratorState { uint state[]; } randGenState;
 
 layout (push_constant) uniform pcBlock {
 	vec3 lightPosition;
 	float power;
 	uint discretePdfSize;
+	uint uniformToEmitterIndexMapSize;
 	uint numSamples;
 	uint randomSeed;
 } pcb;
@@ -139,9 +141,11 @@ void main()
 			vec3 randTrip = randomTriplet();
 			uint index = 0;
 			// This is ridiculus, TODO:: find better solution
-			for (uint j = 0; j < pcb.discretePdfSize; j++)
-				index = discretePdf.bins[j] < randTrip.x ? j : index; 
+			//for (uint j = 0; j < pcb.discretePdfSize; j++)
+			//	index = discretePdf.bins[j] < randTrip.x ? j : index; 
 			
+			index = uniformToEmitterIdx.bins[uint(randTrip.x * pcb.uniformToEmitterIndexMapSize)];
+
 			color.xyz += shadowRayAreaLight((lightVertices.v[3*index] * randTrip.y + lightVertices.v[3*index + 1] * randTrip.z + lightVertices.v[3*index + 2] * (1 - randTrip.y - randTrip.z)).xyz,
 				-viewDir.xyz, origin.xyz, normal, other.w, diffuseColor.xyz, specularColor.xyz) / ((discretePdf.bins[index + 1] - discretePdf.bins[index]) * pcb.numSamples);
 

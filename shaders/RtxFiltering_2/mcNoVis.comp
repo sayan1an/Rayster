@@ -9,17 +9,24 @@ layout(binding = 0, rgba32f) uniform readonly image2D normalImage;
 layout(binding = 1, rgba16f) uniform readonly image2D otherImage;
 layout(binding = 2, rgba16f) uniform readonly image2D stencilImage;
 layout(binding = 3) buffer RandomGeneratorState { uint state[]; } randGenState;
-layout(binding = 4, rgba32f) uniform image2D outMcmc;
-layout(binding = 5, rg32f) uniform image2D outMcState;
+layout(binding = 4) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 5) readonly buffer DiscreteCdf { float bins[]; } discreteCdf;
+layout(binding = 6) readonly buffer NormDiscreteCdf { float bins[]; } normDiscreteCdf;
+layout(binding = 7) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
+layout(binding = 8, rgba32f) uniform image2D outMcmc;
+layout(binding = 9, rg32f) uniform image2D outMcState;
 
 layout (push_constant) uniform pcBlock {
     uint level;
+    uint discretePdfSize;
+	uint uniformToEmitterIndexMapSize;
 } pcb;
 
 void main()
 {   
     ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
     vec4 stencil = imageLoad(stencilImage, gid / 2);
+    float alpha = 0;
 
     if (stencil.w > 0.5 && stencil.w < 1.5) 
     {   
@@ -29,17 +36,29 @@ void main()
         ivec2 offset = ivec2(xorshift(xorshiftState) & (stride - 1), xorshift(xorshiftState) & (stride - 1)); // + add offset due to motion vector
         vec2 mcState = imageLoad(outMcState, gid * ivec2(stride, stride) + offset).rg;
 
-        mcState = vec2(pcb.level + 1);
+        //mcState = vec2(pcb.level + 1);
         const vec4 other = imageLoad(otherImage, gid).rgba;
 		const vec4 normalDepth = imageLoad(normalImage, gid).rgba;
 
         // assign mcState undefined if primary ray hitting a light source or escaping the scene
+        if (other.w < -0.5f || (other.w > 3.5 && other.w < 4.5))
+            mcState = vec2(0);
 
         // read mcState and use as initial value for the Markov Chain
         // if initial state is undefined, initialize with random value and run the chain longer if necessary 
+        else {
+            bool initialUndefined = (mcState.x == 0);
+            mcState = initialUndefined ? vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0) : mcState;
 
+        }
         for (uint y = 0; y < stride; y++)
             for (uint x = 0; x < stride; x++)
-                imageStore(outMcState, gid * ivec2(stride, stride) + ivec2(x, y), vec4(offset.x / 4.0, offset.y / 4.0, 0, 0));
+                imageStore(outMcState, gid * ivec2(stride, stride) + ivec2(x, y), vec4(mcState.x, mcState.y, 0, 0));
+
+         randGenState.state[gid.y * gl_NumWorkGroups.x * 2 + gid.x] = xorshiftState;
+
+         alpha = 1;
     }
+
+    imageStore(outMcmc, gid, vec4(vec3(pcb.level + 1) / 4.0, alpha));
 }

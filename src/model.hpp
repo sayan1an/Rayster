@@ -78,7 +78,7 @@ namespace std
 // Per instance data, not meant for draw time updates
 struct InstanceData_static 
 {
-	glm::uvec4 data; // material index, primitive start offset, area light offset | bool whether a light source, 0
+	glm::uvec4 data; // material index, primitive start offset, area light offset (24 bit) | radiance of light source (8 bit), 0
 };
 
 // Per instance data, update at drawtime

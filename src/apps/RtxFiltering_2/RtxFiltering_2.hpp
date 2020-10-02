@@ -348,12 +348,13 @@ namespace RtxFiltering_2
 			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), shadowMapView, shadowMapBlurView);
 			stencilCompPass.createPipeline(physicalDevice, device, stencilView, stencilView2, stencilView3);
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
-			mcPass.createPipeline(physicalDevice, device, randGen,
+			mcPass.createPipeline(physicalDevice, device, areaSources, randGen,
 				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView,
 				normalHalf, otherHalf, stencilView2,
 				normalQuat, otherQuat, stencilView3);
 			subpass2.createSubpass(device, renderPass2, fboManager2, rtxComposedView, filterOutImageView, shadowMapView, shadowMapBlurView, stencilView, stencilView2, stencilView3, mcStateView);
-			rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), rtxPassView, rtxPassHalfView, rtxPassQuatView);
+			//rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), rtxPassView, rtxPassHalfView, rtxPassQuatView);
+			rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), mcmcView1, mcmcView2, mcmcView3);
 
 			createCommandBuffers();
 		}
@@ -437,12 +438,13 @@ namespace RtxFiltering_2
 			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), shadowMapView, shadowMapBlurView);
 			stencilCompPass.createPipeline(physicalDevice, device, stencilView, stencilView2, stencilView3);
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
-			mcPass.createPipeline(physicalDevice, device, randGen,
+			mcPass.createPipeline(physicalDevice, device, areaSources, randGen,
 				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView,
 				normalHalf, otherHalf, stencilView2,
 				normalQuat, otherQuat, stencilView3);
 			subpass2.createSubpass(device, renderPass2, fboManager2, rtxComposedView, filterOutImageView, shadowMapView, shadowMapBlurView, stencilView, stencilView2, stencilView3, mcStateView);
-			rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), rtxPassView, rtxPassHalfView, rtxPassQuatView);
+			//rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), rtxPassView, rtxPassHalfView, rtxPassQuatView);
+			rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), mcmcView1, mcmcView2, mcmcView3);
 
 			createCommandBuffers();
 		}
@@ -677,9 +679,9 @@ namespace RtxFiltering_2
 
 			mcPass.cmdDispatch(commandBuffers[index]);
 
-			rtxPass.cmdDispatch(commandBuffers[index], areaSources.dPdf.size(), gui.numSamples, gui.shadowRayCutoff, gui.shadowRayCutoffProb);
-			rtxPassHalf.cmdDispatch(commandBuffers[index], areaSources.dPdf.size(), gui.numSamples, gui.shadowRayCutoff, gui.shadowRayCutoffProb);
-			rtxPassQuat.cmdDispatch(commandBuffers[index], areaSources.dPdf.size(), gui.numSamples, gui.shadowRayCutoff, gui.shadowRayCutoffProb);
+			rtxPass.cmdDispatch(commandBuffers[index], areaSources.dPdf.size().x, gui.numSamples, gui.shadowRayCutoff, gui.shadowRayCutoffProb);
+			rtxPassHalf.cmdDispatch(commandBuffers[index], areaSources.dPdf.size().x, gui.numSamples, gui.shadowRayCutoff, gui.shadowRayCutoffProb);
+			rtxPassQuat.cmdDispatch(commandBuffers[index], areaSources.dPdf.size().x, gui.numSamples, gui.shadowRayCutoff, gui.shadowRayCutoffProb);
 			vkCmdPipelineBarrier(commandBuffers[index], VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_DEPENDENCY_BY_REGION_BIT,
 				0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
 			rtxCompPass.cmdDispatch(commandBuffers[index]);

@@ -338,7 +338,7 @@ private:
 		gui.tWindFilt = &temporalWindowFilter;
 		gui.pSqPat = &rPatSq;
 		gui.setStyle();
-		gui.pcb.discretePdfSize = areaSources.dPdf.size();
+		gui.pcb.discretePdfSize = areaSources.dPdf.size().x;
 		gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
 		rPatSq.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
 		randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, swapChainExtent);
