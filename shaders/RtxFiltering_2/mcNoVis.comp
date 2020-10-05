@@ -3,6 +3,7 @@
 
 #include "../commonMath.h"
 #include "common.h"
+#include "hostDeviceShared.h"
 
 layout (local_size_x = 2, local_size_y = 2) in;
 
@@ -24,11 +25,18 @@ layout(binding = 7) readonly buffer NormDiscreteCdf { float bins[]; } normDiscre
 layout(binding = 8) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
 layout(binding = 9, rgba32f) uniform image2D outMcmc;
 layout(binding = 10, rg32f) uniform image2D outMcState;
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+layout(binding = 11) buffer CollectMCSample { vec2 state[]; } collectMCSample;
+#endif
 
 layout (push_constant) uniform pcBlock {
     uint level;
     float cumulativeSum;
 	uint uniformToEmitterIndexMapSize;
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+    uint pixelQueryX;
+    uint pixelQueryY;
+#endif
 } pcb;
 
 float proposalDist(in vec2 uv, in vec3 origin, out vec3 lightDirection, out float radiance)
@@ -74,10 +82,10 @@ float proposalDist(in vec2 uv, in vec3 origin, out vec3 lightDirection, out floa
     return pdf;
 }
 
-float targetDist(in vec3 surfaceNormal, in vec3 viewDir, in vec3 lightDir, in float radiance)
+float targetDist(in vec3 surfaceNormal, in vec3 viewDir, in vec3 lightDir, in float radiance, in float bsdfType, in float specularAlpha)
 {
     float cos = dot(lightDir, surfaceNormal);
-	return cos >= 0 ? radiance * cos / PI : 0;
+	return cos >= 0 ? radiance * (0*(cos / PI) + (bsdfType > 0.5f ? ggxBrdf(viewDir, lightDir, surfaceNormal, specularAlpha) : 0)): 0;
 }
 
 void main()
@@ -90,10 +98,14 @@ void main()
 
     if (stencil.w > 0.5 && stencil.w < 1.5) 
     {   
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+        if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
+            collectMCSample.state[0].x = 0;
+#endif
         uint xorshiftState = randGenState.state[gid.y * gl_NumWorkGroups.x * 2 + gid.x];
 
         uint stride = uint(pow(2, pcb.level) + 0.1);
-        ivec2 offset = ivec2(xorshift(xorshiftState) & (stride - 1), xorshift(xorshiftState) & (stride - 1)); // + add offset due to motion vector
+        ivec2 offset = ivec2(0);//ivec2(xorshift(xorshiftState) & (stride - 1), xorshift(xorshiftState) & (stride - 1)); // + add offset due to motion vector
         vec2 mcState = imageLoad(outMcState, gid * ivec2(stride, stride) + offset).rg;
 
         //mcState = vec2(pcb.level + 1);
@@ -122,27 +134,38 @@ void main()
             bool initialUndefined = (mcState.x == 0);
             vec2 proposedState = initialUndefined ? vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0) : mcState;
 
-            uint mcIterations = 8 + (initialUndefined ? 16 : 0);
+            uint mcIterations = 8;//8 + (initialUndefined ? 16 : 0);
 
             vec3 lightDirection;
             float radiance;
 
-            float prevProposal = 0.0000000001f;
+            float prob = proposalDist(proposedState, origin.xyz, lightDirection, radiance);
+            float prevProposal = targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x) / prob;
+
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+                if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
+                   collectMCSample.state[0].x = mcIterations + 0.01f;
+#endif
+
             for (uint i = 0; i < mcIterations; i++) {
-                float prob = proposalDist(proposedState, origin.xyz, lightDirection, radiance);
-                float currentProposal = targetDist(normalDepth.xyz, viewDir.xyz, lightDirection, radiance) / prob;
+                // propose a value for next iteration
+                proposedState = mcState + 0.5f * (vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0) - vec2(0.5f, 0.5f));
+                proposedState.x = proposedState.x < 0 ? -proposedState.x : (proposedState.x > 1 ? 2 - proposedState.x : proposedState.x);
+                proposedState.y = proposedState.y < 0 ? -proposedState.y : (proposedState.y > 1 ? 2 - proposedState.y : proposedState.y);
+
+                prob = proposalDist(proposedState, origin.xyz, lightDirection, radiance);
+                float currentProposal = targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x) / prob;
               
                 bool accepted = ((xorshift(xorshiftState) / 4294967296.0) < min(1.0f, currentProposal / prevProposal));
                 
                 prevProposal = accepted ? currentProposal : prevProposal;
                 mcState = accepted ? proposedState : mcState;
 
-                // propose a value for next iteration
-                proposedState = mcState + 0.01f * (vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0) - vec2(0.5f, 0.5f));
-                proposedState.x = proposedState.x < 0 ? 1 - proposedState.x : (proposedState.x > 1 ? proposedState.x - 1 : proposedState.x);
-                proposedState.y = proposedState.y < 0 ? 1 - proposedState.y : (proposedState.y > 1 ? proposedState.y - 1 : proposedState.y);
-
                 mcmcVal += prevProposal;
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+                if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
+                    collectMCSample.state[i + 1] = mcState;
+#endif
             }
             
             mcmcVal /= mcIterations;
@@ -151,11 +174,17 @@ void main()
             for (uint x = 0; x < stride; x++)
                 imageStore(outMcState, gid * ivec2(stride, stride) + ivec2(x, y), vec4(mcState.x, mcState.y, 0, 0));
 
-         randGenState.state[gid.y * gl_NumWorkGroups.x * 2 + gid.x] = xorshiftState;
-        
+        randGenState.state[gid.y * gl_NumWorkGroups.x * 2 + gid.x] = xorshiftState;
         
         alpha = 1;
+
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+            if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
+                mcmcVal = vec3(0,1,0);
+#endif
     }
+
+   
 
     imageStore(outMcmc, gid, vec4(mcmcVal, alpha));
 }

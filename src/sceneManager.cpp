@@ -606,7 +606,7 @@ static void loadMcMcTest(Model& model, Camera& cam)
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f))); // 5
 	//model.addLdrTexture(Image2d(1, 1, glm::vec4(1.f, 1.f, 1.f, 1.0f)));
 
-	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.4f, 1.5f, 1.0f, 1.0f), true)); // 0
+	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.01f, 1.5f, 1.0f, 1.0f), true)); // 0
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.05f, 1.5f, 1.0f, 1.0f), true)); // 1
 
 	model.addMaterial(0, 5, 0, GGX); // floor
@@ -631,7 +631,7 @@ static void loadMcMcTest(Model& model, Camera& cam)
 	mesh->normailze(0.5f);
 	model.addMesh(mesh);
 
-	mesh = loadMeshTiny((ROOT + "/models/modelLibrary/quadLight.obj").c_str());
+	mesh = loadMeshTiny((ROOT + "/models/modelLibrary/triLight.obj").c_str());
 	mesh->normailze(1.25f);
 	model.addMesh(mesh);
 
@@ -647,7 +647,7 @@ static void loadMcMcTest(Model& model, Camera& cam)
 	//tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(1.6f, 1.2f, 0));
 	//model.addInstance(3, tf, 1);
 
-	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(3.5f, 4.5f, 0));
+	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0.0f, 4.5f, 0));
 	model.addInstance(4, tf, 4, 7);
 
 	tf = glm::scale(glm::translate(glm::identity<glm::mat4>(), glm::vec3(-3.5f, 4.5f, 0)), glm::vec3(0.5f, 0.5f, 0.5f));

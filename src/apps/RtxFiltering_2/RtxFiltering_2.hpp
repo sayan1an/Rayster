@@ -203,11 +203,12 @@ namespace RtxFiltering_2
 
 			TemporalFilter* tempFilt;
 			StencilCompositionPass* sCmpPass;
+			MarkovChainNoVisibilityCombined* mcPass;
 			Subpass2* displayPass;
 			uint32_t numSamples;
 			int animate = 0;
+			VkExtent2D* swapChainExtent;
 		private:
-
 			float power = 10;
 
 			void guiSetup()
@@ -220,7 +221,7 @@ namespace RtxFiltering_2
 				//uint32_t collectData, pixelInfo;
 				pSqPat->widget(/*collectData, pixelInfo,*/ numSamples);
 				sCmpPass->widget();
-
+				mcPass->widget(*swapChainExtent);
 				if (ImGui::CollapsingHeader("RtxPass")) {
 					ImGui::SliderFloat("ShadowRayCutoff", &shadowRayCutoff, 0.3f, 0.5f);
 					ImGui::SliderFloat("ShadowRayCutoffProb", &shadowRayCutoffProb, 0.0f, 0.1f);
@@ -322,6 +323,8 @@ namespace RtxFiltering_2
 			//gui.tWindFilt = &temporalFilter;
 			gui.pSqPat = &rPatSq;
 			gui.sCmpPass = &stencilCompPass;
+			gui.swapChainExtent = &swapChainExtent;
+			gui.mcPass = &mcPass;
 			gui.tempFilt = &temporalFilter;
 			gui.displayPass = &subpass2;
 			gui.setStyle();
@@ -729,6 +732,8 @@ namespace RtxFiltering_2
 			buildCommandBuffer(imageIndex);
 			submitRenderCmd(commandBuffers[imageIndex]);
 			frameEnd(imageIndex);
+
+			mcPass.updateDataPost();
 			rPatSq.updateDataPost();
 			temporalFilter.saveFramePass.toDisk("D:/results/");
 		}
