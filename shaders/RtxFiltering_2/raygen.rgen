@@ -2,6 +2,7 @@
 #extension GL_NV_ray_tracing : require
 #extension GL_GOOGLE_include_directive : enable
 #include "../commonMath.h"
+#include "common.h"
 
 layout(binding = 0, set = 0) uniform accelerationStructureNV tlas_global;
 layout(binding = 1, set = 0) uniform accelerationStructureNV tlas_lightSource;
@@ -101,12 +102,6 @@ vec2 randTobary(in vec2 uv)
 	bary.y = (1.0 - bary.x) * (1.0 - bary.y);
 
 	return bary;
-}
-
-float offsetCalc(in uint x, in uint level)
-{	
-	uint den = (1 << (level - 1)); // den = 1,2,4 when level = 1,2,3
-	return (x == 0 ? 0.5f  / den : 1.0f - 0.5f / den); 
 }
 
 void main()

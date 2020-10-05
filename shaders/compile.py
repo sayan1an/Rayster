@@ -7,6 +7,7 @@ forceFullCompilationList = []
 forceFullCompilationList.append(("./commonMath.h", "null"))
 forceFullCompilationList.append(("./Filters/filterParams.h", "null"))
 forceFullCompilationList.append(("./RtxFiltering_2/hostDeviceShared.h", "null"))
+forceFullCompilationList.append(("./RtxFiltering_2/common.h", "null"))
 
 compileList =[]
 compileList.append(("./GBuffer/gBuf.vert", "./GBuffer/gBufVert.spv"))

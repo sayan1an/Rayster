@@ -588,11 +588,81 @@ static void loadBasicShapes(Model& model, Camera &cam)
 	//model.addInstance(4, tf, 4, 7);
 }
 
+static void loadMcMcTest(Model& model, Camera& cam)
+{
+	cam.setCamera({ -0.99069f, 0.007035f, 0.135953f, -0.519664f,
+			9.40074e-010f, 0.998664f, -0.0516768f, 0.817007f,
+			-0.136134f, -0.0511957f, -0.989367f, 3.82439f,
+			0, 0, 0, 1 }, 5, 60);
+	cam.changeKeyFrameFileName(ROOT + "/models/modelLibrary/mcmcTest.bin");
+	cam.setAngleIncrement(0.01f);
+	cam.setDistanceIncrement(0.01f);
+
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f))); // 0
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.929f, 0.333f, 0.231f, 1.0f))); // 1
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.125f, 0.388f, 0.608f, 1.0f))); // 2
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.235f, 0.682f, 0.639f, 1.0f))); // 3
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f))); // 4
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f))); // 5
+	//model.addLdrTexture(Image2d(1, 1, glm::vec4(1.f, 1.f, 1.f, 1.0f)));
+
+	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.4f, 1.5f, 1.0f, 1.0f), true)); // 0
+	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.05f, 1.5f, 1.0f, 1.0f), true)); // 1
+
+	model.addMaterial(0, 5, 0, GGX); // floor
+	model.addMaterial(1, 4, 1, GGX); // urchin
+	model.addMaterial(2, 4, 1, GGX); // sphere
+	model.addMaterial(3, 4, 1, GGX); // cube
+	model.addMaterial(0, 5, 0, AREA); // quadLight
+
+	Mesh* mesh = loadMeshTiny((ROOT + "/models/modelLibrary/groundPlane.obj").c_str());
+	mesh->normailze(6.0f);
+	model.addMesh(mesh);
+
+	mesh = loadMeshTiny((ROOT + "/models/modelLibrary/basic-shapes/cube/cube.obj").c_str());
+	mesh->normailze(0.5f);
+	model.addMesh(mesh);
+
+	mesh = loadMeshTiny((ROOT + "/models/modelLibrary/basic-shapes/sphere/sphere.obj").c_str());
+	mesh->normailze(0.5f);
+	model.addMesh(mesh);
+
+	mesh = loadMeshTiny((ROOT + "/models/modelLibrary/animals/urchin/urchin.obj").c_str());
+	mesh->normailze(0.5f);
+	model.addMesh(mesh);
+
+	mesh = loadMeshTiny((ROOT + "/models/modelLibrary/quadLight.obj").c_str());
+	mesh->normailze(1.25f);
+	model.addMesh(mesh);
+
+	glm::mat4 tf = glm::identity<glm::mat4>();
+	model.addInstance(0, tf, 0);
+
+	//tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(0, 1.0f, 0));
+	//model.addInstance(1, tf, 3);
+
+	//tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(-1.6f, 1.2f, 0));
+	//model.addInstance(2, tf, 2);
+
+	//tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(1.6f, 1.2f, 0));
+	//model.addInstance(3, tf, 1);
+
+	tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(3.5f, 4.5f, 0));
+	model.addInstance(4, tf, 4, 7);
+
+	tf = glm::scale(glm::translate(glm::identity<glm::mat4>(), glm::vec3(-3.5f, 4.5f, 0)), glm::vec3(0.5f, 0.5f, 0.5f));
+	model.addInstance(4, tf, 4, 28);
+
+	//tf = glm::translate(glm::identity<glm::mat4>(), glm::vec3(4.5f, 4.5f, 0));
+	//model.addInstance(4, tf, 4, 7);
+}
+
 extern void loadScene(Model& model, Camera& cam, const std::string& name)
 {	
 	//loadMedievalHouse(model, cam);
 	//loadBasicShapes(model, cam);
-	loadSpaceship(model, cam);
+	//loadSpaceship(model, cam);
+	loadMcMcTest(model, cam);
 	//loadDefault(model, cam);
 
 	/*if (name.compare("default") == 0)

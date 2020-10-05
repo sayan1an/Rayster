@@ -2,31 +2,91 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "../commonMath.h"
+#include "common.h"
 
 layout (local_size_x = 2, local_size_y = 2) in;
 
 layout(binding = 0, rgba32f) uniform readonly image2D normalImage;
 layout(binding = 1, rgba16f) uniform readonly image2D otherImage;
 layout(binding = 2, rgba16f) uniform readonly image2D stencilImage;
-layout(binding = 3) buffer RandomGeneratorState { uint state[]; } randGenState;
-layout(binding = 4) readonly buffer LightVertices { vec4 v[]; } lightVertices;
-layout(binding = 5) readonly buffer DiscreteCdf { float bins[]; } discreteCdf;
-layout(binding = 6) readonly buffer NormDiscreteCdf { float bins[]; } normDiscreteCdf;
-layout(binding = 7) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
-layout(binding = 8, rgba32f) uniform image2D outMcmc;
-layout(binding = 9, rg32f) uniform image2D outMcState;
+layout(binding = 3) uniform CameraProperties 
+{
+	mat4 view;
+    mat4 proj;
+    mat4 viewInv;
+    mat4 projInv;
+} cam;
+
+layout(binding = 4) buffer RandomGeneratorState { uint state[]; } randGenState;
+layout(binding = 5) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 6) readonly buffer DiscreteCdf { float bins[]; } discreteCdf;
+layout(binding = 7) readonly buffer NormDiscreteCdf { float bins[]; } normDiscreteCdf;
+layout(binding = 8) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
+layout(binding = 9, rgba32f) uniform image2D outMcmc;
+layout(binding = 10, rg32f) uniform image2D outMcState;
 
 layout (push_constant) uniform pcBlock {
     uint level;
-    uint discretePdfSize;
+    float cumulativeSum;
 	uint uniformToEmitterIndexMapSize;
 } pcb;
+
+float proposalDist(in vec2 uv, in vec3 origin, out vec3 lightDirection, out float radiance)
+{
+    uint index = uniformToEmitterIdx.bins[uint(uv.x * pcb.uniformToEmitterIndexMapSize)];
+    float b = discreteCdf.bins[index];
+    float a = discreteCdf.bins[index + 1];
+
+    radiance = a - b;    
+    
+    a /= pcb.cumulativeSum;
+    b /= pcb.cumulativeSum;
+
+    vec4 vA = lightVertices.v[3*index];
+    vec4 vB = lightVertices.v[3*index + 1];
+    vec4 vC = lightVertices.v[3*index + 2];
+
+    float pdf = a - b; 
+    // rescale
+    uv.x = (uv.x - b) / pdf;
+
+    // convert to bary
+    uv.x = 1.0 - sqrt(uv.x);
+	uv.y = (1.0 - uv.x) * (1.0 - uv.y);
+
+    lightDirection = vA.xyz * uv.x + vB.xyz * uv.y + vC.xyz * (1.0f - uv.x - uv.y) - origin;
+    float distance = length(lightDirection);
+    lightDirection /= distance;
+
+    vec3 lightNormal = vec3(vA.w, vB.w, vC.w);
+    float lightArea = length(lightNormal);
+    lightNormal /= lightArea;
+
+    /*
+    lightArea *= 0.5f;
+    pdf *= (distance * distance) / (abs(dot(lightDirection, lightNormal)) * lightArea);
+    radiance = radianceArea / lightArea;
+    */
+
+    // optimized, lightArea cancels out in pdf and radiance terms. 
+    pdf *= (distance * distance) / (abs(dot(lightDirection, lightNormal)));
+
+    return pdf;
+}
+
+float targetDist(in vec3 surfaceNormal, in vec3 viewDir, in vec3 lightDir, in float radiance)
+{
+    float cos = dot(lightDir, surfaceNormal);
+	return cos >= 0 ? radiance * cos / PI : 0;
+}
 
 void main()
 {   
     ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
     vec4 stencil = imageLoad(stencilImage, gid / 2);
     float alpha = 0;
+    vec3 mcmcVal = vec3(0);
+    mcmcVal = vec3(0);
 
     if (stencil.w > 0.5 && stencil.w < 1.5) 
     {   
@@ -47,18 +107,55 @@ void main()
         // read mcState and use as initial value for the Markov Chain
         // if initial state is undefined, initialize with random value and run the chain longer if necessary 
         else {
-            bool initialUndefined = (mcState.x == 0);
-            mcState = initialUndefined ? vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0) : mcState;
+            vec2 offset = vec2(offsetCalc(gid.x & 1, pcb.level), offsetCalc(gid.y & 1, pcb.level));
+			const vec2 pixelCenter = vec2(gid.xy) + offset;
+			const vec2 inUV = pixelCenter/vec2(gl_NumWorkGroups.xy * 2);
+			vec2 d = inUV * 2.0 - 1.0;
 
+			vec4 origin = cam.viewInv * vec4(0,0,0,1);
+			vec4 target = cam.projInv * vec4(d.x, d.y, 1, 1) ;
+			vec4 viewDir = cam.viewInv * vec4(normalize(target.xyz), 0) ;
+		
+			// for shadow rays
+			origin = origin + (normalDepth.w - 0.000f) * viewDir;
+
+            bool initialUndefined = (mcState.x == 0);
+            vec2 proposedState = initialUndefined ? vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0) : mcState;
+
+            uint mcIterations = 8 + (initialUndefined ? 16 : 0);
+
+            vec3 lightDirection;
+            float radiance;
+
+            float prevProposal = 0.0000000001f;
+            for (uint i = 0; i < mcIterations; i++) {
+                float prob = proposalDist(proposedState, origin.xyz, lightDirection, radiance);
+                float currentProposal = targetDist(normalDepth.xyz, viewDir.xyz, lightDirection, radiance) / prob;
+              
+                bool accepted = ((xorshift(xorshiftState) / 4294967296.0) < min(1.0f, currentProposal / prevProposal));
+                
+                prevProposal = accepted ? currentProposal : prevProposal;
+                mcState = accepted ? proposedState : mcState;
+
+                // propose a value for next iteration
+                proposedState = mcState + 0.01f * (vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0) - vec2(0.5f, 0.5f));
+                proposedState.x = proposedState.x < 0 ? 1 - proposedState.x : (proposedState.x > 1 ? proposedState.x - 1 : proposedState.x);
+                proposedState.y = proposedState.y < 0 ? 1 - proposedState.y : (proposedState.y > 1 ? proposedState.y - 1 : proposedState.y);
+
+                mcmcVal += prevProposal;
+            }
+            
+            mcmcVal /= mcIterations;
         }
         for (uint y = 0; y < stride; y++)
             for (uint x = 0; x < stride; x++)
                 imageStore(outMcState, gid * ivec2(stride, stride) + ivec2(x, y), vec4(mcState.x, mcState.y, 0, 0));
 
          randGenState.state[gid.y * gl_NumWorkGroups.x * 2 + gid.x] = xorshiftState;
-
-         alpha = 1;
+        
+        
+        alpha = 1;
     }
 
-    imageStore(outMcmc, gid, vec4(vec3(pcb.level + 1) / 4.0, alpha));
+    imageStore(outMcmc, gid, vec4(mcmcVal, alpha));
 }

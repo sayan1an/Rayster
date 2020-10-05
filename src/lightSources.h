@@ -74,6 +74,11 @@ public:
 	{	
 		return glm::uvec2(static_cast<uint32_t>(dCdfNormalized.size() - 1), static_cast<uint32_t>(uniformToEmitterIndexMap.size()));
 	}
+	
+	float cumulativeSum() const
+	{
+		return dCdf.back();
+	}
 
 	DiscretePdf()
 	{
