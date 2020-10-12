@@ -33,11 +33,15 @@ layout (push_constant) uniform pcBlock {
     uint level;
     float cumulativeSum;
 	uint uniformToEmitterIndexMapSize;
+    float sigma;
+    float gamma;
 #if COLLECT_MARKOV_CHAIN_SAMPLES
     uint pixelQueryX;
     uint pixelQueryY;
 #endif
 } pcb;
+
+shared vec2 s_mcState[4];
 
 float proposalDist(in vec2 uv, in vec3 origin, out vec3 lightDirection, out float radiance)
 {
@@ -82,19 +86,22 @@ float proposalDist(in vec2 uv, in vec3 origin, out vec3 lightDirection, out floa
     return pdf;
 }
 
-float targetDist(in vec3 surfaceNormal, in vec3 viewDir, in vec3 lightDir, in float radiance, in float bsdfType, in float specularAlpha)
+float targetDist(in vec3 surfaceNormal, in vec3 viewDir, in vec3 lightDir, in float radiance, in float bsdfType, in float specularAlpha, in float diffuseProb)
 {
     float cos = dot(lightDir, surfaceNormal);
-	return cos >= 0 ? radiance * (0*(cos / PI) + (bsdfType > 0.5f ? ggxBrdf(viewDir, lightDir, surfaceNormal, specularAlpha) : 0)): 0;
+	return cos >= 0 ? radiance * (diffuseProb * (cos / PI) + (1.0f - diffuseProb) * (bsdfType > 0.5f ? ggxBrdf(viewDir, lightDir, surfaceNormal, specularAlpha) : 0)): 0;
 }
 
 void main()
 {   
     ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 lid = ivec2(gl_LocalInvocationID.xy);
     vec4 stencil = imageLoad(stencilImage, gid / 2);
     float alpha = 0;
     vec3 mcmcVal = vec3(0);
     mcmcVal = vec3(0);
+
+    s_mcState[2*lid.y + lid.x] = vec2(-1);
 
     if (stencil.w > 0.5 && stencil.w < 1.5) 
     {   
@@ -140,21 +147,29 @@ void main()
             float radiance;
 
             float prob = proposalDist(proposedState, origin.xyz, lightDirection, radiance);
-            float prevProposal = targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x) / prob;
+            float prevProposal = targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x, other.z) / prob;
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES
                 if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
                    collectMCSample.state[0].x = mcIterations + 0.01f;
 #endif
+            mcState = proposedState;
+            s_mcState[2 * lid.y + lid.x] = mcState;
 
             for (uint i = 0; i < mcIterations; i++) {
+                // choose two random number in {0, 1, 2}
+                uint r1 = xorshift(xorshiftState) % 3; // chose first number in {0,1,2}
+                uint r2 = (r1 + 1 + (xorshift(xorshiftState) & 1)) % 3; // choose second, add either 1 or 2 to r1
+                       
+                uvec2 r = uvec2(r1, r2) + uvec2(2 * lid.y + lid.x + 1);
+                                
                 // propose a value for next iteration
-                proposedState = mcState + 0.5f * (vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0) - vec2(0.5f, 0.5f));
+                proposedState = mcState + pcb.gamma * (s_mcState[r.x & 3] - s_mcState[r.y & 3]) + pcb.sigma * uniformToGaussian(vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0));
                 proposedState.x = proposedState.x < 0 ? -proposedState.x : (proposedState.x > 1 ? 2 - proposedState.x : proposedState.x);
                 proposedState.y = proposedState.y < 0 ? -proposedState.y : (proposedState.y > 1 ? 2 - proposedState.y : proposedState.y);
 
                 prob = proposalDist(proposedState, origin.xyz, lightDirection, radiance);
-                float currentProposal = targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x) / prob;
+                float currentProposal = targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x, other.z) / prob;
               
                 bool accepted = ((xorshift(xorshiftState) / 4294967296.0) < min(1.0f, currentProposal / prevProposal));
                 
@@ -166,13 +181,18 @@ void main()
                 if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
                     collectMCSample.state[i + 1] = mcState;
 #endif
+                s_mcState[2 * lid.y + lid.x] = mcState;
             }
             
             mcmcVal /= mcIterations;
         }
+        
+        
+
         for (uint y = 0; y < stride; y++)
             for (uint x = 0; x < stride; x++)
                 imageStore(outMcState, gid * ivec2(stride, stride) + ivec2(x, y), vec4(mcState.x, mcState.y, 0, 0));
+            
 
         randGenState.state[gid.y * gl_NumWorkGroups.x * 2 + gid.x] = xorshiftState;
         
@@ -184,7 +204,5 @@ void main()
 #endif
     }
 
-   
-
     imageStore(outMcmc, gid, vec4(mcmcVal, alpha));
-}
+}    

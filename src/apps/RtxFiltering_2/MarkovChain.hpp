@@ -26,6 +26,8 @@ namespace RtxFiltering_2
 
 			globalWorkDim = extent;
 			pcb.level = level;
+			pcb.gamma = 0.0f;
+			pcb.sigmaProposal = 0.01f;
 			buffersUpdated = true;
 		}
 
@@ -71,8 +73,10 @@ namespace RtxFiltering_2
 			buffersUpdated = false;
 		}
 
-		void cmdDispatch(const VkCommandBuffer& cmdBuf, const glm::uvec2& pixelQuery)
-		{
+		void cmdDispatch(const VkCommandBuffer& cmdBuf, const float sigma, const float gamma, const glm::uvec2& pixelQuery)
+		{	
+			pcb.sigmaProposal = sigma;
+			pcb.gamma = gamma;
 #if COLLECT_MARKOV_CHAIN_SAMPLES
 			pcb.pixelQueryX = pixelQuery.x;
 			pcb.pixelQueryY = pixelQuery.y;
@@ -106,6 +110,9 @@ namespace RtxFiltering_2
 			uint32_t level;
 			float cumulativeSum;
 			uint32_t uniformToEmitterIndexMapSize;
+			float sigmaProposal;
+			float gamma;
+	
 #if COLLECT_MARKOV_CHAIN_SAMPLES
 			uint32_t pixelQueryX;
 			uint32_t pixelQueryY;
@@ -154,9 +161,9 @@ namespace RtxFiltering_2
 
 		void cmdDispatch(const VkCommandBuffer& cmdBuf)
 		{	
-			mcPass1.cmdDispatch(cmdBuf, pixelQuery);
-			mcPass2.cmdDispatch(cmdBuf, pixelQuery / glm::uvec2(2,2));
-			mcPass3.cmdDispatch(cmdBuf, pixelQuery / glm::uvec2(4,4));
+			mcPass1.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, pixelQuery);
+			mcPass2.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, pixelQuery / glm::uvec2(2,2));
+			mcPass3.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, pixelQuery / glm::uvec2(4,4));
 		}
 
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
@@ -176,8 +183,12 @@ namespace RtxFiltering_2
 
 		void widget(const VkExtent2D& swapChainExtent)
 		{
-#if COLLECT_MARKOV_CHAIN_SAMPLES
 			if (ImGui::CollapsingHeader("MarkovChainPass")) {
+
+				ImGui::SliderFloat("Sigma MC proposal##MarkovChainPass", &sigmaProposal, 0.0f, 0.1f);
+				ImGui::SliderFloat("Gamma DE##MarkovChainPass", &gammaDifferentialEvolution, 0.0f, 1.0f);
+
+#if COLLECT_MARKOV_CHAIN_SAMPLES
 				int xQuery = static_cast<int>(pixelQuery.x);
 				int yQuery = static_cast<int>(pixelQuery.y);
 				ImGui::SliderInt("X##MarkovChainPass", &xQuery, 0, swapChainExtent.width - 1);
@@ -201,8 +212,9 @@ namespace RtxFiltering_2
 					ImGui::PopPlotStyleVar(2);
 					ImGui::EndPlot();
 				}
-			}
 #endif
+			}
+
 		}
 
 		void updateDataPost()
@@ -234,6 +246,8 @@ namespace RtxFiltering_2
 		float* ptrCollectMcSampleBuffer;
 
 		glm::uvec2 pixelQuery;
+		float gammaDifferentialEvolution = 0.0f;
+		float sigmaProposal = 0.05f;
 
 		MarkovChainNoVisibility mcPass1;
 		MarkovChainNoVisibility mcPass2;

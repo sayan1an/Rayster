@@ -598,12 +598,12 @@ static void loadMcMcTest(Model& model, Camera& cam)
 	cam.setAngleIncrement(0.01f);
 	cam.setDistanceIncrement(0.01f);
 
-	model.addLdrTexture(Image2d(1, 1, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f))); // 0
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f))); // 0
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.929f, 0.333f, 0.231f, 1.0f))); // 1
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.125f, 0.388f, 0.608f, 1.0f))); // 2
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.235f, 0.682f, 0.639f, 1.0f))); // 3
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f))); // 4
-	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f))); // 5
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f))); // 5
 	//model.addLdrTexture(Image2d(1, 1, glm::vec4(1.f, 1.f, 1.f, 1.0f)));
 
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.01f, 1.5f, 1.0f, 1.0f), true)); // 0

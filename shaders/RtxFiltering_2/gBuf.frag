@@ -34,5 +34,10 @@ void main()
     // Depth is the distance of hit point from camera origin.
     // Does not work?? gl_FragCoord.z / gl_FragCoord.w
     outNormalDepth = vec4(normalize(fragNormal), length((worldPos - ubo.viewInv[3]).xyz));
-    outOtherInfo = vec4(alphaIntExtIor.xyz, bsdfType);
+
+    float diffWeight = (outDiffuseColor.x + outDiffuseColor.y + outDiffuseColor.z) / 3.0f;
+    float specWeight = (outSpecularColor.x + outSpecularColor.y + outSpecularColor.z) / 3.0f;
+
+    // Ext IOR replaced by diffuse probability
+    outOtherInfo = vec4(alphaIntExtIor.xy, diffWeight / (diffWeight + specWeight), bsdfType);
 }

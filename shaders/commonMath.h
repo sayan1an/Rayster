@@ -125,3 +125,8 @@ vec4 boundingSphereTri(in vec3 a, in vec3 b, in vec3 c)
 
 	return ret;
 }
+
+vec2 uniformToGaussian(in vec2 u)
+{	
+	return vec2(sqrt(-2*log(u.x))*cos(2*PI*u.y), sqrt(-2*log(u.x))*sin(2*PI*u.y));
+}
