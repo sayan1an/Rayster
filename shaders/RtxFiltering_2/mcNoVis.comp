@@ -26,7 +26,7 @@ layout(binding = 8) readonly buffer UniformToEmitterIdx { uint bins[]; } uniform
 layout(binding = 9, rgba32f) uniform image2D outMcmc;
 layout(binding = 10, rg32f) uniform image2D outMcState;
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-layout(binding = 11) buffer CollectMCSample { vec3 state[]; } collectMCSample;
+layout(binding = 11) buffer CollectMCSample { vec4 state[]; } collectMCSample;
 #endif
 
 layout (push_constant) uniform pcBlock {
@@ -179,7 +179,7 @@ void main()
                 mcmcVal += prevProposal;
 #if COLLECT_MARKOV_CHAIN_SAMPLES
                 if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
-                    collectMCSample.state[i + 1] = vec3(mcState.x, mcState.y, prevProposal);
+                    collectMCSample.state[i + 1] = vec4(mcState.x, mcState.y, prevProposal, 0);
 #endif
                 s_mcState[2 * lid.y + lid.x] = mcState;
             }
