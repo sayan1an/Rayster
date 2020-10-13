@@ -137,8 +137,8 @@ namespace RtxFiltering_2
 			makeImage(extent, VK_FORMAT_R32G32_SFLOAT, mcState, mcStateView, mcStateAlloc);
 			_mcStateView = mcStateView;
 
-			mptrCollectMcSampleBuffer = createBuffer(allocator, collectMcSampleBuffer, collectMcSampleBufferAllocation, MAX_MARKOV_CHAIN_SAMPLES * sizeof(float) * 2, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
-			ptrCollectMcSampleBuffer = new float[MAX_MARKOV_CHAIN_SAMPLES * 2];
+			mptrCollectMcSampleBuffer = createBuffer(allocator, collectMcSampleBuffer, collectMcSampleBufferAllocation, MAX_MARKOV_CHAIN_SAMPLES * sizeof(float) * 3, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
+			ptrCollectMcSampleBuffer = new float[MAX_MARKOV_CHAIN_SAMPLES * 3];
 
 			mcPass1.createBuffers(device, allocator, queue, commandPool, 0, extent, _mcmcView1);
 			mcPass2.createBuffers(device, allocator, queue, commandPool, 1, { extent.width / 2, extent.height / 2 }, _mcmcView2);
@@ -203,7 +203,7 @@ namespace RtxFiltering_2
 					ImGui::PushPlotStyleVar(ImPlotStyleVar_Marker, ImMarker_Circle);
 					ImGui::PushPlotStyleVar(ImPlotStyleVar_MarkerSize, 4);
 					auto getter = [](const void* data, int idx) {
-						glm::vec2 d = static_cast<const glm::vec2*>(data)[idx + 1];
+						glm::vec3 d = static_cast<const glm::vec3*>(data)[idx + 1];
 						//std::this_thread::sleep_for(std::chrono::milliseconds(100));
 						return ImVec2(d.y, d.x);
 					};
@@ -222,13 +222,13 @@ namespace RtxFiltering_2
 #if COLLECT_MARKOV_CHAIN_SAMPLES
 			static float lastX = 0;
 			static float lastY = 0;
-			memcpy(ptrCollectMcSampleBuffer, mptrCollectMcSampleBuffer, MAX_MARKOV_CHAIN_SAMPLES * sizeof(float) * 2);
+			memcpy(ptrCollectMcSampleBuffer, mptrCollectMcSampleBuffer, MAX_MARKOV_CHAIN_SAMPLES * sizeof(float) * 3);
 			uint32_t numSamples = (uint32_t)ptrCollectMcSampleBuffer[0];
 
 			//std::cout << (std::abs(ptrCollectMcSampleBuffer[2] - lastX) > 0.25f) << " " << (std::abs(ptrCollectMcSampleBuffer[3] - lastY) > 0.25f) << std::endl;
 
-			lastX = ptrCollectMcSampleBuffer[2 * numSamples];
-			lastY = ptrCollectMcSampleBuffer[2 * numSamples + 1];
+			lastX = ptrCollectMcSampleBuffer[3 * numSamples];
+			lastY = ptrCollectMcSampleBuffer[3 * numSamples + 1];
 			//std::cout << ptrCollectMcSampleBuffer[2] << " " << ptrCollectMcSampleBuffer[3] << " " << ptrCollectMcSampleBuffer[2*numSamples] << " " << ptrCollectMcSampleBuffer[2*numSamples + 1] << std::endl;
 #endif
 		}
