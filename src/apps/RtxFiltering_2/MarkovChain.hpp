@@ -5,6 +5,13 @@
 #include <thread>
 #include <chrono>
 
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+#define SAVE_SAMPLES_TO_DISK 1
+#if SAVE_SAMPLES_TO_DISK
+#include "cnpy.h"
+#endif
+#endif
+
 namespace RtxFiltering_2
 {
 	class MarkovChainNoVisibility
@@ -212,6 +219,24 @@ namespace RtxFiltering_2
 					ImGui::PopPlotStyleVar(2);
 					ImGui::EndPlot();
 				}
+#if SAVE_SAMPLES_TO_DISK								
+				ImGui::Text("Save pixel data");
+				int stateOld = savePixelData;
+				ImGui::RadioButton("No##MarkovChainPass", &savePixelData, 0); ImGui::SameLine();
+				ImGui::RadioButton("Yes##MarkovChainPass", &savePixelData, 1);
+
+				if (stateOld == 0 && savePixelData == 1)
+					fileIdx++;
+
+				if (savePixelData) {
+					// let's not worry about performance here :P
+					std::vector<size_t> shape;
+					shape.push_back(size_t(ptrCollectMcSampleBuffer[0] + 1));
+					shape.push_back(size_t(4));
+					
+					cnpy::npy_save("mcSamples_" + std::to_string(fileIdx) + ".npy", ptrCollectMcSampleBuffer, shape, "a");
+				}
+#endif
 #endif
 			}
 
@@ -246,6 +271,8 @@ namespace RtxFiltering_2
 		float* ptrCollectMcSampleBuffer;
 
 		glm::uvec2 pixelQuery;
+		int savePixelData = 0, fileIdx = 0;
+
 		float gammaDifferentialEvolution = 0.0f;
 		float sigmaProposal = 0.05f;
 

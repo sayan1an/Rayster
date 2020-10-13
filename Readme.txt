@@ -8,6 +8,7 @@ Include folders
 ..Rayster\external\imgui
 ..Rayster\external\implot
 ..Rayster\external\tinyexr
+..Rayster\external\cnpy
 ..Rayster\external\tinyobjloader
 ..Rayster\external\stb
 ..Rayster\external\glm
@@ -34,4 +35,4 @@ Optional:
 
 Note for imgui, implot and tinyexr
 
-Add all imgui/implot/tinyexr files in your project
+Add all imgui/implot/tinyexr/cnpy files in your project
