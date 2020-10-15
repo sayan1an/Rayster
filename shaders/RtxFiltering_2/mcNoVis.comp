@@ -23,10 +23,12 @@ layout(binding = 5) readonly buffer LightVertices { vec4 v[]; } lightVertices;
 layout(binding = 6) readonly buffer DiscreteCdf { float bins[]; } discreteCdf;
 layout(binding = 7) readonly buffer NormDiscreteCdf { float bins[]; } normDiscreteCdf;
 layout(binding = 8) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
-layout(binding = 9, rgba32f) uniform image2D outMcmc;
-layout(binding = 10, rg32f) uniform image2D outMcState;
+layout(binding = 9, rg32f) uniform image2D outMcState;
+layout(binding = 10) buffer BufMcSampleRepresentation SAMPLE_INFO_BUFFER_NAME;
+layout(binding = 11, rgba32f) uniform image2D outMcmc;
+
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-layout(binding = 11) buffer CollectMCSample { vec4 state[]; } collectMCSample;
+layout(binding = 12) buffer CollectMCSample { vec4 state[]; } collectMCSample;
 #endif
 
 layout (push_constant) uniform pcBlock {
@@ -42,6 +44,18 @@ layout (push_constant) uniform pcBlock {
 } pcb;
 
 shared vec2 s_mcState[4];
+
+McSampleInfo unpackMcSampleInfo(in ivec2 idx2d, in int frameWidth)
+{   
+    uint index = idx2d.y * frameWidth + idx2d.x;
+    UNPACK_MC_SAMPLE_INFO
+}
+
+void repackMcSampleInfo(in ivec2 idx2d, in int frameWidth, in McSampleInfo sampleInfo)
+{   
+    uint index = idx2d.y * frameWidth + idx2d.x;
+    REPACK_MC_SAMPLE_INFO
+}
 
 float proposalDist(in vec2 uv, in vec3 origin, out vec3 lightDirection, out float radiance)
 {
@@ -113,6 +127,7 @@ void main()
 
         uint stride = uint(pow(2, pcb.level) + 0.1);
         ivec2 offset = ivec2(0);//ivec2(xorshift(xorshiftState) & (stride - 1), xorshift(xorshiftState) & (stride - 1)); // + add offset due to motion vector
+        ivec2 frameSize = imageSize(outMcState); // Full resolution
         vec2 mcState = imageLoad(outMcState, gid * ivec2(stride, stride) + offset).rg;
 
         //mcState = vec2(pcb.level + 1);
@@ -188,11 +203,14 @@ void main()
         }
         
         
+        McSampleInfo sampleInfo;
+        sampleInfo.maxVal.y = mcmcVal.x;
 
         for (uint y = 0; y < stride; y++)
-            for (uint x = 0; x < stride; x++)
+            for (uint x = 0; x < stride; x++) {
+                repackMcSampleInfo(gid * ivec2(stride, stride) + ivec2(x, y), frameSize.x, sampleInfo);
                 imageStore(outMcState, gid * ivec2(stride, stride) + ivec2(x, y), vec4(mcState.x, mcState.y, 0, 0));
-            
+            }
 
         randGenState.state[gid.y * gl_NumWorkGroups.x * 2 + gid.x] = xorshiftState;
         
