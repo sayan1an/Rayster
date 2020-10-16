@@ -157,7 +157,7 @@ namespace RtxFiltering_2
 			delete[]initData;
 		}
 
-		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const Camera& cam, const AreaLightSources &areaSource, const RandomGenerator& randGen,
+		void createPipelines(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const Camera& cam, const AreaLightSources &areaSource, const RandomGenerator& randGen,
 			const VkImageView& inNormal1, const VkImageView& inOther1, const VkImageView& inStencil1,
 			const VkImageView& inNormal2, const VkImageView& inOther2, const VkImageView& inStencil2, 
 			const VkImageView& inNormal3, const VkImageView& inOther3, const VkImageView& inStencil3)

@@ -234,7 +234,6 @@ namespace RtxFiltering_2
 		VkRenderPass renderPass2;
 
 		Subpass1 subpass1;
-		RtxGenPass rtxPass, rtxPassHalf, rtxPassQuat;
 		Subpass2 subpass2;
 
 		VkImage diffuseColorImage;
@@ -273,6 +272,7 @@ namespace RtxFiltering_2
 		RtxCompositionPass rtxCompPass;
 		SubSamplePass subSamplePass;
 		MarkovChainNoVisibilityCombined mcPass;
+		RtxGenCombinedPass rtxGenPass;
 		
 		VkImageView stencilView, stencilView2, stencilView3;
 		VkImageView normalHalf, otherHalf, normalQuat, otherQuat;
@@ -328,20 +328,19 @@ namespace RtxFiltering_2
 			stencilPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), stencilView, stencilView2, stencilView3);
 			subSamplePass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), fboManager1.getFormat("normal"), fboManager1.getFormat("other"), normalHalf, otherHalf, normalQuat, otherQuat);
 			mcPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), mcStateView);
-			rtxPass.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), 1, rtxPassView);
-			rtxPassHalf.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, { fboManager1.getSize().width / 2, fboManager1.getSize().height / 2 }, 2, rtxPassHalfView);
-			rtxPassQuat.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, { fboManager1.getSize().width / 4, fboManager1.getSize().height / 4 }, 3, rtxPassQuatView);
-			rtxCompPass.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxComposedView);
+			rtxGenPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxPassView, rtxPassHalfView, rtxPassQuatView);
+			rtxCompPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxComposedView);
 			
 			subpass1.createSubpass(device, fboManager1.getSize(), renderPass1, cam, model);
-			rtxPass.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen, fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView);
-			rtxPassHalf.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen, normalHalf, otherHalf, stencilView2);
-			rtxPassQuat.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen, normalQuat, otherQuat, stencilView3);
+			rtxGenPass.createPipelines(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen, 
+				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView,
+				normalHalf, otherHalf, stencilView2,
+				normalQuat, otherQuat, stencilView3);
 			temporalFilter.createPipeline(physicalDevice, device, rtxComposedView);
 			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), rtxComposedView);
 			stencilCompPass.createPipeline(physicalDevice, device, stencilView, stencilView2, stencilView3);
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
-			mcPass.createPipeline(physicalDevice, device, cam, areaSources, randGen,
+			mcPass.createPipelines(physicalDevice, device, cam, areaSources, randGen,
 				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView,
 				normalHalf, otherHalf, stencilView2,
 				normalQuat, otherQuat, stencilView3);
@@ -388,9 +387,8 @@ namespace RtxFiltering_2
 			vkDestroyPipelineLayout(device, subpass1.pipelineLayout, nullptr);
 
 			// rtx pass cleanup
-			rtxPass.cleanUp(device, allocator);
-			rtxPassHalf.cleanUp(device, allocator);
-			rtxPassQuat.cleanUp(device, allocator);
+			rtxGenPass.cleanUp(device, allocator);
+			
 			rtxCompPass.cleanUp(device, allocator);
 
 			vkDestroyPipeline(device, subpass2.pipeline, nullptr);
@@ -417,20 +415,19 @@ namespace RtxFiltering_2
 			stencilPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), stencilView, stencilView2, stencilView3);
 			subSamplePass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), fboManager1.getFormat("normal"), fboManager1.getFormat("other"), normalHalf, otherHalf, normalQuat, otherQuat);
 			mcPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), mcStateView);
-			rtxPass.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), 1, rtxPassView);
-			rtxPassHalf.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, { fboManager1.getSize().width / 2, fboManager1.getSize().height / 2 }, 2, rtxPassHalfView);
-			rtxPassQuat.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, { fboManager1.getSize().width / 4, fboManager1.getSize().height / 4 }, 3, rtxPassQuatView);
-			rtxCompPass.createBuffer(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxComposedView);
+			rtxGenPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxPassView, rtxPassHalfView, rtxPassQuatView);
+			rtxCompPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxComposedView);
 		
 			subpass1.createSubpass(device, fboManager1.getSize(), renderPass1, cam, model);
-			rtxPass.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen, fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView);
-			rtxPassHalf.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen, normalHalf, otherHalf, stencilView2);
-			rtxPassQuat.createPipeline(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen, normalQuat, otherQuat, stencilView3);
+			rtxGenPass.createPipelines(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen,
+				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView,
+				normalHalf, otherHalf, stencilView2,
+				normalQuat, otherQuat, stencilView3);
 			temporalFilter.createPipeline(physicalDevice, device, rtxComposedView);
 			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), rtxComposedView);
 			stencilCompPass.createPipeline(physicalDevice, device, stencilView, stencilView2, stencilView3);
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
-			mcPass.createPipeline(physicalDevice, device, cam, areaSources, randGen,
+			mcPass.createPipelines(physicalDevice, device, cam, areaSources, randGen,
 				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView,
 				normalHalf, otherHalf, stencilView2,
 				normalQuat, otherQuat, stencilView3);
@@ -671,9 +668,7 @@ namespace RtxFiltering_2
 
 			mcPass.cmdDispatch(commandBuffers[index]);
 
-			rtxPass.cmdDispatch(commandBuffers[index], areaSources.dPdf.size().x, gui.numSamples);
-			rtxPassHalf.cmdDispatch(commandBuffers[index], areaSources.dPdf.size().x, gui.numSamples);
-			rtxPassQuat.cmdDispatch(commandBuffers[index], areaSources.dPdf.size().x, gui.numSamples);
+			rtxGenPass.cmdDispatch(commandBuffers[index]);
 			vkCmdPipelineBarrier(commandBuffers[index], VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_DEPENDENCY_BY_REGION_BIT,
 				0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 0, VK_NULL_HANDLE);
 			rtxCompPass.cmdDispatch(commandBuffers[index]);

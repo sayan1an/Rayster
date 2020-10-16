@@ -206,6 +206,7 @@ void main()
                 s_mcState[2 * lid.y + lid.x] = mcState;
             }
             
+            sampleInfo.covWeight.y = sampleInfo.maxVal.y;
             sampleInfo.maxVal.y /= mcIterations; // save mcmc value
         }
 

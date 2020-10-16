@@ -11,10 +11,11 @@
 namespace RtxFiltering_2
 {	
 	class SquarePattern;
-
-	class RtxGenPass {
+	
+	class RtxGenPass 
+	{
 	public:
-		void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, const uint32_t level, VkImageView& rtxOutView)
+		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const uint32_t level, const VkExtent2D& extent, VkImageView& rtxOutView)
 		{
 			auto makeImage = [&device = device, &queue = queue, &commandPool = commandPool,
 				&allocator = allocator](VkExtent2D extent, VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation, uint32_t layers)
@@ -34,7 +35,8 @@ namespace RtxFiltering_2
 		}
 
 		void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator,
-			const Model& model, const Camera& cam, const AreaLightSources& areaSource, const SquarePattern& coherentSamples, const RandomGenerator& randGen, const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& stencil)
+			const Model& model, const Camera& cam, const AreaLightSources& areaSource, const SquarePattern& coherentSamples, const RandomGenerator& randGen,
+			const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& stencil)
 		{
 			descGen.bindTLAS({ 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, model.getDescriptorTlas());
 			descGen.bindTLAS({ 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.getDescriptorTlas());
@@ -89,6 +91,8 @@ namespace RtxFiltering_2
 				"RtxHybridShadows: failed to allocate buffer for shader binding table!");
 
 			sbtGen.populateSBT(device, pipeline, allocator, sbtBufferAllocation);
+
+			pcb.discretePdfSize = areaSource.dPdf.size().x;
 		}
 
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
@@ -103,9 +107,8 @@ namespace RtxFiltering_2
 			vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 		}
 
-		void cmdDispatch(const VkCommandBuffer& cmdBuf, const uint32_t dPdfSize, const uint32_t numSamples)
+		void cmdDispatch(const VkCommandBuffer& cmdBuf, const uint32_t numSamples)
 		{
-			pcb.discretePdfSize = dPdfSize;
 			pcb.numSamples = numSamples;
 		
 			vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipeline);
@@ -151,10 +154,58 @@ namespace RtxFiltering_2
 		PFN_vkCmdTraceRaysNV vkCmdTraceRaysNV = nullptr;
 	};
 
+	class RtxGenCombinedPass
+	{
+	public:
+		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& rtxView1, VkImageView& rtxView2, VkImageView& rtxView3)
+		{
+			pass1.createBuffers(device, allocator, queue, commandPool, 0, extent, rtxView1);
+			pass2.createBuffers(device, allocator, queue, commandPool, 1, { extent.width / 2, extent.height / 2 }, rtxView2);
+			pass3.createBuffers(device, allocator, queue, commandPool, 2, { extent.width / 4, extent.height / 4 }, rtxView3);
+
+			buffersUpdated = true;
+		}
+
+		void createPipelines(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator,
+			const Model& model, const Camera& cam, const AreaLightSources& areaSource, const SquarePattern& coherentSamples, const RandomGenerator& randGen, 
+			const VkImageView& inNormal1, const VkImageView& inOther1, const VkImageView& inStencil1,
+			const VkImageView& inNormal2, const VkImageView& inOther2, const VkImageView& inStencil2,
+			const VkImageView& inNormal3, const VkImageView& inOther3, const VkImageView& inStencil3)
+		{	
+			CHECK_DBG_ONLY(buffersUpdated, "RtxGenCombinedPass : call createBuffers first.");
+
+			pass1.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, coherentSamples, randGen, inNormal1, inOther1, inStencil1);
+			pass2.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, coherentSamples, randGen, inNormal2, inOther2, inStencil2);
+			pass3.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, coherentSamples, randGen, inNormal3, inOther3, inStencil3);
+		}
+
+		void cmdDispatch(const VkCommandBuffer& cmdBuf)
+		{
+			pass1.cmdDispatch(cmdBuf, 4);
+			pass2.cmdDispatch(cmdBuf, 4);
+			pass3.cmdDispatch(cmdBuf, 4);
+		}
+
+		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
+		{
+			pass1.cleanUp(device, allocator);
+			pass2.cleanUp(device, allocator);
+			pass3.cleanUp(device, allocator);
+
+			buffersUpdated = false;
+		}
+	private:
+		bool buffersUpdated = false;
+
+		RtxGenPass pass1;
+		RtxGenPass pass2;
+		RtxGenPass pass3;
+	};
+
 	class RtxCompositionPass
 	{
 	public:
-		void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& rtxComposedView)
+		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& rtxComposedView)
 		{
 			auto makeImage = [&device = device, &queue = queue, &commandPool = commandPool,
 				&allocator = allocator](VkExtent2D extent, VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation)
