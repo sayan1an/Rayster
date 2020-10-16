@@ -24,7 +24,6 @@ layout(binding = 9, set = 0) readonly buffer RandomSquareSamples { vec2 v[]; } c
 layout(binding = 10, set = 0) buffer RandomGeneratorState { uint state[]; } randGenState;
 
 layout (push_constant) uniform pcBlock {
-	float power;
 	uint discretePdfSize;
 	uint numSamples;
 	uint level;
@@ -139,9 +138,9 @@ void main()
 				lightPercent += lightHit;
 			}
 					
-			diffComp *= pcb.power / pcb.numSamples;
-			specComp *= pcb.power / pcb.numSamples;
-			lightPercent /= pcb.numSamples;
+			diffComp /= float(pcb.numSamples);
+			specComp /=  float(pcb.numSamples);
+			lightPercent /= float(pcb.numSamples);
 		}
 		
 		

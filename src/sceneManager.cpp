@@ -613,7 +613,7 @@ static void loadMcMcTest(Model& model, Camera& cam)
 	model.addMaterial(1, 4, 1, GGX); // urchin
 	model.addMaterial(2, 4, 1, GGX); // sphere
 	model.addMaterial(3, 4, 1, GGX); // cube
-	model.addMaterial(0, 5, 0, AREA); // quadLight
+	model.addMaterial(5, 5, 0, AREA); // quadLight
 
 	Mesh* mesh = loadMeshTiny((ROOT + "/models/modelLibrary/groundPlane.obj").c_str());
 	mesh->normailze(6.0f);
@@ -660,9 +660,9 @@ static void loadMcMcTest(Model& model, Camera& cam)
 extern void loadScene(Model& model, Camera& cam, const std::string& name)
 {	
 	//loadMedievalHouse(model, cam);
-	loadBasicShapes(model, cam);
+	//loadBasicShapes(model, cam);
 	//loadSpaceship(model, cam);
-	//loadMcMcTest(model, cam);
+	loadMcMcTest(model, cam);
 	//loadDefault(model, cam);
 
 	/*if (name.compare("default") == 0)

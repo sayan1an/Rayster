@@ -20,6 +20,7 @@ McSampleInfo unpackMcSampleInfo(in ivec2 idx2d, in int frameWidth)
 
 layout (push_constant) uniform pcBlock {
 	uint choice;
+	float brightness;
 } pcb;
 
 void main()
@@ -45,10 +46,10 @@ void main()
 		vec4 outCol = diffTex * (diffComp1 + diffComp2 + diffComp3) + specTex * specComp;
 		outCol.w = weight;
 		
-		imageStore(rtxOut, pixel, outCol / weight);
+		imageStore(rtxOut, pixel, pcb.brightness * outCol / weight);
 	}
 	else if (pcb.choice == 1) {
 		McSampleInfo sampleInfo = unpackMcSampleInfo(pixel, viewportSize.x);	
-		imageStore(rtxOut, pixel, vec4(sampleInfo.maxVal.y));
+		imageStore(rtxOut, pixel, pcb.brightness * (sampleInfo.maxVal.y < -0.5 ? vec4(0,1,0,1) : vec4(sampleInfo.maxVal.y)));
 	}
 }

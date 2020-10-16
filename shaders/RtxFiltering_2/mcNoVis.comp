@@ -110,9 +110,6 @@ void main()
     ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
     ivec2 lid = ivec2(gl_LocalInvocationID.xy);
     vec4 stencil = imageLoad(stencilImage, gid / 2);
-    float alpha = 0;
-    vec3 mcmcVal = vec3(0);
-    mcmcVal = vec3(0);
 
     s_mcState[2*lid.y + lid.x] = vec2(-1);
 
@@ -128,10 +125,15 @@ void main()
         ivec2 offset = ivec2(0);//ivec2(xorshift(xorshiftState) & (stride - 1), xorshift(xorshiftState) & (stride - 1)); // + add offset due to motion vector
         ivec2 frameSize = imageSize(outMcState); // Full resolution
         vec2 mcState = imageLoad(outMcState, gid * ivec2(stride, stride) + offset).rg;
-
-        //mcState = vec2(pcb.level + 1);
+       
         const vec4 other = imageLoad(otherImage, gid).rgba;
 		const vec4 normalDepth = imageLoad(normalImage, gid).rgba;
+
+        McSampleInfo sampleInfo;
+        sampleInfo.mean = vec2(DEFAULT_MC_SAMPLE_MEAN);
+        sampleInfo.var = vec2(DEFAULT_MC_SAMPLE_VAR);
+        sampleInfo.covWeight = vec2(0);
+        sampleInfo.maxVal = vec2(0);
 
         // assign mcState undefined if primary ray hitting a light source or escaping the scene
         if (other.w < -0.5f || (other.w > 3.5 && other.w < 4.5))
@@ -169,7 +171,9 @@ void main()
 #endif
             mcState = proposedState;
             s_mcState[2 * lid.y + lid.x] = mcState;
-
+            
+            sampleInfo.mean = vec2(0);
+            sampleInfo.var = vec2(0);
             for (uint i = 0; i < mcIterations; i++) {
                 // choose two random number in {0, 1, 2}
                 uint r1 = xorshift(xorshiftState) % 3; // chose first number in {0,1,2}
@@ -190,7 +194,11 @@ void main()
                 prevProposal = accepted ? currentProposal : prevProposal;
                 mcState = accepted ? proposedState : mcState;
 
-                mcmcVal += prevProposal;
+                float denom = sampleInfo.maxVal.y + prevProposal;
+                sampleInfo.mean += prevProposal * (mcState - sampleInfo.mean) / denom;
+                sampleInfo.var = sampleInfo.maxVal.y * sampleInfo.var / denom + sampleInfo.maxVal.y * (mcState - sampleInfo.mean) * (mcState - sampleInfo.mean)  / (denom * denom);
+                sampleInfo.maxVal.x = max(sampleInfo.maxVal.x, prevProposal);
+                sampleInfo.maxVal.y += prevProposal;
 #if COLLECT_MARKOV_CHAIN_SAMPLES
                 if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
                     collectMCSample.state[i + 1] = vec4(mcState.x, mcState.y, prevProposal, 0);
@@ -198,13 +206,14 @@ void main()
                 s_mcState[2 * lid.y + lid.x] = mcState;
             }
             
-            mcmcVal /= mcIterations;
+            sampleInfo.maxVal.y /= mcIterations; // save mcmc value
         }
-        
-        
-        McSampleInfo sampleInfo;
-        sampleInfo.maxVal.y = mcmcVal.x;
 
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+        if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
+            sampleInfo.maxVal.y = -1;
+#endif        
+        
         for (uint y = 0; y < stride; y++)
             for (uint x = 0; x < stride; x++) {
                 repackMcSampleInfo(gid * ivec2(stride, stride) + ivec2(x, y), frameSize.x, sampleInfo);
@@ -212,14 +221,5 @@ void main()
             }
 
         randGenState.state[gid.y * gl_NumWorkGroups.x * 2 + gid.x] = xorshiftState;
-        
-        alpha = 1;
-
-#if COLLECT_MARKOV_CHAIN_SAMPLES
-            if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
-                mcmcVal = vec3(0,1,0);
-#endif
     }
-
-    //imageStore(outMcmc, gid, vec4(mcmcVal, alpha));
 }    

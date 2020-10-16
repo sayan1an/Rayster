@@ -137,7 +137,6 @@ namespace RtxFiltering_2
 
 		struct PushConstantBlock
 		{
-			float power = 100.0;
 			uint32_t discretePdfSize;
 			uint32_t numSamples;
 			uint32_t level;
@@ -170,6 +169,7 @@ namespace RtxFiltering_2
 			rtxComposedView = rtxComposedImageView;
 			
 			pcb.choice = 1;
+			pcb.brightness = 1.0f;
 			globalWorkDim = extent;
 		}
 
@@ -215,6 +215,7 @@ namespace RtxFiltering_2
 				ImGui::Text("Output:");
 				ImGui::RadioButton("Rtx##RtxCompositionPass", &pcb.choice, 0); ImGui::SameLine();
 				ImGui::RadioButton("Mcmc##RtxCompositionPass", &pcb.choice, 1);
+				ImGui::SliderFloat("Brightness##MarkovChainPass", &pcb.brightness, 1.0f, 200.0f);
 			}
 
 		}
@@ -264,6 +265,7 @@ namespace RtxFiltering_2
 		struct PushConstantBlock
 		{
 			int choice;
+			float brightness;
 		} pcb;
 	};
 }
