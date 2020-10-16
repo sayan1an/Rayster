@@ -2,7 +2,7 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "hostDeviceShared.h"
-layout (local_size_x = SHADOW_MAP_SUBSAMPLE, local_size_y = SHADOW_MAP_SUBSAMPLE) in;
+layout (local_size_x = 16, local_size_y = 16) in;
 
 layout (binding = 0, rgba8) uniform image2D diffuseTex;
 layout (binding = 1, rgba8) uniform image2D specularTex;

@@ -195,7 +195,7 @@ namespace RtxFiltering_2
 			vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 			vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
 			vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstantBlock), &pcb);
-			vkCmdDispatch(cmdBuf, 1 + (globalWorkDim.width - 1) / SHADOW_MAP_SUBSAMPLE, 1 + (globalWorkDim.height - 1) / SHADOW_MAP_SUBSAMPLE, 1);
+			vkCmdDispatch(cmdBuf, 1 + (globalWorkDim.width - 1) / 16, 1 + (globalWorkDim.height - 1) / 16, 1);
 		}
 
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)

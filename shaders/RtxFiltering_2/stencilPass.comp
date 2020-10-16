@@ -11,62 +11,45 @@ layout (binding = 4, rgba16f) uniform image2D outStencil3;
 shared vec4 sMeanNormalDepth[8][8];
 shared vec4 sVarNormalDepth[8][8];
 
-shared float sMeanShadow[8][8];
-shared float sVarShadow[8][8];
+shared vec3 sMeanFrame[8][8];
+shared vec3 sVarFrame[8][8];
 
-void meanVarNormalDepth(in vec4 n00, in vec4 n01, in vec4 n10, in vec4 n11, out vec4 mean, out vec4 var)
+#define CALC_MEAN_VAR(TYPE) \
+	void calcMeanVar(in TYPE v00, in TYPE v01, in TYPE v10, in TYPE v11, out TYPE mean, out TYPE var) \
+	{ \
+		mean = (v00 + v01 + v10 + v11) / 4.0f; \
+		var = (v00 - mean) * (v00 - mean) + (v01 - mean) * (v01 - mean) + (v10 - mean) * (v10 - mean) + (v11 - mean) * (v11 - mean); \
+		var = var / 4.0f; \
+	}
+
+//https://www.emathzone.com/tutorials/basic-statistics/combined-variance.html
+#define COMBINE_MEAN_VAR(TYPE, SHARED_CACHE_NAME_MEAN, SHARED_CACHE_NAME_VAR) \
+	void combineMeanVar(ivec2 block, out TYPE mean, out TYPE var) \
+	{ \
+		TYPE m00 = SHARED_CACHE_NAME_MEAN[2*block.y][2*block.x]; \
+		TYPE m01 = SHARED_CACHE_NAME_MEAN[2*block.y][2*block.x + 1]; \
+		TYPE m10 = SHARED_CACHE_NAME_MEAN[2*block.y + 1][2*block.x]; \
+		TYPE m11 = SHARED_CACHE_NAME_MEAN[2*block.y + 1][2*block.x + 1]; \
+		\
+		TYPE v00 = SHARED_CACHE_NAME_VAR[2*block.y][2*block.x]; \
+		TYPE v01 = SHARED_CACHE_NAME_VAR[2*block.y][2*block.x + 1]; \
+		TYPE v10 = SHARED_CACHE_NAME_VAR[2*block.y + 1][2*block.x]; \
+		TYPE v11 = SHARED_CACHE_NAME_VAR[2*block.y + 1][2*block.x + 1]; \
+		\
+		mean = (m00 + m11 + m10 + m11) / 4.0f; \
+		var = v00 + v01 + v10 + v11 + (m00 - mean) * (m00 - mean) + (m01 - mean) * (m01 - mean) + (m10 - mean) * (m10 - mean) + (m11 - mean) * (m11 - mean); \
+		var = var / 4.0f; \
+	}
+
+CALC_MEAN_VAR(vec4)
+CALC_MEAN_VAR(vec3)
+
+COMBINE_MEAN_VAR(vec4, sMeanNormalDepth, sVarNormalDepth)
+COMBINE_MEAN_VAR(vec3, sMeanFrame, sVarFrame)
+
+vec3 var2Std(in vec4 varN, in vec4 meanN, in vec3 varF)
 {
-	mean = (n00 + n01 + n10 + n11) / 4.0f;
-	var = (n00 - mean) * (n00 - mean) + (n01 - mean) * (n01 - mean) + (n10 - mean) * (n10 - mean) + (n11 - mean) * (n11 - mean);
-	var = var / 4.0f;
-}
-
-void meanVarShadow(in float s00, in float s01, in float s10, in float s11, out float mean, out float var)
-{
-	mean = (s00 + s01 + s10 + s11) / 4.0f;
-	var = (s00 - mean) * (s00 - mean) + (s01 - mean) * (s01 - mean) + (s10 - mean) * (s10 - mean) + (s11 - mean) * (s11 - mean);
-	var = var / 4.0f;
-}
-
-vec2 var2StdNormalDepth(in vec4 var, in vec4 mean)
-{
-	return vec2(sqrt(var.x + var.y + var.z), sqrt(var.w) / (mean.w  + 0.0000001));
-}
-
-void meanVarNormalDepthShared(ivec2 block, out vec4 mean, out vec4 var)
-{
-	vec4 m00 = sMeanNormalDepth[2*block.y][2*block.x];
-	vec4 m01 = sMeanNormalDepth[2*block.y][2*block.x + 1];
-	vec4 m10 = sMeanNormalDepth[2*block.y + 1][2*block.x];
-	vec4 m11 = sMeanNormalDepth[2*block.y + 1][2*block.x + 1];
-
-	vec4 v00 = sVarNormalDepth[2*block.y][2*block.x];
-	vec4 v01 = sVarNormalDepth[2*block.y][2*block.x + 1];
-	vec4 v10 = sVarNormalDepth[2*block.y + 1][2*block.x];
-	vec4 v11 = sVarNormalDepth[2*block.y + 1][2*block.x + 1];
-
-	mean = (m00 + m11 + m10 + m11) / 4.0f;
-	//https://www.emathzone.com/tutorials/basic-statistics/combined-variance.html
-	var = v00 + v01 + v10 + v11 + (m00 - mean) * (m00 - mean) + (m01 - mean) * (m01 - mean) + (m10 - mean) * (m10 - mean) + (m11 - mean) * (m11 - mean);
-	var = var / 4.0f;
-}
-
-void meanVarShadowShared(ivec2 block, out float mean, out float var)
-{
-	float m00 = sMeanShadow[2*block.y][2*block.x];
-	float m01 = sMeanShadow[2*block.y][2*block.x + 1];
-	float m10 = sMeanShadow[2*block.y + 1][2*block.x];
-	float m11 = sMeanShadow[2*block.y + 1][2*block.x + 1];
-
-	float v00 = sVarShadow[2*block.y][2*block.x];
-	float v01 = sVarShadow[2*block.y][2*block.x + 1];
-	float v10 = sVarShadow[2*block.y + 1][2*block.x];
-	float v11 = sVarShadow[2*block.y + 1][2*block.x + 1];
-
-	mean = (m00 + m11 + m10 + m11) / 4.0f;
-	//https://www.emathzone.com/tutorials/basic-statistics/combined-variance.html
-	var = v00 + v01 + v10 + v11 + (m00 - mean) * (m00 - mean) + (m01 - mean) * (m01 - mean) + (m10 - mean) * (m10 - mean) + (m11 - mean) * (m11 - mean);
-	var = var / 4.0f;
+	return vec3(sqrt(varN.x + varN.y + varN.z), sqrt(varN.w) / (meanN.w  + 0.0000001), sqrt((varF.x + varF.y + varF.z) / 3.0f));
 }
 
 void main()
@@ -77,45 +60,39 @@ void main()
 	vec4 n10 = imageLoad(inNormal, pixel * 2 + ivec2(1,0)).rgba;
 	vec4 n11 = imageLoad(inNormal, pixel * 2 + ivec2(1,1)).rgba;
 
-	float s00 = imageLoad(inPrevFrame, pixel * 2).r;
-	float s01 = imageLoad(inPrevFrame, pixel * 2 + ivec2(0,1)).r;
-	float s10 = imageLoad(inPrevFrame, pixel * 2 + ivec2(1,0)).r;
-	float s11 = imageLoad(inPrevFrame, pixel * 2 + ivec2(1,1)).r;
+	vec3 p00 = imageLoad(inPrevFrame, pixel * 2).rgb;
+	vec3 p01 = imageLoad(inPrevFrame, pixel * 2 + ivec2(0,1)).rgb;
+	vec3 p10 = imageLoad(inPrevFrame, pixel * 2 + ivec2(1,0)).rgb;
+	vec3 p11 = imageLoad(inPrevFrame, pixel * 2 + ivec2(1,1)).rgb;
 
-	vec4 meanNormalDepth, varNormalDepth; float meanShadow, varShadow;
-	meanVarNormalDepth(n00, n01, n10, n11, meanNormalDepth, varNormalDepth); meanVarShadow(s00, s01, s10, s11, meanShadow, varShadow);
+	vec4 meanNormalDepth, varNormalDepth; vec3 meanLastFrame, varLastFrame;
+	calcMeanVar(n00, n01, n10, n11, meanNormalDepth, varNormalDepth); calcMeanVar(p00, p01, p10, p11, meanLastFrame, varLastFrame);
 	
 	uint tx = gl_LocalInvocationID.x;
 	uint ty = gl_LocalInvocationID.y;
-	sMeanNormalDepth[ty][tx] = meanNormalDepth; sMeanShadow[ty][tx] = meanShadow;
-	sVarNormalDepth[ty][tx] = varNormalDepth; sVarShadow[ty][tx] = varShadow;
+	sMeanNormalDepth[ty][tx] = meanNormalDepth; sMeanFrame[ty][tx] = meanLastFrame;
+	sVarNormalDepth[ty][tx] = varNormalDepth; sVarFrame[ty][tx] = varLastFrame;
 	
-	imageStore(outStencil, pixel, vec4(var2StdNormalDepth(varNormalDepth, meanNormalDepth), sqrt(varShadow), 0));
+	imageStore(outStencil, pixel, vec4(var2Std(varNormalDepth, meanNormalDepth, varLastFrame), 0));
 
 	memoryBarrierShared();
 	barrier();
-
+		
 	if (tx < 4 && ty < 4) {
-		meanVarNormalDepthShared(ivec2(tx,ty), meanNormalDepth, varNormalDepth); meanVarShadowShared(ivec2(tx,ty), meanShadow, varShadow);
-	}
-	memoryBarrierShared();
-	barrier();
+		combineMeanVar(ivec2(tx,ty), meanNormalDepth, varNormalDepth); combineMeanVar(ivec2(tx,ty), meanLastFrame, varLastFrame);
 
-	if (tx < 4 && ty < 4) {
-		sMeanNormalDepth[ty][tx] = meanNormalDepth; sMeanShadow[ty][tx] = meanShadow;
-		sVarNormalDepth[ty][tx] = varNormalDepth;  sVarShadow[ty][tx] = varShadow;
+		sMeanNormalDepth[ty][tx] = meanNormalDepth; sMeanFrame[ty][tx] = meanLastFrame;
+		sVarNormalDepth[ty][tx] = varNormalDepth;  sVarFrame[ty][tx] = varLastFrame;
 
-		imageStore(outStencil2, 4 * ivec2(gl_WorkGroupID.xy) + ivec2(tx, ty), vec4(var2StdNormalDepth(varNormalDepth, meanNormalDepth), sqrt(varShadow), 0));
+		imageStore(outStencil2, 4 * ivec2(gl_WorkGroupID.xy) + ivec2(tx, ty), vec4(var2Std(varNormalDepth, meanNormalDepth, varLastFrame), 0));
 	}
 
 	memoryBarrierShared();
 	barrier();
-
+	
 	if (tx < 2 && ty < 2) {
-		meanVarNormalDepthShared(ivec2(tx,ty), meanNormalDepth, varNormalDepth); meanVarShadowShared(ivec2(tx,ty), meanShadow, varShadow);
-		//sMean[ty][tx] = mean;
-		//sVar[ty][tx] = var;
-
-		imageStore(outStencil3, 2 * ivec2(gl_WorkGroupID.xy) + ivec2(tx, ty), vec4(var2StdNormalDepth(varNormalDepth, meanNormalDepth), sqrt(varShadow), 0));
+		combineMeanVar(ivec2(tx,ty), meanNormalDepth, varNormalDepth); combineMeanVar(ivec2(tx,ty), meanLastFrame, varLastFrame);
+	
+		imageStore(outStencil3, 2 * ivec2(gl_WorkGroupID.xy) + ivec2(tx, ty), vec4(var2Std(varNormalDepth, meanNormalDepth, varLastFrame), 0));
 	}
 }
