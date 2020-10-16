@@ -25,10 +25,9 @@ layout(binding = 7) readonly buffer NormDiscreteCdf { float bins[]; } normDiscre
 layout(binding = 8) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
 layout(binding = 9, rg32f) uniform image2D outMcState;
 layout(binding = 10) buffer BufMcSampleRepresentation SAMPLE_INFO_BUFFER_NAME;
-layout(binding = 11, rgba32f) uniform image2D outMcmc;
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-layout(binding = 12) buffer CollectMCSample { vec4 state[]; } collectMCSample;
+layout(binding = 11) buffer CollectMCSample { vec4 state[]; } collectMCSample;
 #endif
 
 layout (push_constant) uniform pcBlock {
@@ -222,5 +221,5 @@ void main()
 #endif
     }
 
-    imageStore(outMcmc, gid, vec4(mcmcVal, alpha));
+    //imageStore(outMcmc, gid, vec4(mcmcVal, alpha));
 }    

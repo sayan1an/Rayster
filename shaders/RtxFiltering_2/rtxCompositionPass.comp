@@ -6,19 +6,21 @@ layout (local_size_x = SHADOW_MAP_SUBSAMPLE, local_size_y = SHADOW_MAP_SUBSAMPLE
 
 layout (binding = 0, rgba8) uniform image2D diffuseTex;
 layout (binding = 1, rgba8) uniform image2D specularTex;
-/*
 layout (binding = 2, rgba32f) uniform readonly image2DArray rtxIn;
 layout (binding = 3) uniform sampler2DArray rtxIn2;
 layout (binding = 4) uniform sampler2DArray rtxIn3;
-*/
-layout (binding = 2, rgba32f) uniform readonly image2D rtxIn;
-layout (binding = 3) uniform sampler2D rtxIn2;
-layout (binding = 4) uniform sampler2D rtxIn3;
-layout (binding = 5, rgba32f) uniform image2D rtxOut;
-layout (binding = 6, r32f) uniform image2D shadowMap;
-layout (binding = 7, r32f) uniform image2D shadowMapBlur;
+layout (binding = 5) buffer BufMcSampleRepresentation SAMPLE_INFO_BUFFER_NAME;
+layout (binding = 6, rgba32f) uniform image2D rtxOut;
+layout (binding = 7, r32f) uniform image2D shadowMap;
+layout (binding = 8, r32f) uniform image2D shadowMapBlur;
 
 shared float shadow[SHADOW_MAP_SUBSAMPLE][SHADOW_MAP_SUBSAMPLE];
+
+McSampleInfo unpackMcSampleInfo(in ivec2 idx2d, in int frameWidth)
+{   
+    uint index = idx2d.y * frameWidth + idx2d.x;
+    UNPACK_MC_SAMPLE_INFO
+}
 
 float reduce(ivec2 lid) {
 	ivec2 lid_2 = lid * 2;
@@ -29,13 +31,11 @@ void main()
 {	
 	ivec2 viewportSize = imageSize(diffuseTex);
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-	ivec2 lid = ivec2(gl_LocalInvocationID.x, gl_LocalInvocationID.y);
 	vec2 texCoord = (vec2(pixel) + vec2(0.5)) / viewportSize;
 
 	vec4 diffTex = imageLoad(diffuseTex, pixel);
 	vec4 specTex = imageLoad(specularTex, pixel);
 	
-	/*
 	vec4 diffComp1 = imageLoad(rtxIn, ivec3(pixel, 0));
 	vec4 specComp1 = imageLoad(rtxIn, ivec3(pixel, 1));
 
@@ -44,31 +44,21 @@ void main()
 
 	vec4 diffComp3 = texture(rtxIn3, vec3(texCoord, 0));
 	vec4 specComp3 = texture(rtxIn3, vec3(texCoord, 1));
-	*/
-
-	// Hack to show MCMC values
-	vec4 diffComp1 = imageLoad(rtxIn, pixel);
-	vec4 specComp1 = diffComp1;
-	//specComp1.w = 1.0f;
-
-	vec4 diffComp2 = texture(rtxIn2, texCoord);
-	vec4 specComp2 = diffComp2;
-	//specComp2.w = 1.0f;
-
-	vec4 diffComp3 = texture(rtxIn3, texCoord);
-	vec4 specComp3 = diffComp3;
-	//specComp3.w = 1.0f;
-
-
+	
 	float weight = diffComp1.w + diffComp2.w + diffComp3.w;
 	vec4 specComp = specComp1 + specComp2 + specComp3;
 	vec4 outCol = diffTex * (diffComp1 + diffComp2 + diffComp3) + specTex * specComp;
 	outCol.w = weight;
 
+
+	McSampleInfo sampleInfo = unpackMcSampleInfo(pixel, viewportSize.x);
+	//imageStore(rtxOut, pixel, outCol / weight);
+	imageStore(rtxOut, pixel, vec4(sampleInfo.maxVal.y));
+
+	/*
+	ivec2 lid = ivec2(gl_LocalInvocationID.x, gl_LocalInvocationID.y);
 	shadow[lid.y][lid.x] = specComp.w/weight;
 	imageStore(shadowMap, pixel, vec4(specComp.w/weight));
-	imageStore(rtxOut, pixel, outCol / weight);
-	
 	memoryBarrierShared();
 	barrier();
 
@@ -92,4 +82,5 @@ void main()
 		float oldVal = imageLoad(shadowMapBlur, ivec2(gl_WorkGroupID.xy)).r;
 		imageStore(shadowMapBlur, ivec2(gl_WorkGroupID.xy), vec4(0.5 * mean + 0.5 * oldVal));
 	}
+	*/
 }

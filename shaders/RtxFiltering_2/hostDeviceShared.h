@@ -7,6 +7,9 @@
 
 #define SHADOW_MAP_SUBSAMPLE 4
 #define COLLECT_MARKOV_CHAIN_SAMPLES 1
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+#define SAVE_SAMPLES_TO_DISK 1
+#endif
 #define MAX_MARKOV_CHAIN_SAMPLES 1024
 
 #define DEFAULT_MC_SAMPLE_MEAN 0.5f
@@ -17,7 +20,7 @@ struct McSampleInfo
     DTYPE_VEC2 mean;
     DTYPE_VEC2 var; // var_x, var_y
     DTYPE_VEC2 covWeight; // var_xy, moving sample weight
-    DTYPE_VEC2 maxVal; // maximum value of mc sample, dummy
+    DTYPE_VEC2 maxVal; // maximum value of mc sample, average value of mcmc samples
 };
 
 #ifdef GL_core_profile

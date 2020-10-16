@@ -6,7 +6,6 @@
 #include <chrono>
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-#define SAVE_SAMPLES_TO_DISK 1
 #if SAVE_SAMPLES_TO_DISK
 #include "cnpy.h"
 #endif
@@ -18,7 +17,7 @@ namespace RtxFiltering_2
 	{
 	public:
 		// Assume extent is twice the size of stencil
-		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const uint32_t level, const VkExtent2D& extent, VkImageView& _mcmcView)
+		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const uint32_t level, const VkExtent2D& extent)
 		{
 			auto makeImage = [&device = device, &queue = queue, &commandPool = commandPool,
 				&allocator = allocator](VkExtent2D extent, VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation)
@@ -27,9 +26,6 @@ namespace RtxFiltering_2
 				imageView = createImageView(device, image, format, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
 				transitionImageLayout(device, queue, commandPool, image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
 			};
-
-			makeImage(extent, VK_FORMAT_R32G32B32A32_SFLOAT, mcmc, mcmcView, mcmcAlloc);
-			_mcmcView = mcmcView;
 
 			globalWorkDim = extent;
 			pcb.level = level;
@@ -55,9 +51,8 @@ namespace RtxFiltering_2
 			descGen.bindBuffer({ 8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.dPdf.getEmitterIndexMapDescriptorBufferInfo());
 			descGen.bindImage({ 9, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outMcState,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindBuffer({ 10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, mcSampleInfo);
-			descGen.bindImage({ 11, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , mcmcView,  VK_IMAGE_LAYOUT_GENERAL });
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-			descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, collectSamples);
+			descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, collectSamples);
 #endif
 
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
@@ -72,9 +67,6 @@ namespace RtxFiltering_2
 
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
 		{
-			vkDestroyImageView(device, mcmcView, nullptr);
-			vmaDestroyImage(allocator, mcmc, mcmcAlloc);
-
 			vkDestroyPipeline(device, pipeline, nullptr);
 			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
@@ -111,10 +103,6 @@ namespace RtxFiltering_2
 		bool buffersUpdated = false;
 
 		VkExtent2D globalWorkDim;
-
-		VkImage mcmc;
-		VkImageView mcmcView;
-		VmaAllocation mcmcAlloc;
 		
 		struct PushConstantBlock {
 			uint32_t level;
@@ -133,7 +121,7 @@ namespace RtxFiltering_2
 	class MarkovChainNoVisibilityCombined
 	{
 	public:
-		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& _mcStateView, VkImageView& _mcmcView1, VkImageView& _mcmcView2, VkImageView& _mcmcView3)
+		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& _mcStateView)
 		{
 			auto makeImage = [&device = device, &queue = queue, &commandPool = commandPool,
 				&allocator = allocator](VkExtent2D extent, VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation)
@@ -154,16 +142,15 @@ namespace RtxFiltering_2
 			initData[0].maxVal = glm::vec2(0.0f);
 			for (uint32_t i = 1; i < extent.width * extent.height; i++)
 				initData[i] = initData[0];
-			std::cout << sizeof(McSampleInfo) << std::endl;
-
+		
 			createBuffer(device, allocator, queue, commandPool, mcSampleInfo, mcSampleInfoAlloc, extent.width * extent.height * sizeof(McSampleInfo), initData, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 			mptrCollectMcSampleBuffer = createBuffer(allocator, collectMcSampleBuffer, collectMcSampleBufferAllocation, MAX_MARKOV_CHAIN_SAMPLES * sizeof(float) * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
 			ptrCollectMcSampleBuffer = new float[MAX_MARKOV_CHAIN_SAMPLES * 4];
 
-			mcPass1.createBuffers(device, allocator, queue, commandPool, 0, extent, _mcmcView1);
-			mcPass2.createBuffers(device, allocator, queue, commandPool, 1, { extent.width / 2, extent.height / 2 }, _mcmcView2);
-			mcPass3.createBuffers(device, allocator, queue, commandPool, 2, { extent.width / 4, extent.height / 4 }, _mcmcView3);
+			mcPass1.createBuffers(device, allocator, queue, commandPool, 0, extent);
+			mcPass2.createBuffers(device, allocator, queue, commandPool, 1, { extent.width / 2, extent.height / 2 });
+			mcPass3.createBuffers(device, allocator, queue, commandPool, 2, { extent.width / 4, extent.height / 4 });
 			
 			buffersUpdated = true;
 
@@ -259,6 +246,18 @@ namespace RtxFiltering_2
 
 		}
 
+		VkDescriptorBufferInfo getSampleInfoDescriptorBufferInfo() const
+		{	
+			CHECK_DBG_ONLY(buffersUpdated, "MarkovChainNoVisibilityCombined : call createBuffers first.");
+
+			VkDescriptorBufferInfo descriptorBufferInfo = {};
+			descriptorBufferInfo.buffer = mcSampleInfo;
+			descriptorBufferInfo.offset = 0;
+			descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+			return descriptorBufferInfo;
+		}
+
 		void updateDataPost()
 		{
 #if COLLECT_MARKOV_CHAIN_SAMPLES
@@ -304,16 +303,6 @@ namespace RtxFiltering_2
 		{
 			VkDescriptorBufferInfo descriptorBufferInfo = {};
 			descriptorBufferInfo.buffer = collectMcSampleBuffer;
-			descriptorBufferInfo.offset = 0;
-			descriptorBufferInfo.range = VK_WHOLE_SIZE;
-
-			return descriptorBufferInfo;
-		}
-
-		VkDescriptorBufferInfo getSampleInfoDescriptorBufferInfo() const
-		{
-			VkDescriptorBufferInfo descriptorBufferInfo = {};
-			descriptorBufferInfo.buffer = mcSampleInfo;
 			descriptorBufferInfo.offset = 0;
 			descriptorBufferInfo.range = VK_WHOLE_SIZE;
 
