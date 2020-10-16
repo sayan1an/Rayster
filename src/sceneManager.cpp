@@ -660,9 +660,9 @@ static void loadMcMcTest(Model& model, Camera& cam)
 extern void loadScene(Model& model, Camera& cam, const std::string& name)
 {	
 	//loadMedievalHouse(model, cam);
-	//loadBasicShapes(model, cam);
+	loadBasicShapes(model, cam);
 	//loadSpaceship(model, cam);
-	loadMcMcTest(model, cam);
+	//loadMcMcTest(model, cam);
 	//loadDefault(model, cam);
 
 	/*if (name.compare("default") == 0)

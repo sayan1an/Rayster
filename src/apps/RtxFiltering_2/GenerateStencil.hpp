@@ -5,16 +5,15 @@ namespace RtxFiltering_2
 	class GenerateStencilPass
 	{
 	public:
-		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& inNormal, const VkImageView &inShadowFull, const VkImageView &inShadowBlur)
+		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& inNormal, const VkImageView &inPrevFrame)
 		{
 			CHECK_DBG_ONLY(buffersUpdated, "StencilPass : call createBuffers first.");
 
 			descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNormal,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inShadowFull,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { texSampler , inShadowBlur,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outStencilView,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outStencilView2,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outStencilView3,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inPrevFrame,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outStencilView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outStencilView2,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outStencilView3,  VK_IMAGE_LAYOUT_GENERAL });
 
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 

@@ -3,11 +3,10 @@
 layout (local_size_x = 8, local_size_y = 8) in;
 
 layout (binding = 0, rgba32f) uniform readonly image2D inNormal;
-layout (binding = 1, r32f) uniform readonly image2D inShadowMap;
-layout (binding = 2) uniform sampler2D shadowMapBlur;
-layout (binding = 3, rgba16f) uniform image2D outStencil;
-layout (binding = 4, rgba16f) uniform image2D outStencil2;
-layout (binding = 5, rgba16f) uniform image2D outStencil3;
+layout (binding = 1, rgba32f) uniform readonly image2D inPrevFrame;
+layout (binding = 2, rgba16f) uniform image2D outStencil;
+layout (binding = 3, rgba16f) uniform image2D outStencil2;
+layout (binding = 4, rgba16f) uniform image2D outStencil3;
 
 shared vec4 sMeanNormalDepth[8][8];
 shared vec4 sVarNormalDepth[8][8];
@@ -78,16 +77,10 @@ void main()
 	vec4 n10 = imageLoad(inNormal, pixel * 2 + ivec2(1,0)).rgba;
 	vec4 n11 = imageLoad(inNormal, pixel * 2 + ivec2(1,1)).rgba;
 
-	float s00 = imageLoad(inShadowMap, pixel * 2).r;
-	float s01 = imageLoad(inShadowMap, pixel * 2 + ivec2(0,1)).r;
-	float s10 = imageLoad(inShadowMap, pixel * 2 + ivec2(1,0)).r;
-	float s11 = imageLoad(inShadowMap, pixel * 2 + ivec2(1,1)).r;
-
-	ivec2 viewPortSize = ivec2(gl_NumWorkGroups.xy) * ivec2(16, 16);
-	s00 += texture(shadowMapBlur, (vec2(pixel * 2) + vec2(0.5,0.5)) / viewPortSize).r; s00 /= 2;
-	s01 += texture(shadowMapBlur, (vec2(pixel * 2 + ivec2(0,1)) + vec2(0.5,0.5)) / viewPortSize).r; s01 /= 2;
-	s10 += texture(shadowMapBlur, (vec2(pixel * 2 + ivec2(1,0)) + vec2(0.5,0.5)) / viewPortSize).r; s10 /= 2;
-	s11 += texture(shadowMapBlur, (vec2(pixel * 2 + ivec2(1,1)) + vec2(0.5,0.5)) / viewPortSize).r; s11 /= 2;
+	float s00 = imageLoad(inPrevFrame, pixel * 2).r;
+	float s01 = imageLoad(inPrevFrame, pixel * 2 + ivec2(0,1)).r;
+	float s10 = imageLoad(inPrevFrame, pixel * 2 + ivec2(1,0)).r;
+	float s11 = imageLoad(inPrevFrame, pixel * 2 + ivec2(1,1)).r;
 
 	vec4 meanNormalDepth, varNormalDepth; float meanShadow, varShadow;
 	meanVarNormalDepth(n00, n01, n10, n11, meanNormalDepth, varNormalDepth); meanVarShadow(s00, s01, s10, s11, meanShadow, varShadow);

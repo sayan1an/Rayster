@@ -11,10 +11,6 @@ layout (binding = 3) uniform sampler2DArray rtxIn2;
 layout (binding = 4) uniform sampler2DArray rtxIn3;
 layout (binding = 5) buffer BufMcSampleRepresentation SAMPLE_INFO_BUFFER_NAME;
 layout (binding = 6, rgba32f) uniform image2D rtxOut;
-layout (binding = 7, r32f) uniform image2D shadowMap;
-layout (binding = 8, r32f) uniform image2D shadowMapBlur;
-
-shared float shadow[SHADOW_MAP_SUBSAMPLE][SHADOW_MAP_SUBSAMPLE];
 
 McSampleInfo unpackMcSampleInfo(in ivec2 idx2d, in int frameWidth)
 {   
@@ -22,65 +18,37 @@ McSampleInfo unpackMcSampleInfo(in ivec2 idx2d, in int frameWidth)
     UNPACK_MC_SAMPLE_INFO
 }
 
-float reduce(ivec2 lid) {
-	ivec2 lid_2 = lid * 2;
-	return (shadow[lid_2.y][lid_2.x] + shadow[lid_2.y][lid_2.x + 1] + shadow[lid_2.y + 1][lid_2.x] + shadow[lid_2.y + 1][lid_2.x + 1])/4.0;
-}
+layout (push_constant) uniform pcBlock {
+	uint choice;
+} pcb;
 
 void main()
 {	
 	ivec2 viewportSize = imageSize(diffuseTex);
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-	vec2 texCoord = (vec2(pixel) + vec2(0.5)) / viewportSize;
+	if (pcb.choice == 0) {
+		vec2 texCoord = (vec2(pixel) + vec2(0.5)) / viewportSize;
+		vec4 diffTex = imageLoad(diffuseTex, pixel);
+		vec4 specTex = imageLoad(specularTex, pixel);
+		
+		vec4 diffComp1 = imageLoad(rtxIn, ivec3(pixel, 0));
+		vec4 specComp1 = imageLoad(rtxIn, ivec3(pixel, 1));
 
-	vec4 diffTex = imageLoad(diffuseTex, pixel);
-	vec4 specTex = imageLoad(specularTex, pixel);
-	
-	vec4 diffComp1 = imageLoad(rtxIn, ivec3(pixel, 0));
-	vec4 specComp1 = imageLoad(rtxIn, ivec3(pixel, 1));
+		vec4 diffComp2 = texture(rtxIn2, vec3(texCoord, 0));
+		vec4 specComp2 = texture(rtxIn2, vec3(texCoord, 1));
 
-	vec4 diffComp2 = texture(rtxIn2, vec3(texCoord, 0));
-	vec4 specComp2 = texture(rtxIn2, vec3(texCoord, 1));
-
-	vec4 diffComp3 = texture(rtxIn3, vec3(texCoord, 0));
-	vec4 specComp3 = texture(rtxIn3, vec3(texCoord, 1));
-	
-	float weight = diffComp1.w + diffComp2.w + diffComp3.w;
-	vec4 specComp = specComp1 + specComp2 + specComp3;
-	vec4 outCol = diffTex * (diffComp1 + diffComp2 + diffComp3) + specTex * specComp;
-	outCol.w = weight;
-
-
-	McSampleInfo sampleInfo = unpackMcSampleInfo(pixel, viewportSize.x);
-	//imageStore(rtxOut, pixel, outCol / weight);
-	imageStore(rtxOut, pixel, vec4(sampleInfo.maxVal.y));
-
-	/*
-	ivec2 lid = ivec2(gl_LocalInvocationID.x, gl_LocalInvocationID.y);
-	shadow[lid.y][lid.x] = specComp.w/weight;
-	imageStore(shadowMap, pixel, vec4(specComp.w/weight));
-	memoryBarrierShared();
-	barrier();
-
-	float mean = 0;
-
-	for (uint i = 2; i <= SHADOW_MAP_SUBSAMPLE; i *= 2) {
-		if (lid.x < SHADOW_MAP_SUBSAMPLE / i && lid.y < SHADOW_MAP_SUBSAMPLE / i)
-			mean = reduce(lid);
-	
-		memoryBarrierShared();
-		barrier();
-
-		if (lid.x < SHADOW_MAP_SUBSAMPLE / i && lid.y < SHADOW_MAP_SUBSAMPLE / i)
-			shadow[lid.y][lid.x] = mean;
-	
-		memoryBarrierShared();
-		barrier();
+		vec4 diffComp3 = texture(rtxIn3, vec3(texCoord, 0));
+		vec4 specComp3 = texture(rtxIn3, vec3(texCoord, 1));
+		
+		float weight = diffComp1.w + diffComp2.w + diffComp3.w;
+		vec4 specComp = specComp1 + specComp2 + specComp3;
+		vec4 outCol = diffTex * (diffComp1 + diffComp2 + diffComp3) + specTex * specComp;
+		outCol.w = weight;
+		
+		imageStore(rtxOut, pixel, outCol / weight);
 	}
-
-	if (lid.x == 0 && lid.y == 0) {
-		float oldVal = imageLoad(shadowMapBlur, ivec2(gl_WorkGroupID.xy)).r;
-		imageStore(shadowMapBlur, ivec2(gl_WorkGroupID.xy), vec4(0.5 * mean + 0.5 * oldVal));
+	else if (pcb.choice == 1) {
+		McSampleInfo sampleInfo = unpackMcSampleInfo(pixel, viewportSize.x);	
+		imageStore(rtxOut, pixel, vec4(sampleInfo.maxVal.y));
 	}
-	*/
 }
