@@ -180,10 +180,19 @@ namespace RtxFiltering_2
 		}
 
 		void cmdDispatch(const VkCommandBuffer& cmdBuf)
+		{	
+			uint32_t sCount = static_cast<uint32_t>(sampleCount);
+			pass1.cmdDispatch(cmdBuf, sCount);
+			pass2.cmdDispatch(cmdBuf, sCount);
+			pass3.cmdDispatch(cmdBuf, sCount);
+		}
+
+		void widget()
 		{
-			pass1.cmdDispatch(cmdBuf, 4);
-			pass2.cmdDispatch(cmdBuf, 4);
-			pass3.cmdDispatch(cmdBuf, 4);
+			if (ImGui::CollapsingHeader("RtxGenPass")) {
+				ImGui::SliderInt("Mc Samples##RtxGenCombinedPass", &sampleCount, 1, 256);
+			}
+
 		}
 
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
@@ -196,6 +205,8 @@ namespace RtxFiltering_2
 		}
 	private:
 		bool buffersUpdated = false;
+
+		int sampleCount = 4;
 
 		RtxGenPass pass1;
 		RtxGenPass pass2;

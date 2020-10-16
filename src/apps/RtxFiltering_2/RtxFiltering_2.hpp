@@ -197,6 +197,7 @@ namespace RtxFiltering_2
 			TemporalFilter* tempFilt;
 			StencilCompositionPass* sCmpPass;
 			MarkovChainNoVisibilityCombined* mcPass;
+			RtxGenCombinedPass* rGen;
 			RtxCompositionPass* rtxCompPass;
 			Subpass2* displayPass;
 			uint32_t numSamples;
@@ -216,6 +217,7 @@ namespace RtxFiltering_2
 				pSqPat->widget(/*collectData, pixelInfo,*/ numSamples);
 				sCmpPass->widget();
 				mcPass->widget(*swapChainExtent);
+				rGen->widget();
 				rtxCompPass->widget();
 				tempFilt->widget();
 				displayPass->widget();
@@ -314,6 +316,7 @@ namespace RtxFiltering_2
 			gui.sCmpPass = &stencilCompPass;
 			gui.swapChainExtent = &swapChainExtent;
 			gui.mcPass = &mcPass;
+			gui.rGen = &rtxGenPass;
 			gui.rtxCompPass = &rtxCompPass;
 			gui.tempFilt = &temporalFilter;
 			gui.displayPass = &subpass2;
