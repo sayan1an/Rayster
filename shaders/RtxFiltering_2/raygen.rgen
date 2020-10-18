@@ -20,11 +20,11 @@ layout(binding = 6, set = 0) uniform CameraProperties
 
 layout(binding = 7, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
 layout(binding = 8, set = 0) readonly buffer DiscretePdf { float bins[]; } discretePdf;
-layout(binding = 9, set = 0) readonly buffer RandomSquareSamples { vec2 v[]; } coherentSamples;
+layout(binding = 9, set = 0) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
 layout(binding = 10, set = 0) buffer RandomGeneratorState { uint state[]; } randGenState;
 
 layout (push_constant) uniform pcBlock {
-	uint discretePdfSize;
+	uint uniformToEmitterIndexMapSize;
 	uint numSamples;
 	uint level;
 } pcb;
@@ -33,13 +33,12 @@ layout(location = 0) rayPayloadNV vec3 radiance;
 
 uint xorshiftState;
 
-vec3 rand3(inout uint xorshiftState)
+vec2 rand2(inout uint xorshiftState)
 {	
-	vec3 ret;
+	vec2 ret;
 	
 	ret.x = xorshift(xorshiftState) / 4294967296.0;     
     ret.y = xorshift(xorshiftState) / 4294967296.0;
-	ret.z = xorshift(xorshiftState) / 4294967296.0;
 
 	return ret;
 }
@@ -66,24 +65,6 @@ void shadowRayAreaLight(in vec3 lightPosition, in vec3 viewDir, in vec3 origin, 
 	radiance /= (distance * distance);
 	specComp = bsdfType > 0.5f ? radiance * ggxBrdf(viewDir, lightDir, surfaceNormal, specularAlpha) : vec3(0);
 	diffComp = radiance * cos / PI;
-}
-
-vec2 uvToBary(in uint index)
-{	
-	vec2 bary = coherentSamples.v[index];
-	bary.x = 1.0 - sqrt(bary.x);
-	bary.y = (1.0 - bary.x) * (1.0 - bary.y);
-
-	return bary;
-}
-
-vec2 randTobary(in vec2 uv)
-{
-	vec2 bary = uv;
-	bary.x = 1.0 - sqrt(bary.x);
-	bary.y = (1.0 - bary.x) * (1.0 - bary.y);
-
-	return bary;
 }
 
 void main()
@@ -122,19 +103,24 @@ void main()
 			origin = origin + (normalDepth.w - 0.000f) * viewDir;
 			
 			vec3 spec, diff;
-			float lightHit;
+			float lightHit, a, b, pdf;
 			for (uint i = 0; i < pcb.numSamples; i++) {
-				//vec2 bary = uvToBary(i); 
-				//uint index = i & 1;
-				vec3 bary = rand3(xorshiftState);
-				bary.xy = randTobary(bary.xy);
-				uint index = bary.z > 0.5 ? 0 : 1;
+				vec2 uv = rand2(xorshiftState);
+				uint index = uniformToEmitterIdx.bins[uint(uv.x * pcb.uniformToEmitterIndexMapSize)];
+				a = discretePdf.bins[index + 1];
+				b = discretePdf.bins[index];
+				pdf = a - b; 
+    		    uv.x = (uv.x - b) / pdf; // rescale
 
-				shadowRayAreaLight((lightVertices.v[3*index] * bary.x + lightVertices.v[3*index + 1] * bary.y + lightVertices.v[3*index + 2] * (1 - bary.x - bary.y)).xyz,
+    			// convert to bary
+    			uv.x = 1.0 - sqrt(uv.x);
+				uv.y = (1.0 - uv.x) * (1.0 - uv.y);
+				
+				shadowRayAreaLight((lightVertices.v[3*index] * uv.x + lightVertices.v[3*index + 1] * uv.y + lightVertices.v[3*index + 2] * (1 - uv.x - uv.y)).xyz,
 					-viewDir.xyz, origin.xyz, normalDepth.xyz, other.w, other.x, diff, spec, lightHit);
 
-				diffComp += diff;
-				specComp += spec;
+				diffComp += diff / pdf;
+				specComp += spec / pdf;
 				lightPercent += lightHit;
 			}
 					
