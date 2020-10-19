@@ -185,10 +185,10 @@ void main()
             float prevProposal = targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x, other.z) / prob;
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-                if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y) {
-                    collectMCSample.state[0].x = mcIterations + 0.01f;
-                    
-                }
+            if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y) {
+                collectMCSample.state[0].x = SAMPLE_HEADER_SIZE + 0.01f;
+                collectMCSample.state[0].y = mcIterations + 0.01f;
+            }
 #endif
             mcState = proposedState;
             s_mcState[2 * lid.y + lid.x] = mcState;
@@ -223,7 +223,7 @@ void main()
                 sampleInfo.maxVal.y += prevProposal;
 #if COLLECT_MARKOV_CHAIN_SAMPLES
                 if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
-                    collectMCSample.state[i + 1] = vec4(mcState.x, mcState.y, prevProposal, 0);
+                    collectMCSample.state[i + SAMPLE_HEADER_SIZE] = vec4(mcState.x, mcState.y, prevProposal, 0);
 #endif
                 s_mcState[2 * lid.y + lid.x] = mcState;
             }
@@ -247,13 +247,19 @@ void main()
             sampleInfoOld.maxVal.y = cWeight * sampleInfo.maxVal.y + oWeight * sampleInfoOld.maxVal.y;
            
             sampleInfoOld.covWeight.y += sampleInfo.covWeight.y;
-            //sampleInfoOld.maxVal.y = pcb.resetWeight;
             sanitizeSampleInfo(sampleInfoOld);
         }
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-        if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
-            sampleInfo.maxVal.y = -1;
+        if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y) {
+            collectMCSample.state[0].zw = sampleInfo.mean;
+            collectMCSample.state[1].xy = sampleInfoOld.mean;
+            collectMCSample.state[1].zw = sampleInfo.var;
+            collectMCSample.state[2].xy = sampleInfoOld.var;
+            collectMCSample.state[2].zw = vec2(sampleInfo.covWeight.x , sampleInfoOld.covWeight.x);
+            
+            sampleInfoOld.maxVal.y = -1;
+        }
 #endif        
         
         for (uint y = 0; y < stride; y++)

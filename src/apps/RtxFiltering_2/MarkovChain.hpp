@@ -216,11 +216,11 @@ namespace RtxFiltering_2
 					ImGui::PushPlotStyleVar(ImPlotStyleVar_Marker, ImMarker_Circle);
 					ImGui::PushPlotStyleVar(ImPlotStyleVar_MarkerSize, 4);
 					auto getter = [](const void* data, int idx) {
-						glm::vec4 d = static_cast<const glm::vec4*>(data)[idx + 1];
+						glm::vec4 d = static_cast<const glm::vec4*>(data)[idx + SAMPLE_HEADER_SIZE];
 						//std::this_thread::sleep_for(std::chrono::milliseconds(100));
-						return ImVec2(d.y, d.x);
+						return ImVec2(d.x, d.y);
 					};
-					ImGui::Plot("Raytraced##MarkovChainPass", static_cast<ImVec2(*)(const void*, int)>(getter), static_cast<const void*>(ptrCollectMcSampleBuffer), static_cast<int>(ptrCollectMcSampleBuffer[0]), 0);
+					ImGui::Plot("Raytraced##MarkovChainPass", static_cast<ImVec2(*)(const void*, int)>(getter), static_cast<const void*>(ptrCollectMcSampleBuffer), static_cast<int>(ptrCollectMcSampleBuffer[1]), 0);
 					
 					ImGui::PopPlotStyleVar(2);
 					ImGui::EndPlot();
@@ -267,15 +267,16 @@ namespace RtxFiltering_2
 		void updateDataPost()
 		{
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-			static float lastX = 0;
-			static float lastY = 0;
+			//static float lastX = 0;
+			//static float lastY = 0;
 			memcpy(ptrCollectMcSampleBuffer, mptrCollectMcSampleBuffer, MAX_MARKOV_CHAIN_SAMPLES * sizeof(float) * 4);
-			uint32_t numSamples = (uint32_t)ptrCollectMcSampleBuffer[0];
+			//uint32_t numSamples = (uint32_t)ptrCollectMcSampleBuffer[1];
 
+			//std::cout << numSamples << std::endl;
 			//std::cout << (std::abs(ptrCollectMcSampleBuffer[2] - lastX) > 0.25f) << " " << (std::abs(ptrCollectMcSampleBuffer[3] - lastY) > 0.25f) << std::endl;
 
-			lastX = ptrCollectMcSampleBuffer[4 * numSamples];
-			lastY = ptrCollectMcSampleBuffer[4 * numSamples + 1];
+			//lastX = ptrCollectMcSampleBuffer[4 * (numSamples + SAMPLE_HEADER_SIZE - 1)];
+			//lastY = ptrCollectMcSampleBuffer[4 * (numSamples + SAMPLE_HEADER_SIZE - 1) + 1];
 			//std::cout << ptrCollectMcSampleBuffer[2] << " " << ptrCollectMcSampleBuffer[3] << " " << ptrCollectMcSampleBuffer[2*numSamples] << " " << ptrCollectMcSampleBuffer[2*numSamples + 1] << std::endl;
 #endif
 		}
