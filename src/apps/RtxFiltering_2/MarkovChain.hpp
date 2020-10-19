@@ -75,13 +75,14 @@ namespace RtxFiltering_2
 			buffersUpdated = false;
 		}
 
-		void cmdDispatch(const VkCommandBuffer& cmdBuf, const float sigma, const float gamma, const glm::uvec2& pixelQuery)
+		void cmdDispatch(const VkCommandBuffer& cmdBuf, const float sigma, const float gamma, const glm::uvec2& pixelQuery, const int resetWeight)
 		{	
 			pcb.sigmaProposal = sigma;
 			pcb.gamma = gamma;
 #if COLLECT_MARKOV_CHAIN_SAMPLES
 			pcb.pixelQueryX = pixelQuery.x;
 			pcb.pixelQueryY = pixelQuery.y;
+			pcb.resetWeight = resetWeight;
 #endif
 			
 			vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
@@ -114,6 +115,7 @@ namespace RtxFiltering_2
 #if COLLECT_MARKOV_CHAIN_SAMPLES
 			uint32_t pixelQueryX;
 			uint32_t pixelQueryY;
+			int resetWeight;
 #endif
 		} pcb;
 	};
@@ -171,9 +173,9 @@ namespace RtxFiltering_2
 
 		void cmdDispatch(const VkCommandBuffer& cmdBuf)
 		{	
-			mcPass1.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, pixelQuery);
-			mcPass2.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, pixelQuery / glm::uvec2(2,2));
-			mcPass3.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, pixelQuery / glm::uvec2(4,4));
+			mcPass1.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, pixelQuery, resetWeight);
+			mcPass2.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, pixelQuery / glm::uvec2(2,2), resetWeight);
+			mcPass3.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, pixelQuery / glm::uvec2(4,4), resetWeight);
 		}
 
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
@@ -223,6 +225,10 @@ namespace RtxFiltering_2
 					ImGui::PopPlotStyleVar(2);
 					ImGui::EndPlot();
 				}
+
+				ImGui::Text("Reset weight:");
+				ImGui::RadioButton("No##MarkovChainPass", &resetWeight, 0); ImGui::SameLine();
+				ImGui::RadioButton("Yes##MarkovChainPass", &resetWeight, 1);
 #if SAVE_SAMPLES_TO_DISK								
 				ImGui::Text("Save pixel data");
 				int stateOld = savePixelData;
@@ -290,6 +296,7 @@ namespace RtxFiltering_2
 		float* ptrCollectMcSampleBuffer;
 
 		glm::uvec2 pixelQuery;
+		int resetWeight = 1;
 		int savePixelData = 0, fileIdx = 0;
 
 		float gammaDifferentialEvolution = 0.4f;
