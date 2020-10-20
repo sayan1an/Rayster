@@ -176,7 +176,7 @@ void main()
             bool initialUndefined = (mcState.x == 0);
             vec2 proposedState = initialUndefined ? vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0) : mcState;
 
-            uint mcIterations = 8;//8 + (initialUndefined ? 16 : 0);
+            uint mcIterations = 32;//8 + (initialUndefined ? 16 : 0);
 
             vec3 lightDirection;
             float radiance;
@@ -231,7 +231,7 @@ void main()
             sampleInfo.covWeight.y = sampleInfo.maxVal.y;
             sampleInfo.maxVal.y /= mcIterations; // save mcmc value
             
-            float cWeight = sampleInfo.covWeight.y / (sampleInfo.covWeight.y + sampleInfoOld.covWeight.y);
+            float cWeight = 0.1f;//sampleInfo.covWeight.y / (sampleInfo.covWeight.y + sampleInfoOld.covWeight.y);
             cWeight = cWeight > 1 ? 1 : (cWeight < 0 ? 0 : cWeight);
             float oWeight = 1 - cWeight;
 
