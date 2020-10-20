@@ -227,25 +227,31 @@ namespace RtxFiltering_2
 				}
 
 				ImGui::Text("Reset weight:");
-				ImGui::RadioButton("No##MarkovChainPass", &resetWeight, 0); ImGui::SameLine();
-				ImGui::RadioButton("Yes##MarkovChainPass", &resetWeight, 1);
+				ImGui::RadioButton("No##MarkovChainPass_1", &resetWeight, 0); ImGui::SameLine();
+				ImGui::RadioButton("Yes##MarkovChainPass_1", &resetWeight, 1);
 #if SAVE_SAMPLES_TO_DISK								
 				ImGui::Text("Save pixel data");
 				int stateOld = savePixelData;
-				ImGui::RadioButton("No##MarkovChainPass", &savePixelData, 0); ImGui::SameLine();
-				ImGui::RadioButton("Yes##MarkovChainPass", &savePixelData, 1);
+				ImGui::RadioButton("No##MarkovChainPass_2", &savePixelData, 0); ImGui::SameLine();
+				ImGui::RadioButton("Yes##MarkovChainPass_2", &savePixelData, 1);
 
-				if (stateOld == 0 && savePixelData == 1)
+				if (stateOld == 0 && savePixelData == 1) {
 					fileIdx++;
+					resetWeight = 0;
+				}
 
 				if (savePixelData) {
 					// let's not worry about performance here :P
 					std::vector<size_t> shape;
-					shape.push_back(size_t(ptrCollectMcSampleBuffer[0] + 1));
+					size_t headerSize = SAMPLE_HEADER_SIZE;
+					size_t nSamples = static_cast<size_t>(ptrCollectMcSampleBuffer[1]);
+					shape.push_back(nSamples + headerSize);
 					shape.push_back(size_t(4));
 					
 					cnpy::npy_save("mcSamples_" + std::to_string(fileIdx) + ".npy", ptrCollectMcSampleBuffer, shape, "a");
 				}
+
+
 #endif
 #endif
 			}
