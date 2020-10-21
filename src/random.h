@@ -277,21 +277,20 @@ public:
 				collectData = 1;
 				pixelInfo = (xPixelQuery & 0xffff) | (yPixelQuery & 0xffff) << 16;
 
-				ImGui::SetNextPlotRange(0, 2 * PI, 0, PI, ImGuiCond_Always);
-				if (ImGui::BeginPlot("Scatter Plot##UID_RndomSphericalPattern", "phi", "theta")) {
+				ImPlot::SetNextPlotLimits(0, 2 * PI, 0, PI, ImGuiCond_Always);
+				if (ImPlot::BeginPlot("Scatter Plot##UID_RndomSphericalPattern", "phi", "theta")) {
 					ImGui::Text(("Intersected Samples:" + std::to_string(intersectedSamples.size())).c_str());
-					ImGui::PushPlotStyleVar(ImPlotStyleVar_LineWeight, 0);
-					ImGui::PushPlotStyleVar(ImPlotStyleVar_Marker, ImMarker_Circle);
-					ImGui::PushPlotStyleVar(ImPlotStyleVar_MarkerSize, 4);
-					auto getter = [](const void* data, int idx) {
+					ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 0);
+					ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 4);
+					auto getter = [](void* data, int idx) {
 						glm::vec2 d = static_cast<const glm::vec2*>(data)[idx];
-						return ImVec2(d.y, d.x);
+						return ImPlotPoint(d.y, d.x);
 					};
-					ImGui::Plot("Not Raytraced##UID_RndomSphericalPattern", static_cast<ImVec2(*)(const void*, int)>(getter), static_cast<const void*>(nonRaytracedSamples.data()), static_cast<int>(nonRaytracedSamples.size()), 0);
-					ImGui::Plot("Raytraced##UID_RndomSphericalPattern", static_cast<ImVec2(*)(const void*, int)>(getter), static_cast<const void*>(raytracedSamples.data()), static_cast<int>(raytracedSamples.size()), 0);
-					ImGui::Plot("Intersected##UID_RndomSphericalPattern", static_cast<ImVec2(*)(const void*, int)>(getter), static_cast<const void*>(intersectedSamples.data()), static_cast<int>(intersectedSamples.size()), 0);
-					ImGui::PopPlotStyleVar(2);
-					ImGui::EndPlot();
+					ImPlot::PlotScatterG("Not Raytraced##UID_RndomSphericalPattern", static_cast<ImPlotPoint(*)(void*, int)>(getter), static_cast<void*>(nonRaytracedSamples.data()), static_cast<int>(nonRaytracedSamples.size()), 0);
+					ImPlot::PlotScatterG("Raytraced##UID_RndomSphericalPattern", static_cast<ImPlotPoint(*)(void*, int)>(getter), static_cast<void*>(raytracedSamples.data()), static_cast<int>(raytracedSamples.size()), 0);
+					ImPlot::PlotScatterG("Intersected##UID_RndomSphericalPattern", static_cast<ImPlotPoint(*)(void*, int)>(getter), static_cast<void*>(intersectedSamples.data()), static_cast<int>(intersectedSamples.size()), 0);
+					ImPlot::PopStyleVar(2);
+					ImPlot::EndPlot();
 				}
 			}
 			else
@@ -526,21 +525,20 @@ public:
 				collectData = 1;
 				pixelInfo = (xPixelQuery & 0xffff) | (yPixelQuery & 0xffff) << 16;
 
-				ImGui::SetNextPlotRange(0, 1.0f, 0, 1.0f, ImGuiCond_Always);
-				if (ImGui::BeginPlot("Scatter Plot##UID_RndomSphericalPattern", "phi", "theta")) {
+				ImPlot::SetNextPlotLimits(0, 1.0f, 0, 1.0f, ImGuiCond_Always);
+				if (ImPlot::BeginPlot("Scatter Plot##UID_RndomSphericalPattern", "phi", "theta")) {
 					ImGui::Text(("Intersected Samples:" + std::to_string(intersectedSamples.size())).c_str());
-					ImGui::PushPlotStyleVar(ImPlotStyleVar_LineWeight, 0);
-					ImGui::PushPlotStyleVar(ImPlotStyleVar_Marker, ImMarker_Circle);
-					ImGui::PushPlotStyleVar(ImPlotStyleVar_MarkerSize, 4);
-					auto getter = [](const void* data, int idx) {
+					ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 0);
+					ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 4);
+					auto getter = [](void* data, int idx) {
 						glm::vec2 d = static_cast<const glm::vec2*>(data)[idx];
-						return ImVec2(d.y, d.x);
+						return ImPlotPoint(d.y, d.x);
 					};
-					ImGui::Plot("Not Raytraced##UID_RndomSphericalPattern", static_cast<ImVec2(*)(const void*, int)>(getter), static_cast<const void*>(nonRaytracedSamples.data()), static_cast<int>(nonRaytracedSamples.size()), 0);
-					ImGui::Plot("Raytraced##UID_RndomSphericalPattern", static_cast<ImVec2(*)(const void*, int)>(getter), static_cast<const void*>(raytracedSamples.data()), static_cast<int>(raytracedSamples.size()), 0);
-					ImGui::Plot("Intersected##UID_RndomSphericalPattern", static_cast<ImVec2(*)(const void*, int)>(getter), static_cast<const void*>(intersectedSamples.data()), static_cast<int>(intersectedSamples.size()), 0);
-					ImGui::PopPlotStyleVar(2);
-					ImGui::EndPlot();
+					ImPlot::PlotScatterG("Not Raytraced##UID_RndomSphericalPattern", static_cast<ImPlotPoint(*)(void*, int)>(getter), static_cast<void*>(nonRaytracedSamples.data()), static_cast<int>(nonRaytracedSamples.size()), 0);
+					ImPlot::PlotScatterG("Raytraced##UID_RndomSphericalPattern", static_cast<ImPlotPoint(*)(void*, int)>(getter), static_cast<void*>(raytracedSamples.data()), static_cast<int>(raytracedSamples.size()), 0);
+					ImPlot::PlotScatterG("Intersected##UID_RndomSphericalPattern", static_cast<ImPlotPoint(*)(void*, int)>(getter), static_cast<void*>(intersectedSamples.data()), static_cast<int>(intersectedSamples.size()), 0);
+					ImPlot::PopStyleVar(2);
+					ImPlot::EndPlot();
 				}
 			}
 			else

@@ -231,7 +231,7 @@ void main()
             sampleInfo.covWeight.y = sampleInfo.maxVal.y;
             sampleInfo.maxVal.y /= mcIterations; // save mcmc value
             
-            float cWeight = 0.1f;//sampleInfo.covWeight.y / (sampleInfo.covWeight.y + sampleInfoOld.covWeight.y);
+            float cWeight = sampleInfo.covWeight.y / (sampleInfo.covWeight.y + sampleInfoOld.covWeight.y);
             cWeight = cWeight > 1 ? 1 : (cWeight < 0 ? 0 : cWeight);
             float oWeight = 1 - cWeight;
 

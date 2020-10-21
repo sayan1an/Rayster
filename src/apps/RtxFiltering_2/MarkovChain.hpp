@@ -214,43 +214,41 @@ namespace RtxFiltering_2
 				pixelQuery.x = static_cast<uint32_t>(xQuery);
 				pixelQuery.y = static_cast<uint32_t>(yQuery);
 
-				ImGui::SetNextPlotRange(0, 1.0f, 0, 1.0f, ImGuiCond_Always);
-				if (ImGui::BeginPlot("Scatter Plot##MarkovChainPass", "u", "v")) {
-					ImGui::PushPlotStyleVar(ImPlotStyleVar_LineWeight, 0);
-					ImGui::PushPlotStyleVar(ImPlotStyleVar_Marker, ImMarker_Circle);
-					ImGui::PushPlotStyleVar(ImPlotStyleVar_MarkerSize, 4);
-					auto getter = [](const void* data, int idx) {
-						glm::vec4 d = static_cast<const glm::vec4*>(data)[idx + SAMPLE_HEADER_SIZE];
-						//std::this_thread::sleep_for(std::chrono::milliseconds(100));
-						return ImVec2(d.x, d.y);
-					};
-					ImGui::Plot("Samples##MarkovChainPass", static_cast<ImVec2(*)(const void*, int)>(getter), static_cast<const void*>(ptrCollectMcSampleBuffer), static_cast<int>(ptrCollectMcSampleBuffer[1]), 0);
-					
-					ImGui::PopPlotStyleVar(2);
-					ImGui::EndPlot();
-				}
-				
 				meanVar[0] = ImVec2(ptrCollectMcSampleBuffer[4 * 1], ptrCollectMcSampleBuffer[4 * 1 + 1]);
 				meanVar[1] = ImVec2(meanVar[0]); meanVar[1].x -= std::sqrt(ptrCollectMcSampleBuffer[4 * 2]);
 				meanVar[2] = ImVec2(meanVar[0]); meanVar[2].x += std::sqrt(ptrCollectMcSampleBuffer[4 * 2]);
 				meanVar[3] = ImVec2(meanVar[0]); meanVar[3].y -= std::sqrt(ptrCollectMcSampleBuffer[4 * 2 + 1]);
 				meanVar[4] = ImVec2(meanVar[0]); meanVar[4].y += std::sqrt(ptrCollectMcSampleBuffer[4 * 2 + 1]);
 
-				ImGui::SetNextPlotRange(0, 1.0f, 0, 1.0f, ImGuiCond_Always);
-				if (ImGui::BeginPlot("Gauss approx Plot##MarkovChainPass", "u", "v")) {
-					ImGui::PushPlotStyleVar(ImPlotStyleVar_LineWeight, 0);
-					ImGui::PushPlotStyleVar(ImPlotStyleVar_Marker, ImMarker_Circle);
-					ImGui::PushPlotStyleVar(ImPlotStyleVar_MarkerSize, 4);
+				ImPlot::SetNextPlotLimits(0, 1.0f, 0, 1.0f, ImGuiCond_Always);
+				if (ImPlot::BeginPlot("Gauss Approx Plot##MarkovChainPass", "u", "v")) {
+					ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 0);
+					ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 4);
 
-					ImGui::Plot("Mean##MarkovChainPassA", &meanVar[0], 1);
-					ImGui::Plot("Std-X##MarkovChainPassB", &meanVar[1], 2);
-					ImGui::Plot("Std-Y##MarkovChainPassC", &meanVar[3], 2);
+					ImPlot::PlotScatter("Mean##MarkovChainPass", &meanVar[0].x, &meanVar[0].y, 1, 0, sizeof(ImVec2));
+					ImPlot::PlotScatter("Std-X##MarkovChainPass", &meanVar[1].x, &meanVar[1].y, 2, 0, sizeof(ImVec2));
+					ImPlot::PlotScatter("Std-Y##MarkovChainPass", &meanVar[3].x, &meanVar[3].y, 2, 0, sizeof(ImVec2));
 
-					ImGui::PopPlotStyleVar(2);
-					ImGui::EndPlot();
+					ImPlot::PopStyleVar(2);
+					ImPlot::EndPlot();
 				}
-#if SAVE_SAMPLES_TO_DISK
+
+				ImPlot::SetNextPlotLimits(0, 1.0f, 0, 1.0f, ImGuiCond_Always);
+				if (ImPlot::BeginPlot("Scatter Plot##MarkovChainPass", "u", "v")) {
+					ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 0);
+					ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 4);
+					auto getter = [](void* data, int idx) {
+						glm::vec4 d = static_cast<const glm::vec4*>(data)[idx + SAMPLE_HEADER_SIZE];
+						//std::this_thread::sleep_for(std::chrono::milliseconds(100));
+						return ImPlotPoint(d.x, d.y);
+					};
+					ImPlot::PlotScatterG("Samples##MarkovChainPass_2", static_cast<ImPlotPoint(*)(void*, int)>(getter), static_cast<void*>(ptrCollectMcSampleBuffer), static_cast<int>(ptrCollectMcSampleBuffer[1]), 0);
+					
+					ImPlot::PopStyleVar(2);
+					ImPlot::EndPlot();
+				}
 				
+#if SAVE_SAMPLES_TO_DISK
 				ImGui::Text("Save pixel data");
 				int stateOld = savePixelData;
 				ImGui::RadioButton("No##MarkovChainPass_2", &savePixelData, 0); ImGui::SameLine();

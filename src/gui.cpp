@@ -1,6 +1,7 @@
 #include "gui.h"
 
 #include "imgui.h"
+#include "implot.h"
 
 void Gui::uploadData(const VkDevice& device, const VmaAllocator& allocator)
 {
@@ -178,6 +179,7 @@ void Gui::ioSetup(IO& io)
 Gui::Gui()
 {
 	ImGui::CreateContext();
+	ImPlot::CreateContext();
 
 	// Dimensions
 	ImGuiIO& io = ImGui::GetIO();
@@ -216,6 +218,7 @@ void Gui::setStyle()
 }
 
 Gui::~Gui()
-{
+{	
+	ImPlot::DestroyContext();
 	ImGui::DestroyContext();
 }
