@@ -279,7 +279,7 @@ namespace RtxFiltering_2
 		VkImageView stencilView, stencilView2, stencilView3;
 		VkImageView normalHalf, otherHalf, normalQuat, otherQuat;
 		VkImageView rtxComposedView;
-		VkImageView mcStateView;
+		VkImageView mcStateView, mcSampleStatView;
 
 		std::vector<VkCommandBuffer> commandBuffers;
 
@@ -330,7 +330,7 @@ namespace RtxFiltering_2
 			temporalFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), filterOutImageView);
 			stencilPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), stencilView, stencilView2, stencilView3);
 			subSamplePass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), fboManager1.getFormat("normal"), fboManager1.getFormat("other"), normalHalf, otherHalf, normalQuat, otherQuat);
-			mcPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), mcStateView);
+			mcPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), mcStateView, mcSampleStatView);
 			rtxGenPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxPassView, rtxPassHalfView, rtxPassQuatView);
 			rtxCompPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxComposedView);
 			
@@ -417,7 +417,7 @@ namespace RtxFiltering_2
 			temporalFilter.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), filterOutImageView);
 			stencilPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), stencilView, stencilView2, stencilView3);
 			subSamplePass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), fboManager1.getFormat("normal"), fboManager1.getFormat("other"), normalHalf, otherHalf, normalQuat, otherQuat);
-			mcPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), mcStateView);
+			mcPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), mcStateView, mcSampleStatView);
 			rtxGenPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxPassView, rtxPassHalfView, rtxPassQuatView);
 			rtxCompPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxComposedView);
 		

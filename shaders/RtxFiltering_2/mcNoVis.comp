@@ -24,10 +24,11 @@ layout(binding = 6) readonly buffer DiscreteCdf { float bins[]; } discreteCdf;
 layout(binding = 7) readonly buffer NormDiscreteCdf { float bins[]; } normDiscreteCdf;
 layout(binding = 8) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
 layout(binding = 9, rg32f) uniform image2D outMcState;
-layout(binding = 10) buffer BufMcSampleRepresentation SAMPLE_INFO_BUFFER_NAME;
+layout(binding = 10, rg32ui) uniform uimage2D outSampleStat;
+layout(binding = 11) buffer BufMcSampleRepresentation SAMPLE_INFO_BUFFER_NAME;
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-layout(binding = 11) buffer CollectMCSample { vec4 state[]; } collectMCSample;
+layout(binding = 12) buffer CollectMCSample { vec4 state[]; } collectMCSample;
 #endif
 
 layout (push_constant) uniform pcBlock {
@@ -59,6 +60,11 @@ void repackMcSampleInfo(in ivec2 idx2d, in int frameWidth, in McSampleInfo sampl
 
 void sanitizeSampleInfo(inout McSampleInfo sInfo)
 {
+    sInfo.mean.x = CLIP(sInfo.mean.x, 0.0, 1.0);
+    sInfo.mean.y = CLIP(sInfo.mean.y, 0.0, 1.0);
+    sInfo.var.x = CLIP(sInfo.var.x, 0.0025, 0.5625);
+    sInfo.var.y = CLIP(sInfo.var.y, 0.0025, 0.5625);
+    
     sInfo.covWeight.y = min(2e34, sInfo.covWeight.y);
     sInfo.covWeight.y = max(0, sInfo.covWeight.y); 
     float v = sInfo.mean.x + sInfo.mean.y + sInfo.var.x + sInfo.var.y + sInfo.covWeight.x + sInfo.maxVal.x + sInfo.maxVal.y; 
@@ -261,11 +267,13 @@ void main()
             sampleInfoOld.maxVal.y = -1;
         }
 #endif        
-        
+        uvec2 sampleStat = packSampleStat(sampleInfoOld.mean, sqrt(sampleInfoOld.var), uvec2(1));
+       
         for (uint y = 0; y < stride; y++)
             for (uint x = 0; x < stride; x++) {
                 repackMcSampleInfo(gid * ivec2(stride, stride) + ivec2(x, y), frameSize.x, sampleInfoOld);
                 imageStore(outMcState, gid * ivec2(stride, stride) + ivec2(x, y), vec4(mcState.x, mcState.y, 0, 0));
+                imageStore(outSampleStat, gid * ivec2(stride, stride) + ivec2(x, y), uvec4(sampleStat.x, sampleStat.y, 0, 0));
             }
 
         randGenState.state[gid.y * gl_NumWorkGroups.x * 2 + gid.x] = xorshiftState;

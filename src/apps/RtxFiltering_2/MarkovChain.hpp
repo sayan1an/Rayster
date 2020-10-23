@@ -35,7 +35,7 @@ namespace RtxFiltering_2
 		}
 
 		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const Camera& cam, const AreaLightSources& areaSource, const RandomGenerator& randGen, 
-			const VkImageView& outMcState, const VkDescriptorBufferInfo& mcSampleInfo,
+			const VkImageView& outMcState, const VkImageView& outSampleStat, const VkDescriptorBufferInfo& mcSampleInfo,
 			const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& inStencil, const VkDescriptorBufferInfo& collectSamples)
 		{
 			CHECK_DBG_ONLY(buffersUpdated, "MarkovChainNoVisibilityPass : call createBuffers first.");
@@ -50,9 +50,10 @@ namespace RtxFiltering_2
 			descGen.bindBuffer({ 7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.dPdf.getCdfNormDescriptorBufferInfo());
 			descGen.bindBuffer({ 8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.dPdf.getEmitterIndexMapDescriptorBufferInfo());
 			descGen.bindImage({ 9, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outMcState,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindBuffer({ 10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, mcSampleInfo);
+			descGen.bindImage({ 10, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outSampleStat,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, mcSampleInfo);
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-			descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, collectSamples);
+			descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, collectSamples);
 #endif
 
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
@@ -123,7 +124,7 @@ namespace RtxFiltering_2
 	class MarkovChainNoVisibilityCombined
 	{
 	public:
-		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& _mcStateView)
+		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& _mcStateView, VkImageView& _sampleStatView)
 		{
 			auto makeImage = [&device = device, &queue = queue, &commandPool = commandPool,
 				&allocator = allocator](VkExtent2D extent, VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation)
@@ -135,7 +136,10 @@ namespace RtxFiltering_2
 			};
 
 			makeImage(extent, VK_FORMAT_R32G32_SFLOAT, mcState, mcStateView, mcStateAlloc);
+			makeImage(extent, VK_FORMAT_R32G32_UINT, sampleStat, sampleStatView, sampleStatAlloc);
+			
 			_mcStateView = mcStateView;
+			_sampleStatView = sampleStatView;
 
 			McSampleInfo* initData = new McSampleInfo[extent.width * extent.height];
 			initData[0].mean = glm::vec2(DEFAULT_MC_SAMPLE_MEAN);
@@ -166,9 +170,9 @@ namespace RtxFiltering_2
 		{
 			CHECK_DBG_ONLY(buffersUpdated, "MarkovChainNoVisibilityCombined : call createBuffers first.");
 
-			mcPass1.createPipeline(physicalDevice, device, cam, areaSource, randGen, mcStateView, getSampleInfoDescriptorBufferInfo(), inNormal1, inOther1, inStencil1, getCollectSamplesDescriptorBufferInfo());
-			mcPass2.createPipeline(physicalDevice, device, cam, areaSource, randGen, mcStateView, getSampleInfoDescriptorBufferInfo(), inNormal2, inOther2, inStencil2, getCollectSamplesDescriptorBufferInfo());
-			mcPass3.createPipeline(physicalDevice, device, cam, areaSource, randGen, mcStateView, getSampleInfoDescriptorBufferInfo(), inNormal3, inOther3, inStencil3, getCollectSamplesDescriptorBufferInfo());
+			mcPass1.createPipeline(physicalDevice, device, cam, areaSource, randGen, mcStateView, sampleStatView, getSampleInfoDescriptorBufferInfo(), inNormal1, inOther1, inStencil1, getCollectSamplesDescriptorBufferInfo());
+			mcPass2.createPipeline(physicalDevice, device, cam, areaSource, randGen, mcStateView, sampleStatView, getSampleInfoDescriptorBufferInfo(), inNormal2, inOther2, inStencil2, getCollectSamplesDescriptorBufferInfo());
+			mcPass3.createPipeline(physicalDevice, device, cam, areaSource, randGen, mcStateView, sampleStatView, getSampleInfoDescriptorBufferInfo(), inNormal3, inOther3, inStencil3, getCollectSamplesDescriptorBufferInfo());
 		}
 
 		void cmdDispatch(const VkCommandBuffer& cmdBuf)
@@ -182,6 +186,8 @@ namespace RtxFiltering_2
 		{
 			vkDestroyImageView(device, mcStateView, nullptr);
 			vmaDestroyImage(allocator, mcState, mcStateAlloc);
+			vkDestroyImageView(device, sampleStatView, nullptr);
+			vmaDestroyImage(allocator, sampleStat, sampleStatAlloc);
 			vmaDestroyBuffer(allocator, mcSampleInfo, mcSampleInfoAlloc);
 
 			vmaDestroyBuffer(allocator, collectMcSampleBuffer, collectMcSampleBufferAllocation);
@@ -312,6 +318,10 @@ namespace RtxFiltering_2
 		VkImage mcState;
 		VkImageView mcStateView;
 		VmaAllocation mcStateAlloc;
+
+		VkImage sampleStat;
+		VkImageView sampleStatView;
+		VmaAllocation sampleStatAlloc;
 
 		VkBuffer mcSampleInfo;
 		VmaAllocation mcSampleInfoAlloc;

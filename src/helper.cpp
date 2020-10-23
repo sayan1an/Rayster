@@ -214,6 +214,8 @@ extern VkDeviceSize imageFormatToBytes(VkFormat format)
 		return 2 * sizeof(float);
 	case VK_FORMAT_R32_SFLOAT:
 		return sizeof(float);
+	case VK_FORMAT_R32G32_UINT:
+		return 2 * sizeof(uint32_t);
 	default:
 		CHECK_DBG_ONLY(false, "imageFormatToBytes : Unrecognised image format.");
 	}
