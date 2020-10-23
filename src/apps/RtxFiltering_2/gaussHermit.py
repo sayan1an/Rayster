@@ -16,7 +16,9 @@ def getGhWeights(maxOrder : int):
         for j in range(i):    
             ghWeightArray[offset + j][0] = x[j]
             ghWeightArray[offset + j][1] = w[j] * np.exp(x[j]**2)
-       
+
+    np.save("ghWeights" + str(maxOrder), ghWeightArray)
+    
     return ghWeightArray
 
 def refIntegral(mean, var_x, var_y, var_xy):
