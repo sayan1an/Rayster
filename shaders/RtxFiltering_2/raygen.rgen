@@ -2,7 +2,7 @@
 #extension GL_NV_ray_tracing : require
 #extension GL_GOOGLE_include_directive : enable
 #include "../commonMath.h"
-#include "common.h"
+#include "hostDeviceShared.h"
 
 layout(binding = 0, set = 0) uniform accelerationStructureNV tlas_global;
 layout(binding = 1, set = 0) uniform accelerationStructureNV tlas_lightSource;

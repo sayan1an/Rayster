@@ -5,6 +5,7 @@
 #include "../../camera.hpp"
 #include "../../random.h"
 #include "../../../shaders/RtxFiltering_2/hostDeviceShared.h"
+#include "cnpy.h"
 
 #include "TemporalFiltering.hpp"
 
@@ -158,7 +159,9 @@ namespace RtxFiltering_2
 	{
 	public:
 		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& rtxView1, VkImageView& rtxView2, VkImageView& rtxView3)
-		{
+		{	
+			loadGhWeights((1 << GH_ORDER_BITS));
+
 			pass1.createBuffers(device, allocator, queue, commandPool, 0, extent, rtxView1);
 			pass2.createBuffers(device, allocator, queue, commandPool, 1, { extent.width / 2, extent.height / 2 }, rtxView2);
 			pass3.createBuffers(device, allocator, queue, commandPool, 2, { extent.width / 4, extent.height / 4 }, rtxView3);
@@ -211,6 +214,27 @@ namespace RtxFiltering_2
 		RtxGenPass pass1;
 		RtxGenPass pass2;
 		RtxGenPass pass3;
+
+		std::vector<glm::vec2> gaussHermitWeights;
+
+		void loadGhWeights(uint32_t maxOrder)
+		{	
+			CHECK(maxOrder <= 100, "GH Order cannot be greater than 100.");
+			cnpy::NpyArray ghWeights = cnpy::npy_load(ROOT + "/models/ghWeights100.npy");
+			CHECK(ghWeights.word_size == 8, "Save the numpy array as double.");
+			CHECK(ghWeights.shape[1] == 2, "GH Weights are invalid.");
+			CHECK(ghWeights.shape[0] == 5050, "GH Weights are invalid.");
+
+			double* data = ghWeights.data<double>();
+			gaussHermitWeights.resize(maxOrder * (maxOrder + 1) / 2);
+
+			for (size_t i = 0; i < gaussHermitWeights.size(); i++) {
+				float x = static_cast<float>(data[2 * i]);
+				float w = static_cast<float>(data[2 * i + 1]);
+				std::cout << x << " " << w << std::endl;
+				gaussHermitWeights[i] = glm::vec2(x, w);
+			}
+		}
 	};
 
 	class RtxCompositionPass

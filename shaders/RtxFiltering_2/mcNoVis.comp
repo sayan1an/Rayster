@@ -2,7 +2,6 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "../commonMath.h"
-#include "common.h"
 #include "hostDeviceShared.h"
 
 layout (local_size_x = 2, local_size_y = 2) in;
