@@ -9,8 +9,13 @@ layout(binding = 1, set = 0) uniform accelerationStructureNV tlas_lightSource;
 layout(binding = 2, set = 0, rgba32f) uniform readonly image2D normalImage;
 layout(binding = 3, set = 0, rgba16f) uniform readonly image2D otherImage;
 layout(binding = 4, set = 0, rgba16f) uniform readonly image2D stencilImage;
-layout(binding = 5, set = 0, rgba32f) uniform image2DArray outImage;
-layout(binding = 6, set = 0) uniform CameraProperties 
+layout(binding = 5, set = 0, rg32ui) uniform readonly uimage2D sampleStat;
+layout(binding = 6, set = 0) uniform GaussHermitWeights 
+{
+	vec2 weights[];
+} gaussHermitWeights;
+layout(binding = 7, set = 0, rgba32f) uniform image2DArray outImage;
+layout(binding = 8, set = 0) uniform CameraProperties 
 {
 	mat4 view;
     mat4 proj;
@@ -18,10 +23,10 @@ layout(binding = 6, set = 0) uniform CameraProperties
     mat4 projInv;
 } cam;
 
-layout(binding = 7, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
-layout(binding = 8, set = 0) readonly buffer DiscretePdf { float bins[]; } discretePdf;
-layout(binding = 9, set = 0) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
-layout(binding = 10, set = 0) buffer RandomGeneratorState { uint state[]; } randGenState;
+layout(binding = 9, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 10, set = 0) readonly buffer DiscretePdf { float bins[]; } discretePdf;
+layout(binding = 11, set = 0) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
+layout(binding = 12, set = 0) buffer RandomGeneratorState { uint state[]; } randGenState;
 
 layout (push_constant) uniform pcBlock {
 	uint uniformToEmitterIndexMapSize;

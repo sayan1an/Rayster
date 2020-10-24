@@ -275,8 +275,6 @@ namespace RtxFiltering_2
 					
 					cnpy::npy_save("mcSamples_" + std::to_string(fileIdx) + ".npy", ptrCollectMcSampleBuffer, shape, "a");
 				}
-
-
 #endif
 #endif
 			}

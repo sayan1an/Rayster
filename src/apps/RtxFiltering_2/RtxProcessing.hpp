@@ -7,12 +7,8 @@
 #include "../../../shaders/RtxFiltering_2/hostDeviceShared.h"
 #include "cnpy.h"
 
-#include "TemporalFiltering.hpp"
-
 namespace RtxFiltering_2
 {	
-	class SquarePattern;
-	
 	class RtxGenPass 
 	{
 	public:
@@ -36,7 +32,7 @@ namespace RtxFiltering_2
 		}
 
 		void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator,
-			const Model& model, const Camera& cam, const AreaLightSources& areaSource, const SquarePattern& coherentSamples, const RandomGenerator& randGen,
+			const Model& model, const Camera& cam, const AreaLightSources& areaSource, const RandomGenerator& randGen, const VkImageView& sampleStatView, const VkDescriptorBufferInfo& ghWeights,
 			const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& stencil)
 		{
 			descGen.bindTLAS({ 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, model.getDescriptorTlas());
@@ -44,18 +40,20 @@ namespace RtxFiltering_2
 			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, inNormal, VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, inOther, VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, stencil, VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, rtxOutImageView, VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindBuffer({ 6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, cam.getDescriptorBufferInfo());
-			descGen.bindBuffer({ 7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, areaSource.getVerticesDescriptorBufferInfo());
-			descGen.bindBuffer({ 8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.dPdf.getCdfNormDescriptorBufferInfo());
-			descGen.bindBuffer({ 9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.dPdf.getEmitterIndexMapDescriptorBufferInfo());
-			descGen.bindBuffer({ 10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, randGen.getDescriptorBufferInfo());
-			descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getStaticInstanceDescriptorBufferInfo());
-			descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getMaterialDescriptorBufferInfo());
-			descGen.bindBuffer({ 13, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getVertexDescriptorBufferInfo());
-			descGen.bindBuffer({ 14, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getIndexDescriptorBufferInfo());
-			descGen.bindImage({ 15, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, { model.ldrTextureSampler,  model.ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
-			descGen.bindBuffer({ 16, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, areaSource.getLightInstanceDescriptorBufferInfo());
+			descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, sampleStatView, VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindBuffer({ 6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, ghWeights);
+			descGen.bindImage({ 7, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, { VK_NULL_HANDLE, rtxOutImageView, VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindBuffer({ 8, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, cam.getDescriptorBufferInfo());
+			descGen.bindBuffer({ 9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, areaSource.getVerticesDescriptorBufferInfo());
+			descGen.bindBuffer({ 10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.dPdf.getCdfNormDescriptorBufferInfo());
+			descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.dPdf.getEmitterIndexMapDescriptorBufferInfo());
+			descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_RAYGEN_BIT_NV }, randGen.getDescriptorBufferInfo());
+			descGen.bindBuffer({ 13, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getStaticInstanceDescriptorBufferInfo());
+			descGen.bindBuffer({ 14, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getMaterialDescriptorBufferInfo());
+			descGen.bindBuffer({ 15, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getVertexDescriptorBufferInfo());
+			descGen.bindBuffer({ 16, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getIndexDescriptorBufferInfo());
+			descGen.bindImage({ 17, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, { model.ldrTextureSampler,  model.ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+			descGen.bindBuffer({ 18, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, areaSource.getLightInstanceDescriptorBufferInfo());
 
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -161,6 +159,7 @@ namespace RtxFiltering_2
 		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& rtxView1, VkImageView& rtxView2, VkImageView& rtxView3)
 		{	
 			loadGhWeights((1 << GH_ORDER_BITS));
+			createBuffer(device, allocator, queue, commandPool, ghBuffer, ghBufferAllocation, gaussHermitWeights.size() * sizeof(gaussHermitWeights[0]), gaussHermitWeights.data(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 			pass1.createBuffers(device, allocator, queue, commandPool, 0, extent, rtxView1);
 			pass2.createBuffers(device, allocator, queue, commandPool, 1, { extent.width / 2, extent.height / 2 }, rtxView2);
@@ -170,16 +169,16 @@ namespace RtxFiltering_2
 		}
 
 		void createPipelines(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator,
-			const Model& model, const Camera& cam, const AreaLightSources& areaSource, const SquarePattern& coherentSamples, const RandomGenerator& randGen, 
+			const Model& model, const Camera& cam, const AreaLightSources& areaSource, const RandomGenerator& randGen, const VkImageView& sampleStatView,
 			const VkImageView& inNormal1, const VkImageView& inOther1, const VkImageView& inStencil1,
 			const VkImageView& inNormal2, const VkImageView& inOther2, const VkImageView& inStencil2,
 			const VkImageView& inNormal3, const VkImageView& inOther3, const VkImageView& inStencil3)
 		{	
 			CHECK_DBG_ONLY(buffersUpdated, "RtxGenCombinedPass : call createBuffers first.");
 
-			pass1.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, coherentSamples, randGen, inNormal1, inOther1, inStencil1);
-			pass2.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, coherentSamples, randGen, inNormal2, inOther2, inStencil2);
-			pass3.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, coherentSamples, randGen, inNormal3, inOther3, inStencil3);
+			pass1.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, randGen, sampleStatView, getGhDescriptorBufferInfo(), inNormal1, inOther1, inStencil1);
+			pass2.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, randGen, sampleStatView, getGhDescriptorBufferInfo(), inNormal2, inOther2, inStencil2);
+			pass3.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, randGen, sampleStatView, getGhDescriptorBufferInfo(), inNormal3, inOther3, inStencil3);
 		}
 
 		void cmdDispatch(const VkCommandBuffer& cmdBuf)
@@ -200,9 +199,11 @@ namespace RtxFiltering_2
 
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
 		{
-			pass1.cleanUp(device, allocator);
-			pass2.cleanUp(device, allocator);
 			pass3.cleanUp(device, allocator);
+			pass2.cleanUp(device, allocator);
+			pass1.cleanUp(device, allocator);
+
+			vmaDestroyBuffer(allocator, ghBuffer, ghBufferAllocation);
 
 			buffersUpdated = false;
 		}
@@ -216,6 +217,16 @@ namespace RtxFiltering_2
 		RtxGenPass pass3;
 
 		std::vector<glm::vec2> gaussHermitWeights;
+		VkBuffer ghBuffer;
+		VmaAllocation ghBufferAllocation;
+
+		VkDescriptorBufferInfo getGhDescriptorBufferInfo() const
+		{
+			CHECK(buffersUpdated, "Uniform buffer for Gauss-Hermit weights un-initialized");
+
+			VkDescriptorBufferInfo info = { ghBuffer, 0, VK_WHOLE_SIZE };
+			return info;
+		}
 
 		void loadGhWeights(uint32_t maxOrder)
 		{	

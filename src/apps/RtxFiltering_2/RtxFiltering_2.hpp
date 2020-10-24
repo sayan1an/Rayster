@@ -28,6 +28,7 @@
 #include "../gui.h"
 #include "../filter.h"
 
+#include "TemporalFiltering.hpp"
 #include "GenerateStencil.hpp"
 #include "RtxProcessing.hpp"
 #include "SubSample.hpp"
@@ -192,7 +193,7 @@ namespace RtxFiltering_2
 		public:
 			const IO* io;
 			Camera* cam;
-			SquarePattern* pSqPat;
+			//SquarePattern* pSqPat;
 			
 			TemporalFilter* tempFilt;
 			StencilCompositionPass* sCmpPass;
@@ -214,7 +215,7 @@ namespace RtxFiltering_2
 				ImGui::RadioButton("Yes:", &animate, 1); ImGui::SameLine();
 				ImGui::RadioButton("No:", &animate, 0);
 				//uint32_t collectData, pixelInfo;
-				pSqPat->widget(/*collectData, pixelInfo,*/ numSamples);
+				//pSqPat->widget(/*collectData, pixelInfo,*/ numSamples);
 				sCmpPass->widget();
 				mcPass->widget(*swapChainExtent);
 				rGen->widget();
@@ -264,7 +265,7 @@ namespace RtxFiltering_2
 		VkImageView rtxPassView, rtxPassHalfView, rtxPassQuatView;
 		VkImageView filterOutImageView;
 
-		SquarePattern rPatSq;
+		//SquarePattern rPatSq;
 
 		Model model;
 		AreaLightSources areaSources;
@@ -312,7 +313,7 @@ namespace RtxFiltering_2
 
 			gui.io = &io;
 			gui.cam = &cam;
-			gui.pSqPat = &rPatSq;
+			//gui.pSqPat = &rPatSq;
 			gui.sCmpPass = &stencilCompPass;
 			gui.swapChainExtent = &swapChainExtent;
 			gui.mcPass = &mcPass;
@@ -323,7 +324,7 @@ namespace RtxFiltering_2
 			gui.setStyle();
 			
 			gui.createResources(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool, renderPass2, 0);
-			rPatSq.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
+			//rPatSq.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
 			randGen.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize());
 			model.createBuffers(physicalDevice, device, allocator, graphicsQueue, graphicsCommandPool);
 			model.createRtxBuffers(device, allocator, graphicsQueue, graphicsCommandPool);
@@ -335,7 +336,7 @@ namespace RtxFiltering_2
 			rtxCompPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxComposedView);
 			
 			subpass1.createSubpass(device, fboManager1.getSize(), renderPass1, cam, model);
-			rtxGenPass.createPipelines(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen, 
+			rtxGenPass.createPipelines(device, raytracingProperties, allocator, model, cam, areaSources, randGen, mcSampleStatView, 
 				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView,
 				normalHalf, otherHalf, stencilView2,
 				normalQuat, otherQuat, stencilView3);
@@ -422,7 +423,7 @@ namespace RtxFiltering_2
 			rtxCompPass.createBuffers(device, allocator, graphicsQueue, graphicsCommandPool, fboManager1.getSize(), rtxComposedView);
 		
 			subpass1.createSubpass(device, fboManager1.getSize(), renderPass1, cam, model);
-			rtxGenPass.createPipelines(device, raytracingProperties, allocator, model, cam, areaSources, rPatSq, randGen,
+			rtxGenPass.createPipelines(device, raytracingProperties, allocator, model, cam, areaSources, randGen, mcSampleStatView,
 				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), stencilView,
 				normalHalf, otherHalf, stencilView2,
 				normalQuat, otherQuat, stencilView3);
@@ -447,7 +448,7 @@ namespace RtxFiltering_2
 			model.cleanUpRtx(device, allocator);
 			model.cleanUp(device, allocator);
 			areaSources.cleanUp(device, allocator);
-			rPatSq.cleanUp(allocator);
+			//rPatSq.cleanUp(allocator);
 			subpass2.cleanUp(device);
 		}
 
@@ -714,14 +715,14 @@ namespace RtxFiltering_2
 			model.updateTlasData();
 			areaSources.updateData();
 			cam.updateProjViewMat(io, fboManager1.getSize().width, fboManager1.getSize().height);
-			rPatSq.updateDataPre(swapChainExtent);
+			//rPatSq.updateDataPre(swapChainExtent);
 
 			buildCommandBuffer(imageIndex);
 			submitRenderCmd(commandBuffers[imageIndex]);
 			frameEnd(imageIndex);
 
 			mcPass.updateDataPost();
-			rPatSq.updateDataPost();
+			//rPatSq.updateDataPost();
 			temporalFilter.saveFramePass.toDisk("D:/results/");
 		}
 	};
