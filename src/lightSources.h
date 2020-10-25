@@ -300,6 +300,7 @@ public:
 		bufferMemoryBarriers[0].buffer = lightVerticesBuffer;
 		bufferMemoryBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		bufferMemoryBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		bufferMemoryBarriers[0].size = VK_WHOLE_SIZE;
 
 		bufferMemoryBarriers[1] = bufferMemoryBarriers[0];
 		bufferMemoryBarriers[1].buffer = bndSphBuffer;

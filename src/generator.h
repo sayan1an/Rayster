@@ -960,5 +960,6 @@ private:
 	/// The program names are translated into program identifiers.The size in bytes of an identifier
 	/// is provided by the device and is the same for all categories.
 	VkDeviceSize m_progIdSize = 0;
+	VkDeviceSize m_shaderGroupAlignment = 0;
 	VkDeviceSize m_sbtSize = 0;
 };
