@@ -74,7 +74,8 @@ VkDeviceSize ShaderBindingTableGenerator::computeSBTSize(
 {
   // Size of a program identifier
   m_progIdSize = props.shaderGroupHandleSize;
-
+  m_shaderGroupAlignment = props.shaderGroupBaseAlignment;
+ 
   // Compute the entry size of each program type depending on the maximum number of parameters in
   // each category
   m_rayGenEntrySize   = getEntrySize(m_rayGen);
@@ -247,8 +248,8 @@ VkDeviceSize ShaderBindingTableGenerator::getEntrySize(const std::vector<SBTEntr
   // A SBT entry is made of a program ID and a set of 4-byte parameters (offsets or push constants)
   VkDeviceSize entrySize = m_progIdSize + static_cast<VkDeviceSize>(maxArgs);
 
-  // The entries of the shader binding table must be 16-bytes-aligned
-  entrySize = ROUND_UP(entrySize, 16);
+  // The entries of the shader binding table must be a multiple of shaderGroupAlignment
+  entrySize = ROUND_UP(entrySize, m_shaderGroupAlignment);
 
   return entrySize;
 }

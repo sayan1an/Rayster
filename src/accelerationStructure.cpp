@@ -248,6 +248,7 @@ void TopLevelAccelerationStructure::cmdBuild(const VkCommandBuffer& cmdBuf, cons
 	bufferMemoryBarrier.buffer = instanceBuffer;
 	bufferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 	bufferMemoryBarrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV;
+	bufferMemoryBarrier.size = copyRegion.size;
 
 	vkCmdPipelineBarrier(
 		cmdBuf,
