@@ -8,6 +8,7 @@
 #include <thread>
 #include "imgui.h"
 #include <string>
+#include <cmath>
 
 class IO {
 public:

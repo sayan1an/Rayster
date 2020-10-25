@@ -17,7 +17,9 @@
 
 #define ROOT std::string("D:/projects/Rayster")
 
+#ifndef NDEBUG
 #define NDEBUG
+#endif // !NDEBUG
 
 const float PI = 3.14159265358979324f;
 

@@ -522,6 +522,7 @@ public:
 		bufferMemoryBarrier.buffer = dynamicInstanceBuffer;
 		bufferMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		bufferMemoryBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+		bufferMemoryBarrier.size = copyRegion.size;
 		
 		vkCmdPipelineBarrier(
 			cmdBuffer,

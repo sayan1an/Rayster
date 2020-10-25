@@ -1,6 +1,6 @@
 import subprocess, os, sys
 
-glslangValidator = "C:/VulkanSDK/1.1.106.0/Bin32/glslangValidator.exe"
+glslangValidator = "C:/VulkanSDK/1.2.148.1/Bin32/glslangValidator.exe"
 
 # modifying these files will cause a full compilation
 forceFullCompilationList = []

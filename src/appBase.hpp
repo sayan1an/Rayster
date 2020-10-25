@@ -181,7 +181,7 @@ protected:
 public:
 	Application(const std::vector<const char*> &_validationLayers, const std::vector<const char*>&_instanceExtensions, const std::vector<const char*>&_deviceExtensions, const std::vector<const char*>&_requiredDeviceFeatures) {
 		validationLayers = _validationLayers;
-		validationLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+		validationLayers.push_back("VK_LAYER_KHRONOS_validation");
 		deviceExtensions = _deviceExtensions;
 		instanceExtensions = _instanceExtensions;
 		if (enableValidationLayers)
@@ -224,6 +224,7 @@ private:
 			bool layerFound = false;
 
 			for (const auto& layerProperties : availableLayers) {
+				std::cout << layerProperties.layerName << std::endl;
 				if (strcmp(layerName, layerProperties.layerName) == 0) {
 					layerFound = true;
 					break;
@@ -231,6 +232,7 @@ private:
 			}
 
 			if (!layerFound) {
+				std::cerr << "No Validation layer found" << std::endl;
 				return false;
 			}
 		}
