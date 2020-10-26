@@ -386,9 +386,6 @@ extern bool hasStencilComponent(VkFormat format)
 
 extern void cmdTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount)
 {	
-	mipLevels = mipLevels == 0 ? VK_REMAINING_MIP_LEVELS : mipLevels;
-	layerCount = layerCount == 0 ? VK_REMAINING_ARRAY_LAYERS : layerCount;
-
 	VkImageMemoryBarrier barrier = {};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	barrier.oldLayout = oldLayout;

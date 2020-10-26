@@ -99,8 +99,9 @@ public:
 	void createBuffer(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D &extent, const AreaLightSources& areaSource)
 	{	
 		VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		createImage(device, allocator, queue, commandPool, areaEmitterDataImage, areaEmitterDataImageAllocation, extent, VK_IMAGE_USAGE_STORAGE_BIT, format, VK_SAMPLE_COUNT_1_BIT, areaSource.getNumSources());
-		areaEmitterDataImageView = createImageView(device, areaEmitterDataImage, format, VK_IMAGE_ASPECT_COLOR_BIT, 1, areaSource.getNumSources());
+		createImage(device, allocator, queue, commandPool, areaEmitterDataImage, areaEmitterDataImageAllocation, extent, VK_IMAGE_USAGE_STORAGE_BIT, format, VK_SAMPLE_COUNT_1_BIT, areaSource.getNumSources() + 1);
+		areaEmitterDataImageView = createImageView(device, areaEmitterDataImage, format, VK_IMAGE_ASPECT_COLOR_BIT, 1, areaSource.getNumSources() + 1);
+		transitionImageLayout(device, queue, commandPool, areaEmitterDataImage, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, areaSource.getNumSources() + 1);
 	}
 
 	void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
