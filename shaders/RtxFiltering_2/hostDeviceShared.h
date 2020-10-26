@@ -85,12 +85,12 @@ uvec2 packSampleStat(in vec2 m, in vec2 v, in uvec2 o)
 	o &= GH_ORDER_MAX_UINT;
 	o <<= (32 - GH_ORDER_BITS);
 
-	uvec2 t = uvec2(v * SAMPLE_STD_MAX_UINT);
+	uvec2 t = uvec2(round(v * SAMPLE_STD_MAX_UINT));
 	t &= SAMPLE_STD_MAX_UINT;
 	t <<= (32 - SAMPLE_STD_BITS - GH_ORDER_BITS);
 	o |= t;
 
-	t = uvec2(m * SAMPLE_MEAN_MAX_UINT);
+	t = uvec2(round(m * SAMPLE_MEAN_MAX_UINT));
 	t &= SAMPLE_MEAN_MAX_UINT;
 	o |= t;
 

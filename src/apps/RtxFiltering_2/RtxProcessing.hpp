@@ -136,7 +136,7 @@ namespace RtxFiltering_2
 		VkBuffer sbtBuffer;
 		VmaAllocation sbtBufferAllocation;
 		ShaderBindingTableGenerator sbtGen;
-
+		
 		struct PushConstantBlock
 		{
 			uint32_t discretePdfSize;

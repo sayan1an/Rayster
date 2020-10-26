@@ -267,7 +267,7 @@ void main()
         }
 #endif        
         uvec2 sampleStat = packSampleStat(sampleInfoOld.mean, sqrt(sampleInfoOld.var), uvec2(1));
-       
+               
         for (uint y = 0; y < stride; y++)
             for (uint x = 0; x < stride; x++) {
                 repackMcSampleInfo(gid * ivec2(stride, stride) + ivec2(x, y), frameSize.x, sampleInfoOld);

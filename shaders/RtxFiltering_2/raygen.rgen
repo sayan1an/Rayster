@@ -84,8 +84,11 @@ void main()
 	if (stencil.w > 0.5 && stencil.w < 1.5)
 	{	
 		alpha = 1;
+		vec2 sampleMean, sampleVar;
+		uvec2 ghOrder;
+
 		xorshiftState = randGenState.state[pixel.y * gl_LaunchSizeNV.x + pixel.x];
-						
+		unpackSampleStat(imageLoad(sampleStat, pixel * ivec2(pow(2, pcb.level) + 0.1)).rg, sampleMean, sampleVar, ghOrder);
 		const vec4 other = imageLoad(otherImage, pixel).rgba;
 		const vec4 normalDepth = imageLoad(normalImage, pixel).rgba;
 
@@ -133,8 +136,7 @@ void main()
 			specComp /=  float(pcb.numSamples);
 			lightPercent /= float(pcb.numSamples);
 		}
-		
-		
+				
 		randGenState.state[pixel.y * gl_LaunchSizeNV.x + pixel.x] = xorshiftState;
 	}
 
