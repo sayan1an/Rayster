@@ -3,7 +3,7 @@
 layout (local_size_x = 8, local_size_y = 8) in;
 
 layout (binding = 0, rgba32f) uniform readonly image2D inNormal;
-layout (binding = 1, rgba32f) uniform readonly image2D inPrevFrame;
+layout (binding = 1, rgba32f) uniform readonly image2DArray inPrevFrame;
 layout (binding = 2, rgba16f) uniform image2D outStencil;
 layout (binding = 3, rgba16f) uniform image2D outStencil2;
 layout (binding = 4, rgba16f) uniform image2D outStencil3;
@@ -60,10 +60,10 @@ void main()
 	vec4 n10 = imageLoad(inNormal, pixel * 2 + ivec2(1,0)).rgba;
 	vec4 n11 = imageLoad(inNormal, pixel * 2 + ivec2(1,1)).rgba;
 
-	vec3 p00 = imageLoad(inPrevFrame, pixel * 2).rgb;
-	vec3 p01 = imageLoad(inPrevFrame, pixel * 2 + ivec2(0,1)).rgb;
-	vec3 p10 = imageLoad(inPrevFrame, pixel * 2 + ivec2(1,0)).rgb;
-	vec3 p11 = imageLoad(inPrevFrame, pixel * 2 + ivec2(1,1)).rgb;
+	vec3 p00 = imageLoad(inPrevFrame, ivec3(pixel * 2, 1)).rgb;
+	vec3 p01 = imageLoad(inPrevFrame, ivec3(pixel * 2 + ivec2(0,1), 1)).rgb;
+	vec3 p10 = imageLoad(inPrevFrame, ivec3(pixel * 2 + ivec2(1,0), 1)).rgb;
+	vec3 p11 = imageLoad(inPrevFrame, ivec3(pixel * 2 + ivec2(1,1), 1)).rgb;
 
 	vec4 meanNormalDepth, varNormalDepth; vec3 meanLastFrame, varLastFrame;
 	calcMeanVar(n00, n01, n10, n11, meanNormalDepth, varNormalDepth); calcMeanVar(p00, p01, p10, p11, meanLastFrame, varLastFrame);

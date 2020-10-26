@@ -251,7 +251,7 @@ namespace RtxFiltering_2
 	class RtxCompositionPass
 	{
 	public:
-		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& rtxComposedView)
+		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent)
 		{
 			auto makeImage = [&device = device, &queue = queue, &commandPool = commandPool,
 				&allocator = allocator](VkExtent2D extent, VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation)
@@ -261,9 +261,7 @@ namespace RtxFiltering_2
 				transitionImageLayout(device, queue, commandPool, image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
 			};
 
-			makeImage(extent, VK_FORMAT_R32G32B32A32_SFLOAT, rtxComposedImage, rtxComposedImageView, rtxComposedImageAllocation);
 			createTexSampler(device);
-			rtxComposedView = rtxComposedImageView;
 			
 			pcb.choice = 1;
 			pcb.brightness = 1.0f;
@@ -278,7 +276,6 @@ namespace RtxFiltering_2
 			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { texSampler , rtxView2,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { texSampler , rtxView3,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindBuffer({ 5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, mcSampleInfo);
-			descGen.bindImage({ 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , rtxComposedImageView,  VK_IMAGE_LAYOUT_GENERAL });
 			
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -297,8 +294,6 @@ namespace RtxFiltering_2
 
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
 		{
-			vkDestroyImageView(device, rtxComposedImageView, nullptr);
-			vmaDestroyImage(allocator, rtxComposedImage, rtxComposedImageAllocation);
 			vkDestroySampler(device, texSampler, nullptr);
 			vkDestroyPipeline(device, pipeline, nullptr);
 			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -327,10 +322,6 @@ namespace RtxFiltering_2
 		VkDescriptorSetLayout descriptorSetLayout;
 		VkDescriptorPool descriptorPool;
 		VkDescriptorSet descriptorSet;
-
-		VkImage rtxComposedImage;
-		VkImageView rtxComposedImageView;
-		VmaAllocation rtxComposedImageAllocation;
 
 		VkExtent2D globalWorkDim;
 		VkSampler texSampler;

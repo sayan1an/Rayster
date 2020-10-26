@@ -6,11 +6,10 @@ layout (local_size_x = 16, local_size_y = 16) in;
 
 layout (binding = 0, rgba8) uniform image2D diffuseTex;
 layout (binding = 1, rgba8) uniform image2D specularTex;
-layout (binding = 2, rgba32f) uniform readonly image2DArray rtxIn;
+layout (binding = 2, rgba32f) uniform image2DArray rtxInOut;
 layout (binding = 3) uniform sampler2DArray rtxIn2;
 layout (binding = 4) uniform sampler2DArray rtxIn3;
 layout (binding = 5) buffer BufMcSampleRepresentation SAMPLE_INFO_BUFFER_NAME;
-layout (binding = 6, rgba32f) uniform image2D rtxOut;
 
 McSampleInfo unpackMcSampleInfo(in ivec2 idx2d, in int frameWidth)
 {   
@@ -27,13 +26,16 @@ void main()
 {	
 	ivec2 viewportSize = imageSize(diffuseTex);
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+	vec4 outCol = vec4(0);
+	vec4 outColNoTex = vec4(0);
+
 	if (pcb.choice == 0) {
 		vec2 texCoord = (vec2(pixel) + vec2(0.5)) / viewportSize;
 		vec4 diffTex = imageLoad(diffuseTex, pixel);
 		vec4 specTex = imageLoad(specularTex, pixel);
 		
-		vec4 diffComp1 = imageLoad(rtxIn, ivec3(pixel, 0));
-		vec4 specComp1 = imageLoad(rtxIn, ivec3(pixel, 1));
+		vec4 diffComp1 = imageLoad(rtxInOut, ivec3(pixel, 0));
+		vec4 specComp1 = imageLoad(rtxInOut, ivec3(pixel, 1));
 
 		vec4 diffComp2 = texture(rtxIn2, vec3(texCoord, 0));
 		vec4 specComp2 = texture(rtxIn2, vec3(texCoord, 1));
@@ -42,14 +44,21 @@ void main()
 		vec4 specComp3 = texture(rtxIn3, vec3(texCoord, 1));
 		
 		float weight = diffComp1.w + diffComp2.w + diffComp3.w;
-		vec4 specComp = specComp1 + specComp2 + specComp3;
-		vec4 outCol = diffTex * (diffComp1 + diffComp2 + diffComp3) + specTex * specComp;
+		outCol = diffTex * (diffComp1 + diffComp2 + diffComp3) + specTex * (specComp1 + specComp2 + specComp3);
+		// captures the power of texture, not the details
+		outColNoTex = length(diffTex.xyz) * (diffComp1 + diffComp2 + diffComp3) + length(specTex.xyz) * (specComp1 + specComp2 + specComp3);
+		outColNoTex.w = weight;
 		outCol.w = weight;
-		
-		imageStore(rtxOut, pixel, pcb.brightness * outCol / weight);
+
+		outColNoTex /= weight;
+		outCol /= weight;
 	}
 	else if (pcb.choice == 1) {
 		McSampleInfo sampleInfo = unpackMcSampleInfo(pixel, viewportSize.x);	
-		imageStore(rtxOut, pixel, pcb.brightness * (sampleInfo.maxVal.y < -0.5 ? vec4(0,1,0,1) : vec4(sampleInfo.maxVal.y)));
+		outColNoTex = vec4(vec3(sampleInfo.maxVal.y), 1);
+		outCol = sampleInfo.maxVal.y < -0.5 ? vec4(0,1,0,1) : outColNoTex;
 	}
+
+	imageStore(rtxInOut, ivec3(pixel, 0), pcb.brightness * outCol);
+	imageStore(rtxInOut, ivec3(pixel, 1), outColNoTex);
 }
