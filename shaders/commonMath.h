@@ -1,4 +1,5 @@
 #define PI 3.14159265358979324
+#define SQRT_2 1.41421356237
 #define CLIP(v, min, max) ((v) < (min)) ? (min) : (((v) > (max)) ? (max) : (v)) 
 
 vec2 complexExp(in float x)
