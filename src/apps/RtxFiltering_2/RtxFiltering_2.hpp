@@ -217,7 +217,7 @@ namespace RtxFiltering_2
 				//pSqPat->widget(/*collectData, pixelInfo,*/ numSamples);
 				sCmpPass->widget();
 				mcPass->widget(*swapChainExtent);
-				rGen->widget();
+				rGen->widget(*swapChainExtent);
 				rtxCompPass->widget();
 				//tempFilt->widget();
 				displayPass->widget();
@@ -719,6 +719,7 @@ namespace RtxFiltering_2
 			frameEnd(imageIndex);
 
 			mcPass.updateDataPost();
+			rtxGenPass.updateDataPost();
 			//rPatSq.updateDataPost();
 			//temporalFilter.saveFramePass.toDisk("D:/results/");
 		}

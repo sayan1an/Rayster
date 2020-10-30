@@ -210,16 +210,15 @@ namespace RtxFiltering_2
 #if COLLECT_MARKOV_CHAIN_SAMPLES
 				int xQuery = static_cast<int>(pixelQuery.x);
 				int yQuery = static_cast<int>(pixelQuery.y);
-				ImGui::SliderInt("X##MarkovChainPass", &xQuery, 0, swapChainExtent.width - 1);
-				ImGui::SliderInt("Y##MarkovChainPass", &yQuery, 0, swapChainExtent.height - 1);
+				ImGui::SliderInt("X##Combined_RT_MC_Pass", &xQuery, 0, swapChainExtent.width - 1);
+				ImGui::SliderInt("Y##Combined_RT_MC_Pass", &yQuery, 0, swapChainExtent.height - 1);
+				pixelQuery.x = static_cast<uint32_t>(xQuery);
+				pixelQuery.y = static_cast<uint32_t>(yQuery);
 
 				ImGui::Text("Reset weight:");
 				ImGui::RadioButton("No##MarkovChainPass_1", &resetWeight, 0); ImGui::SameLine();
 				ImGui::RadioButton("Yes##MarkovChainPass_1", &resetWeight, 1);
 				
-				pixelQuery.x = static_cast<uint32_t>(xQuery);
-				pixelQuery.y = static_cast<uint32_t>(yQuery);
-
 				meanVar[0] = ImVec2(ptrCollectMcSampleBuffer[4 * 1], ptrCollectMcSampleBuffer[4 * 1 + 1]);
 				meanVar[1] = ImVec2(meanVar[0]); meanVar[1].x -= std::sqrt(ptrCollectMcSampleBuffer[4 * 2]);
 				meanVar[2] = ImVec2(meanVar[0]); meanVar[2].x += std::sqrt(ptrCollectMcSampleBuffer[4 * 2]);
@@ -244,7 +243,7 @@ namespace RtxFiltering_2
 					ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 0);
 					ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 4);
 					auto getter = [](void* data, int idx) {
-						glm::vec4 d = static_cast<const glm::vec4*>(data)[idx + SAMPLE_HEADER_SIZE];
+						glm::vec4 d = static_cast<const glm::vec4*>(data)[idx + MC_SAMPLE_HEADER_SIZE];
 						//std::this_thread::sleep_for(std::chrono::milliseconds(100));
 						return ImPlotPoint(d.x, d.y);
 					};
@@ -268,7 +267,7 @@ namespace RtxFiltering_2
 				if (savePixelData) {
 					// let's not worry about performance here :P
 					std::vector<size_t> shape;
-					size_t headerSize = SAMPLE_HEADER_SIZE;
+					size_t headerSize = MC_SAMPLE_HEADER_SIZE;
 					size_t nSamples = static_cast<size_t>(ptrCollectMcSampleBuffer[1]);
 					shape.push_back(nSamples + headerSize);
 					shape.push_back(size_t(4));

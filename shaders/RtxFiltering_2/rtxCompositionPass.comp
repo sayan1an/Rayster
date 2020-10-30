@@ -43,15 +43,17 @@ void main()
 		vec4 diffComp3 = texture(rtxIn3, vec3(texCoord, 0));
 		vec4 specComp3 = texture(rtxIn3, vec3(texCoord, 1));
 		
-		float weight = diffComp1.w + diffComp2.w + diffComp3.w;
-		outCol = diffTex * (diffComp1 + diffComp2 + diffComp3) + specTex * (specComp1 + specComp2 + specComp3);
+		vec4 diffComp = diffComp1 + diffComp2 + diffComp3;
+		outCol = diffTex * diffComp + specTex * (specComp1 + specComp2 + specComp3);
 		// captures the power of texture, not the details
-		outColNoTex = length(diffTex.xyz) * (diffComp1 + diffComp2 + diffComp3) + length(specTex.xyz) * (specComp1 + specComp2 + specComp3);
-		outColNoTex.w = weight;
-		outCol.w = weight;
+		outColNoTex = length(diffTex.xyz) * diffComp + length(specTex.xyz) * (specComp1 + specComp2 + specComp3);
+		outColNoTex.w = diffComp.w;
+		outCol.w = diffComp.w;
 
-		outColNoTex /= weight;
-		outCol /= weight;
+		outColNoTex /= diffComp.w;
+		outCol /= diffComp.w;
+
+		outCol = (diffComp.x + diffComp.y + diffComp.z) < -1 ? vec4(0,1,0,1) : outCol;
 	}
 	else if (pcb.choice == 1) {
 		McSampleInfo sampleInfo = unpackMcSampleInfo(pixel, viewportSize.x);	

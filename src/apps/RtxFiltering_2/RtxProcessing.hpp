@@ -33,7 +33,8 @@ namespace RtxFiltering_2
 
 		void createPipeline(const VkDevice& device, const VkPhysicalDeviceRayTracingPropertiesNV& raytracingProperties, const VmaAllocator& allocator,
 			const Model& model, const Camera& cam, const AreaLightSources& areaSource, const RandomGenerator& randGen, const VkImageView& sampleStatView, const VkDescriptorBufferInfo& ghWeights,
-			const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& stencil)
+			const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& stencil,
+			const VkDescriptorBufferInfo& collectSamples)
 		{
 			descGen.bindTLAS({ 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, model.getDescriptorTlas());
 			descGen.bindTLAS({ 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, areaSource.getDescriptorTlas());
@@ -54,6 +55,10 @@ namespace RtxFiltering_2
 			descGen.bindBuffer({ 16, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, model.getIndexDescriptorBufferInfo());
 			descGen.bindImage({ 17, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, { model.ldrTextureSampler,  model.ldrTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 			descGen.bindBuffer({ 18, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV }, areaSource.getLightInstanceDescriptorBufferInfo());
+
+#if COLLECT_RT_SAMPLES
+			descGen.bindBuffer({ 19, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_NV }, collectSamples);
+#endif
 
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -106,10 +111,14 @@ namespace RtxFiltering_2
 			vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 		}
 
-		void cmdDispatch(const VkCommandBuffer& cmdBuf, const uint32_t numSamples)
+		void cmdDispatch(const VkCommandBuffer& cmdBuf, const uint32_t numSamples, const glm::uvec2& pixelQuery)
 		{
 			pcb.numSamples = numSamples;
-		
+
+#if COLLECT_RT_SAMPLES
+			pcb.pixelQueryX = pixelQuery.x;
+			pcb.pixelQueryY = pixelQuery.y;
+#endif
 			vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipeline);
 			vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 			vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_RAYGEN_BIT_NV, 0, sizeof(PushConstantBlock), &pcb);
@@ -142,6 +151,10 @@ namespace RtxFiltering_2
 			uint32_t discretePdfSize;
 			uint32_t numSamples;
 			uint32_t level;
+#if COLLECT_RT_SAMPLES
+			uint32_t pixelQueryX;
+			uint32_t pixelQueryY;
+#endif
 		} pcb;
 
 		VkImage rtxOutImage;
@@ -161,6 +174,9 @@ namespace RtxFiltering_2
 			loadGhWeights((1 << GH_ORDER_BITS));
 			createBuffer(device, allocator, queue, commandPool, ghBuffer, ghBufferAllocation, gaussHermitWeights.size() * sizeof(gaussHermitWeights[0]), gaussHermitWeights.data(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
+			mptrCollectRtSampleBuffer = createBuffer(allocator, collectRtSampleBuffer, collectRtSampleBufferAllocation, MAX_RT_SAMPLES * sizeof(float) * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
+			ptrCollectRtSampleBuffer = new float[MAX_RT_SAMPLES * 4];
+
 			pass1.createBuffers(device, allocator, queue, commandPool, 0, extent, rtxView1);
 			pass2.createBuffers(device, allocator, queue, commandPool, 1, { extent.width / 2, extent.height / 2 }, rtxView2);
 			pass3.createBuffers(device, allocator, queue, commandPool, 2, { extent.width / 4, extent.height / 4 }, rtxView3);
@@ -176,23 +192,58 @@ namespace RtxFiltering_2
 		{	
 			CHECK_DBG_ONLY(buffersUpdated, "RtxGenCombinedPass : call createBuffers first.");
 
-			pass1.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, randGen, sampleStatView, getGhDescriptorBufferInfo(), inNormal1, inOther1, inStencil1);
-			pass2.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, randGen, sampleStatView, getGhDescriptorBufferInfo(), inNormal2, inOther2, inStencil2);
-			pass3.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, randGen, sampleStatView, getGhDescriptorBufferInfo(), inNormal3, inOther3, inStencil3);
+			pass1.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, randGen, sampleStatView, getGhDescriptorBufferInfo(), inNormal1, inOther1, inStencil1, getCollectSamplesDescriptorBufferInfo());
+			pass2.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, randGen, sampleStatView, getGhDescriptorBufferInfo(), inNormal2, inOther2, inStencil2, getCollectSamplesDescriptorBufferInfo());
+			pass3.createPipeline(device, raytracingProperties, allocator, model, cam, areaSource, randGen, sampleStatView, getGhDescriptorBufferInfo(), inNormal3, inOther3, inStencil3, getCollectSamplesDescriptorBufferInfo());
 		}
 
 		void cmdDispatch(const VkCommandBuffer& cmdBuf)
 		{	
 			uint32_t sCount = static_cast<uint32_t>(sampleCount);
-			pass1.cmdDispatch(cmdBuf, sCount);
-			pass2.cmdDispatch(cmdBuf, sCount);
-			pass3.cmdDispatch(cmdBuf, sCount);
+			pass1.cmdDispatch(cmdBuf, sCount, pixelQuery);
+			pass2.cmdDispatch(cmdBuf, sCount, pixelQuery / glm::uvec2(2, 2));
+			pass3.cmdDispatch(cmdBuf, sCount, pixelQuery / glm::uvec2(4, 4));
 		}
 
-		void widget()
+		void widget(const VkExtent2D& swapChainExtent)
 		{
 			if (ImGui::CollapsingHeader("RtxGenPass")) {
 				ImGui::SliderInt("Mc Samples##RtxGenCombinedPass", &sampleCount, 1, 256);
+#if COLLECT_RT_SAMPLES
+				int xQuery = static_cast<int>(pixelQuery.x);
+				int yQuery = static_cast<int>(pixelQuery.y);
+				ImGui::SliderInt("X##Combined_RT_MC_Pass", &xQuery, 0, swapChainExtent.width - 1);
+				ImGui::SliderInt("Y##Combined_RT_MC_Pass", &yQuery, 0, swapChainExtent.height - 1);
+				pixelQuery.x = static_cast<uint32_t>(xQuery);
+				pixelQuery.y = static_cast<uint32_t>(yQuery);
+
+
+				meanVar[0] = ImVec2(ptrCollectRtSampleBuffer[2], ptrCollectRtSampleBuffer[3]);
+				meanVar[1] = ImVec2(meanVar[0]); meanVar[1].x -= ptrCollectRtSampleBuffer[4];
+				meanVar[2] = ImVec2(meanVar[0]); meanVar[2].x += ptrCollectRtSampleBuffer[4];
+				meanVar[3] = ImVec2(meanVar[0]); meanVar[3].y -= ptrCollectRtSampleBuffer[5];
+				meanVar[4] = ImVec2(meanVar[0]); meanVar[4].y += ptrCollectRtSampleBuffer[5];
+
+				ImPlot::SetNextPlotLimits(0, 1.0f, 0, 1.0f, ImGuiCond_Always);
+				if (ImPlot::BeginPlot("Gauss-hermit sample plot##RtxGenCombinedPass", "u", "v")) {
+					ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 0);
+					ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 4);
+
+					ImPlot::PlotScatter("Mean##RtxGenCombinedPass", &meanVar[0].x, &meanVar[0].y, 1, 0, sizeof(ImVec2));
+					ImPlot::PlotScatter("Std-X##RtxGenCombinedPass", &meanVar[1].x, &meanVar[1].y, 2, 0, sizeof(ImVec2));
+					ImPlot::PlotScatter("Std-Y##RtxGenCombinedPass", &meanVar[3].x, &meanVar[3].y, 2, 0, sizeof(ImVec2));
+
+					auto getter = [](void* data, int idx) {
+						glm::vec4 d = static_cast<const glm::vec4*>(data)[idx + RT_SAMPLE_HEADER_SIZE];
+						//std::this_thread::sleep_for(std::chrono::milliseconds(100));
+						return ImPlotPoint(d.x, d.y);
+					};
+					ImPlot::PlotScatterG("Samples##RtxGenCombinedPass", static_cast<ImPlotPoint(*)(void*, int)>(getter), static_cast<void*>(ptrCollectRtSampleBuffer), static_cast<int>(ptrCollectRtSampleBuffer[1]), 0);
+
+					ImPlot::PopStyleVar(2);
+					ImPlot::EndPlot();
+				}
+#endif
 			}
 
 		}
@@ -203,9 +254,24 @@ namespace RtxFiltering_2
 			pass2.cleanUp(device, allocator);
 			pass1.cleanUp(device, allocator);
 
+			vmaDestroyBuffer(allocator, collectRtSampleBuffer, collectRtSampleBufferAllocation);
+			delete[]ptrCollectRtSampleBuffer;
+
 			vmaDestroyBuffer(allocator, ghBuffer, ghBufferAllocation);
 
 			buffersUpdated = false;
+		}
+
+		void updateDataPost()
+		{
+#if COLLECT_RT_SAMPLES
+			memcpy(ptrCollectRtSampleBuffer, mptrCollectRtSampleBuffer, MAX_RT_SAMPLES * sizeof(float) * 4);
+			/*const glm::vec4* ptr = static_cast<const glm::vec4*>((void*)ptrCollectRtSampleBuffer);
+			for (uint32_t i = 0; i < (uint32_t)ptrCollectRtSampleBuffer[1]; i++) {
+				glm::vec4 d = ptr[i + RT_SAMPLE_HEADER_SIZE];
+				std::cout << d.x << " " << d.y << std::endl;
+			}*/
+#endif
 		}
 	private:
 		bool buffersUpdated = false;
@@ -216,9 +282,17 @@ namespace RtxFiltering_2
 		RtxGenPass pass2;
 		RtxGenPass pass3;
 
-		std::vector<glm::vec2> gaussHermitWeights;
+		std::vector<glm::vec4> gaussHermitWeights;
 		VkBuffer ghBuffer;
 		VmaAllocation ghBufferAllocation;
+
+		glm::uvec2 pixelQuery;
+
+		VkBuffer collectRtSampleBuffer;
+		VmaAllocation collectRtSampleBufferAllocation;
+		void* mptrCollectRtSampleBuffer;
+		float* ptrCollectRtSampleBuffer;
+		ImVec2 meanVar[5]; //0- mean, 1/2 - var x, 3/4 - var y 
 
 		VkDescriptorBufferInfo getGhDescriptorBufferInfo() const
 		{
@@ -243,8 +317,18 @@ namespace RtxFiltering_2
 				float x = static_cast<float>(data[2 * i]);
 				float w = static_cast<float>(data[2 * i + 1]);
 				std::cout << x << " " << w << std::endl;
-				gaussHermitWeights[i] = glm::vec2(x, w);
+				gaussHermitWeights[i] = glm::vec4(x, w, 0, 0);
 			}
+		}
+
+		VkDescriptorBufferInfo getCollectSamplesDescriptorBufferInfo() const
+		{
+			VkDescriptorBufferInfo descriptorBufferInfo = {};
+			descriptorBufferInfo.buffer = collectRtSampleBuffer;
+			descriptorBufferInfo.offset = 0;
+			descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+			return descriptorBufferInfo;
 		}
 	};
 

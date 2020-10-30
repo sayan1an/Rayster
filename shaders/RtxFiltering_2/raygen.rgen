@@ -14,7 +14,7 @@ layout(binding = 4, set = 0, rgba16f) uniform readonly image2D stencilImage;
 layout(binding = 5, set = 0, rg32ui) uniform readonly uimage2D sampleStat;
 layout(binding = 6, set = 0) uniform GaussHermitWeights 
 {
-	vec2 weights[MAX_GH_ORDER * (MAX_GH_ORDER + 1) / 2];
+	vec4 weights[MAX_GH_ORDER * (MAX_GH_ORDER + 1) / 2];
 } gaussHermitWeights;
 layout(binding = 7, set = 0, rgba32f) uniform image2DArray outImage;
 layout(binding = 8, set = 0) uniform CameraProperties 
@@ -30,10 +30,18 @@ layout(binding = 10, set = 0) readonly buffer DiscretePdf { float bins[]; } disc
 layout(binding = 11, set = 0) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
 layout(binding = 12, set = 0) buffer RandomGeneratorState { uint state[]; } randGenState;
 
+#if COLLECT_RT_SAMPLES
+layout(binding = 19, set = 0) buffer CollectRTSample { vec4 state[]; } collectRTSample;
+#endif
+
 layout (push_constant) uniform pcBlock {
 	uint uniformToEmitterIndexMapSize;
 	uint numSamples;
 	uint level;
+#if COLLECT_RT_SAMPLES
+	uint pixelQueryX;
+	uint pixelQueryY;
+#endif
 } pcb;
 
 layout(location = 0) rayPayloadNV vec3 radiance;
@@ -94,6 +102,15 @@ void main()
 		const vec4 other = imageLoad(otherImage, pixel).rgba;
 		const vec4 normalDepth = imageLoad(normalImage, pixel).rgba;
 
+#if COLLECT_RT_SAMPLES
+        if (pcb.pixelQueryX == pixel.x && pcb.pixelQueryY == pixel.y) {
+            collectRTSample.state[0].x = RT_SAMPLE_HEADER_SIZE + 0.01f;
+            collectRTSample.state[0].y = 0;
+			collectRTSample.state[0].zw = sampleMean;
+			collectRTSample.state[1].xy = sampleStd;
+        }
+#endif
+
 		// If the primary intersection is a light source
 		if (other.w > 3.5 && other.w < 4.5) 
 			diffComp = vec3(1.0);
@@ -115,15 +132,15 @@ void main()
 			vec3 spec, diff;
 			float lightHit, a, b, pdf;
 
-			ghOrder = uvec2(3);
+			ghOrder = uvec2(10);
 			for (uint i = 0; i < ghOrder.x + 1; i++) {
-				vec2 weightX = gaussHermitWeights.weights[ghOrder.x * (ghOrder.x + 1) / 2 + i];
-				weightX.x *= SQRT_2 * sampleStd.x;
+				vec2 weightX = gaussHermitWeights.weights[ghOrder.x * (ghOrder.x + 1) / 2 + i].xy;
+				weightX.x *= (SQRT_2 * sampleStd.x);
 				weightX.x += sampleMean.x;
 				if (weightX.x > 0 && weightX.x < 1)
 				for (uint j = 0; j < ghOrder.y + 1; j++) {
-					vec2 weightY = gaussHermitWeights.weights[ghOrder.y * (ghOrder.y + 1) / 2 + j];
-					weightY.x *= SQRT_2 * sampleStd.y;
+					vec2 weightY = gaussHermitWeights.weights[ghOrder.y * (ghOrder.y + 1) / 2 + j].xy;
+					weightY.x *= (SQRT_2 * sampleStd.y);
 					weightY.x += sampleMean.y;
 					if (weightY.x > 0 && weightY.x < 1) {
 						vec2 uv =  vec2(weightX.x, weightY.x);//rand2(xorshiftState);
@@ -144,6 +161,13 @@ void main()
 						specComp += weightX.y * weightY.y * spec / pdf;
 
 						lightPercent += lightHit;
+#if COLLECT_RT_SAMPLES
+						if (pcb.pixelQueryX == pixel.x && pcb.pixelQueryY == pixel.y) {
+							uint index = uint(collectRTSample.state[0].y);
+							collectRTSample.state[RT_SAMPLE_HEADER_SIZE + index].xy = vec2(weightX.x, weightY.x);
+							collectRTSample.state[0].y = index + 1.0001; 
+						}
+#endif
 					}
 				}
 			}
@@ -154,6 +178,12 @@ void main()
 			//specComp /=  float(pcb.numSamples);
 			lightPercent /= float(pcb.numSamples);
 		}
+
+#if COLLECT_RT_SAMPLES
+        if (pcb.pixelQueryX == pixel.x && pcb.pixelQueryY == pixel.y) {         
+           diffComp = vec3(-1);
+        }
+#endif    
 				
 		randGenState.state[pixel.y * gl_LaunchSizeNV.x + pixel.x] = xorshiftState;
 	}

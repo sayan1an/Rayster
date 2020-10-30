@@ -136,8 +136,10 @@ void main()
     if (stencil.w > 0.5 && stencil.w < 1.5) 
     {   
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-        if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
-            collectMCSample.state[0].x = 0;
+        if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y) {
+            collectMCSample.state[0].x = MC_SAMPLE_HEADER_SIZE + 0.01f;
+            collectMCSample.state[0].y = 0;
+        }
 #endif
         uint xorshiftState = randGenState.state[gid.y * gl_NumWorkGroups.x * 2 + gid.x];
 
@@ -191,7 +193,7 @@ void main()
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES
             if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y) {
-                collectMCSample.state[0].x = SAMPLE_HEADER_SIZE + 0.01f;
+                collectMCSample.state[0].x = MC_SAMPLE_HEADER_SIZE + 0.01f;
                 collectMCSample.state[0].y = mcIterations + 0.01f;
             }
 #endif
@@ -228,7 +230,7 @@ void main()
                 sampleInfo.maxVal.y += prevProposal;
 #if COLLECT_MARKOV_CHAIN_SAMPLES
                 if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
-                    collectMCSample.state[i + SAMPLE_HEADER_SIZE] = vec4(mcState.x, mcState.y, prevProposal, 0);
+                    collectMCSample.state[i + MC_SAMPLE_HEADER_SIZE] = vec4(mcState.x, mcState.y, prevProposal, 0);
 #endif
                 s_mcState[2 * lid.y + lid.x] = mcState;
             }
