@@ -9,7 +9,7 @@ layout(binding = 1, set = 0) uniform accelerationStructureNV tlas_lightSource;
 layout(binding = 2, set = 0, rgba32f) uniform readonly image2D normalImage;
 layout(binding = 3, set = 0, rgba16f) uniform readonly image2D otherImage;
 layout(binding = 4, set = 0, rgba16f) uniform readonly image2D stencilImage;
-layout(binding = 5, set = 0, rg32ui) uniform readonly uimage2D sampleStat;
+layout(binding = 5, set = 0, rg16f) uniform readonly image2DArray outSampleStat;
 layout(binding = 6, set = 0) uniform GaussHermitWeights 
 {
 	vec4 weights[150];

@@ -23,7 +23,7 @@ layout(binding = 6) readonly buffer DiscreteCdf { float bins[]; } discreteCdf;
 layout(binding = 7) readonly buffer NormDiscreteCdf { float bins[]; } normDiscreteCdf;
 layout(binding = 8) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
 layout(binding = 9, rg32f) uniform image2DArray outMcState; // layer 0 contains state, layer 1 contains mcmc value and moving weight
-layout(binding = 10, rg32ui) uniform uimage2D outSampleStat;
+layout(binding = 10, rg16f) uniform image2DArray outSampleStat;
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES
 layout(binding = 11) buffer CollectMCSample { vec4 state[]; } collectMCSample;
