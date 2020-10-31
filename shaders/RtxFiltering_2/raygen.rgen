@@ -132,15 +132,15 @@ void main()
 			vec3 spec, diff;
 			float lightHit, a, b, pdf;
 
-			ghOrder = uvec2(10);
+			ghOrder = uvec2(5);
 			for (uint i = 0; i < ghOrder.x + 1; i++) {
 				vec2 weightX = gaussHermitWeights.weights[ghOrder.x * (ghOrder.x + 1) / 2 + i].xy;
-				weightX.x *= (SQRT_2 * sampleStd.x);
+				weightX.x *= (sampleStd.x);
 				weightX.x += sampleMean.x;
 				if (weightX.x > 0 && weightX.x < 1)
 				for (uint j = 0; j < ghOrder.y + 1; j++) {
 					vec2 weightY = gaussHermitWeights.weights[ghOrder.y * (ghOrder.y + 1) / 2 + j].xy;
-					weightY.x *= (SQRT_2 * sampleStd.y);
+					weightY.x *= (sampleStd.y);
 					weightY.x += sampleMean.y;
 					if (weightY.x > 0 && weightY.x < 1) {
 						vec2 uv =  vec2(weightX.x, weightY.x);//rand2(xorshiftState);

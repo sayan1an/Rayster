@@ -57,7 +57,7 @@ void main()
 	}
 	else if (pcb.choice == 1) {
 		McSampleInfo sampleInfo = unpackMcSampleInfo(pixel, viewportSize.x);	
-		outColNoTex = vec4(vec3(sampleInfo.maxVal.y *0.001), 1);
+		outColNoTex = vec4(vec3(sampleInfo.maxVal.y), 1);
 		outCol = sampleInfo.maxVal.y < -0.5 ? vec4(0,1,0,1) : outColNoTex;
 	}
 

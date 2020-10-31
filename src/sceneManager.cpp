@@ -598,13 +598,13 @@ static void loadMcMcTest(Model& model, Camera& cam)
 	cam.setAngleIncrement(0.01f);
 	cam.setDistanceIncrement(0.01f);
 
-	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f))); // 0
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f))); // 0
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.929f, 0.333f, 0.231f, 1.0f))); // 1
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.125f, 0.388f, 0.608f, 1.0f))); // 2
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.235f, 0.682f, 0.639f, 1.0f))); // 3
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f))); // 4
-	model.addLdrTexture(Image2d(1, 1, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f))); // 5
-	//model.addLdrTexture(Image2d(1, 1, glm::vec4(1.f, 1.f, 1.f, 1.0f)));
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f))); // 5
+	model.addLdrTexture(Image2d(1, 1, glm::vec4(1.f, 1.f, 1.f, 1.0f))); // 6
 
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.01f, 1.5f, 1.0f, 1.0f), true)); // 0
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.05f, 1.5f, 1.0f, 1.0f), true)); // 1
@@ -613,7 +613,7 @@ static void loadMcMcTest(Model& model, Camera& cam)
 	model.addMaterial(1, 4, 1, GGX); // urchin
 	model.addMaterial(2, 4, 1, GGX); // sphere
 	model.addMaterial(3, 4, 1, GGX); // cube
-	model.addMaterial(5, 5, 0, AREA); // quadLight
+	model.addMaterial(6, 5, 0, AREA); // quadLight
 
 	Mesh* mesh = loadMeshTiny((ROOT + "/models/modelLibrary/groundPlane.obj").c_str());
 	mesh->normailze(6.0f);
@@ -661,8 +661,8 @@ extern void loadScene(Model& model, Camera& cam, const std::string& name)
 {	
 	//loadMedievalHouse(model, cam);
 	//loadBasicShapes(model, cam);
-	//loadSpaceship(model, cam);
-	loadMcMcTest(model, cam);
+	loadSpaceship(model, cam);
+	//loadMcMcTest(model, cam);
 	//loadDefault(model, cam);
 
 	/*if (name.compare("default") == 0)

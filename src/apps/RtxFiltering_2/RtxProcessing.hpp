@@ -313,11 +313,17 @@ namespace RtxFiltering_2
 			double* data = ghWeights.data<double>();
 			gaussHermitWeights.resize(maxOrder * (maxOrder + 1) / 2);
 
+			float specialWeights[] = { 0.25f, 0.5f, -0.25f, 0.5f, 0.75, 0.5f, -0.75, 0.5f, 1.5f, 1.0f, -1.5f, 1.0f };
+
 			for (size_t i = 0; i < gaussHermitWeights.size(); i++) {
 				float x = static_cast<float>(data[2 * i]);
 				float w = static_cast<float>(data[2 * i + 1]);
 				std::cout << x << " " << w << std::endl;
 				gaussHermitWeights[i] = glm::vec4(x, w, 0, 0);
+			}
+
+			for (uint32_t i = 0; i < 6; i++) {
+				gaussHermitWeights[15 + i] = glm::vec4(specialWeights[2 * i], specialWeights[2 * i + 1], 0, 0);
 			}
 		}
 

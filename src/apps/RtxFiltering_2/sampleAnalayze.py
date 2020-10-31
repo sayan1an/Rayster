@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-arr1 = np.load("D:/projects/mcSamples_1.npy")
+arr1 = np.load("D:/projects/mcSamples_4.npy")
 
 print(arr1.shape)
 
@@ -197,6 +197,6 @@ def computePerFrameMeanVar(rawData, refMean, refVar_x, refVar_y, refVar_xy, comp
 # ax3.legend()
 # plt.show()
 
-# plotHistogram(arr1)
+plotHistogram(arr1)
 
 

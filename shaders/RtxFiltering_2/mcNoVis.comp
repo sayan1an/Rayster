@@ -61,8 +61,8 @@ void sanitizeSampleInfo(inout McSampleInfo sInfo)
 {
     sInfo.mean.x = CLIP(sInfo.mean.x, 0.0, 1.0);
     sInfo.mean.y = CLIP(sInfo.mean.y, 0.0, 1.0);
-    sInfo.var.x = CLIP(sInfo.var.x, 0.0025, 0.5625);
-    sInfo.var.y = CLIP(sInfo.var.y, 0.0025, 0.5625);
+    sInfo.var.x = CLIP(sInfo.var.x, 0.00025, 0.5625);
+    sInfo.var.y = CLIP(sInfo.var.y, 0.00025, 0.5625);
     
     sInfo.covWeight.y = min(2e34, sInfo.covWeight.y);
     sInfo.covWeight.y = max(0, sInfo.covWeight.y); 
@@ -238,7 +238,7 @@ void main()
             sampleInfo.covWeight.y = sampleInfo.maxVal.y;
             sampleInfo.maxVal.y /= mcIterations; // save mcmc value
             
-            float cWeight = sampleInfo.covWeight.y / (sampleInfo.covWeight.y + sampleInfoOld.covWeight.y);
+            float cWeight = 1.0f;//sampleInfo.covWeight.y / (sampleInfo.covWeight.y + sampleInfoOld.covWeight.y);
             cWeight = cWeight > 1 ? 1 : (cWeight < 0 ? 0 : cWeight);
             float oWeight = 1 - cWeight;
 
