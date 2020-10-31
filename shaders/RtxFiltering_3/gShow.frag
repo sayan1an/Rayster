@@ -4,7 +4,7 @@ layout (binding = 0) uniform sampler2DArray inSampler1; // rtx comp pass
 layout (binding = 1) uniform sampler2D inSampler2; // stencil 1
 layout (binding = 2) uniform sampler2D inSampler3; // stencil 2
 layout (binding = 3) uniform sampler2D inSampler4; // stencil 3
-layout (binding = 4) uniform sampler2D inSampler5; // mc state
+layout (binding = 4) uniform sampler2DArray inSampler5; // mc state
 
 
 layout (location = 0) out vec4 outColor;
@@ -35,8 +35,8 @@ void main()
 	else if (pcb.choice.x == 2) // rtx out (no-tex)
 		outColor = vec4(texture(inSampler1, vec3(texCoord, 1)).rgba);
 	else if (pcb.choice.x == 3) {
-		float val = texture(inSampler5, texCoord).r;
-		outColor = vec4(val,val,val,1);
+		vec2 val = texture(inSampler5, vec3(texCoord, 0)).rg;
+		outColor = vec4(val.x,val.y,val.y,1);
 	}
 
 }

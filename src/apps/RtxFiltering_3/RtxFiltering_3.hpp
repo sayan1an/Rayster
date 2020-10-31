@@ -347,7 +347,7 @@ namespace RtxFiltering_3
 				normalHalf, otherHalf, stencilView2,
 				normalQuat, otherQuat, stencilView3);
 			subpass2.createSubpass(device, renderPass2, fboManager2, rtxPassView, stencilView, stencilView2, stencilView3, mcStateView);
-			rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), rtxPassView, rtxPassHalfView, rtxPassQuatView, mcPass.getSampleInfoDescriptorBufferInfo());
+			rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), rtxPassView, rtxPassHalfView, rtxPassQuatView, mcStateView);
 
 			createCommandBuffers();
 		}
@@ -434,7 +434,7 @@ namespace RtxFiltering_3
 				normalHalf, otherHalf, stencilView2,
 				normalQuat, otherQuat, stencilView3);
 			subpass2.createSubpass(device, renderPass2, fboManager2, rtxPassView, stencilView, stencilView2, stencilView3, mcStateView);
-			rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), rtxPassView, rtxPassHalfView, rtxPassQuatView, mcPass.getSampleInfoDescriptorBufferInfo());
+			rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), rtxPassView, rtxPassHalfView, rtxPassQuatView, mcStateView);
 
 			createCommandBuffers();
 		}

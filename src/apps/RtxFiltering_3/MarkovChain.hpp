@@ -17,7 +17,7 @@ namespace RtxFiltering_3
 	{
 	public:
 		// Assume extent is twice the size of stencil
-		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const uint32_t level, const VkExtent2D& extent)
+		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent)
 		{
 			auto makeImage = [&device = device, &queue = queue, &commandPool = commandPool,
 				&allocator = allocator](VkExtent2D extent, VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation)
@@ -28,14 +28,13 @@ namespace RtxFiltering_3
 			};
 
 			globalWorkDim = extent;
-			pcb.level = level;
 			pcb.gamma = 0.0f;
 			pcb.sigmaProposal = 0.01f;
 			buffersUpdated = true;
 		}
 
 		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const Camera& cam, const AreaLightSources& areaSource, const RandomGenerator& randGen, 
-			const VkImageView& outMcState, const VkImageView& outSampleStat, const VkDescriptorBufferInfo& mcSampleInfo,
+			const VkImageView& outMcState, const VkImageView& outSampleStat,
 			const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& inStencil, const VkDescriptorBufferInfo& collectSamples)
 		{
 			CHECK_DBG_ONLY(buffersUpdated, "MarkovChainNoVisibilityPass : call createBuffers first.");
@@ -51,9 +50,9 @@ namespace RtxFiltering_3
 			descGen.bindBuffer({ 8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.dPdf.getEmitterIndexMapDescriptorBufferInfo());
 			descGen.bindImage({ 9, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outMcState,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 10, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outSampleStat,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, mcSampleInfo);
+			
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-			descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, collectSamples);
+			descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, collectSamples);
 #endif
 
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
@@ -127,40 +126,26 @@ namespace RtxFiltering_3
 		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent, VkImageView& _mcStateView, VkImageView& _sampleStatView)
 		{
 			auto makeImage = [&device = device, &queue = queue, &commandPool = commandPool,
-				&allocator = allocator](VkExtent2D extent, VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation)
+				&allocator = allocator](VkExtent2D extent, VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation, uint32_t layers)
 			{
-				createImageP(device, allocator, queue, commandPool, image, allocation, extent, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, format);
+				createImageP(device, allocator, queue, commandPool, image, allocation, extent, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, format, VK_SAMPLE_COUNT_1_BIT, 0, layers, 1);
 				
-				imageView = createImageView(device, image, format, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
-				transitionImageLayout(device, queue, commandPool, image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
+				imageView = createImageView(device, image, format, VK_IMAGE_ASPECT_COLOR_BIT, 1, layers);
+				transitionImageLayout(device, queue, commandPool, image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, layers);
 			};
 
-			makeImage(extent, VK_FORMAT_R32G32_SFLOAT, mcState, mcStateView, mcStateAlloc);
-			makeImage(extent, VK_FORMAT_R32G32_UINT, sampleStat, sampleStatView, sampleStatAlloc);
+			makeImage(extent, VK_FORMAT_R32G32_SFLOAT, mcState, mcStateView, mcStateAlloc, 2);
+			makeImage(extent, VK_FORMAT_R32G32_UINT, sampleStat, sampleStatView, sampleStatAlloc, 1);
 			
 			_mcStateView = mcStateView;
 			_sampleStatView = sampleStatView;
 
-			McSampleInfo2* initData = new McSampleInfo2[extent.width * extent.height];
-			initData[0].mean = glm::vec2(DEFAULT_MC_SAMPLE_MEAN);
-			initData[0].var = glm::vec2(DEFAULT_MC_SAMPLE_VAR);
-			initData[0].covWeight = glm::vec2(0.0f);
-			initData[0].maxVal = glm::vec2(0.0f);
-			for (uint32_t i = 1; i < extent.width * extent.height; i++)
-				initData[i] = initData[0];
-		
-			createBuffer(device, allocator, queue, commandPool, mcSampleInfo, mcSampleInfoAlloc, extent.width * extent.height * sizeof(McSampleInfo2), initData, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-
 			mptrCollectMcSampleBuffer = createBuffer(allocator, collectMcSampleBuffer, collectMcSampleBufferAllocation, MAX_MARKOV_CHAIN_SAMPLES * sizeof(float) * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
 			ptrCollectMcSampleBuffer = new float[MAX_MARKOV_CHAIN_SAMPLES * 4];
 
-			mcPass1.createBuffers(device, allocator, queue, commandPool, 0, extent);
-			mcPass2.createBuffers(device, allocator, queue, commandPool, 1, { extent.width / 2, extent.height / 2 });
-			mcPass3.createBuffers(device, allocator, queue, commandPool, 2, { extent.width / 4, extent.height / 4 });
-			
+			mcPass1.createBuffers(device, allocator, queue, commandPool, extent);
+						
 			buffersUpdated = true;
-
-			delete[]initData;
 		}
 
 		void createPipelines(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const Camera& cam, const AreaLightSources &areaSource, const RandomGenerator& randGen,
@@ -170,16 +155,14 @@ namespace RtxFiltering_3
 		{
 			CHECK_DBG_ONLY(buffersUpdated, "MarkovChainNoVisibilityCombined : call createBuffers first.");
 
-			mcPass1.createPipeline(physicalDevice, device, cam, areaSource, randGen, mcStateView, sampleStatView, getSampleInfoDescriptorBufferInfo(), inNormal1, inOther1, inStencil1, getCollectSamplesDescriptorBufferInfo());
-			mcPass2.createPipeline(physicalDevice, device, cam, areaSource, randGen, mcStateView, sampleStatView, getSampleInfoDescriptorBufferInfo(), inNormal2, inOther2, inStencil2, getCollectSamplesDescriptorBufferInfo());
-			mcPass3.createPipeline(physicalDevice, device, cam, areaSource, randGen, mcStateView, sampleStatView, getSampleInfoDescriptorBufferInfo(), inNormal3, inOther3, inStencil3, getCollectSamplesDescriptorBufferInfo());
+			mcPass1.createPipeline(physicalDevice, device, cam, areaSource, randGen, mcStateView, sampleStatView, inNormal1, inOther1, inStencil1, getCollectSamplesDescriptorBufferInfo());
+
 		}
 
 		void cmdDispatch(const VkCommandBuffer& cmdBuf)
 		{	
 			mcPass1.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, pixelQuery, resetWeight);
-			mcPass2.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, pixelQuery / glm::uvec2(2,2), resetWeight);
-			mcPass3.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, pixelQuery / glm::uvec2(4,4), resetWeight);
+		
 		}
 
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
@@ -188,13 +171,11 @@ namespace RtxFiltering_3
 			vmaDestroyImage(allocator, mcState, mcStateAlloc);
 			vkDestroyImageView(device, sampleStatView, nullptr);
 			vmaDestroyImage(allocator, sampleStat, sampleStatAlloc);
-			vmaDestroyBuffer(allocator, mcSampleInfo, mcSampleInfoAlloc);
-
+			
 			vmaDestroyBuffer(allocator, collectMcSampleBuffer, collectMcSampleBufferAllocation);
 			delete[]ptrCollectMcSampleBuffer;
 
-			mcPass3.cleanUp(device, allocator);
-			mcPass2.cleanUp(device, allocator);
+			
 			mcPass1.cleanUp(device, allocator);
 
 			buffersUpdated = false;
@@ -219,25 +200,6 @@ namespace RtxFiltering_3
 				ImGui::RadioButton("No##MarkovChainPass_1", &resetWeight, 0); ImGui::SameLine();
 				ImGui::RadioButton("Yes##MarkovChainPass_1", &resetWeight, 1);
 				
-				meanVar[0] = ImVec2(ptrCollectMcSampleBuffer[4 * 1], ptrCollectMcSampleBuffer[4 * 1 + 1]);
-				meanVar[1] = ImVec2(meanVar[0]); meanVar[1].x -= std::sqrt(ptrCollectMcSampleBuffer[4 * 2]);
-				meanVar[2] = ImVec2(meanVar[0]); meanVar[2].x += std::sqrt(ptrCollectMcSampleBuffer[4 * 2]);
-				meanVar[3] = ImVec2(meanVar[0]); meanVar[3].y -= std::sqrt(ptrCollectMcSampleBuffer[4 * 2 + 1]);
-				meanVar[4] = ImVec2(meanVar[0]); meanVar[4].y += std::sqrt(ptrCollectMcSampleBuffer[4 * 2 + 1]);
-
-				ImPlot::SetNextPlotLimits(0, 1.0f, 0, 1.0f, ImGuiCond_Always);
-				if (ImPlot::BeginPlot("Gauss Approx Plot##MarkovChainPass", "u", "v")) {
-					ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 0);
-					ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 4);
-
-					ImPlot::PlotScatter("Mean##MarkovChainPass", &meanVar[0].x, &meanVar[0].y, 1, 0, sizeof(ImVec2));
-					ImPlot::PlotScatter("Std-X##MarkovChainPass", &meanVar[1].x, &meanVar[1].y, 2, 0, sizeof(ImVec2));
-					ImPlot::PlotScatter("Std-Y##MarkovChainPass", &meanVar[3].x, &meanVar[3].y, 2, 0, sizeof(ImVec2));
-
-					ImPlot::PopStyleVar(2);
-					ImPlot::EndPlot();
-				}
-
 				ImPlot::SetNextPlotLimits(0, 1.0f, 0, 1.0f, ImGuiCond_Always);
 				if (ImPlot::BeginPlot("Scatter Plot##MarkovChainPass", "u", "v")) {
 					ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 0);
@@ -279,7 +241,7 @@ namespace RtxFiltering_3
 			}
 
 		}
-
+		/*
 		VkDescriptorBufferInfo getSampleInfoDescriptorBufferInfo() const
 		{	
 			CHECK_DBG_ONLY(buffersUpdated, "MarkovChainNoVisibilityCombined : call createBuffers first.");
@@ -290,7 +252,7 @@ namespace RtxFiltering_3
 			descriptorBufferInfo.range = VK_WHOLE_SIZE;
 
 			return descriptorBufferInfo;
-		}
+		}*/
 
 		void updateDataPost()
 		{
@@ -320,16 +282,13 @@ namespace RtxFiltering_3
 		VkImageView sampleStatView;
 		VmaAllocation sampleStatAlloc;
 
-		VkBuffer mcSampleInfo;
-		VmaAllocation mcSampleInfoAlloc;
 		int resetWeight = 1;
 
 		VkBuffer collectMcSampleBuffer;
 		VmaAllocation collectMcSampleBufferAllocation;
 		void* mptrCollectMcSampleBuffer;
 		float* ptrCollectMcSampleBuffer;
-		ImVec2 meanVar[5]; //0- mean, 1/2 - var x, 3/4 - var y 
-
+		
 		glm::uvec2 pixelQuery;
 		
 		int savePixelData = 0, fileIdx = 0;
@@ -338,9 +297,7 @@ namespace RtxFiltering_3
 		float sigmaProposal = 0.15f;
 
 		MarkovChainNoVisibility mcPass1;
-		MarkovChainNoVisibility mcPass2;
-		MarkovChainNoVisibility mcPass3;
-
+		
 		VkDescriptorBufferInfo getCollectSamplesDescriptorBufferInfo() const
 		{
 			VkDescriptorBufferInfo descriptorBufferInfo = {};

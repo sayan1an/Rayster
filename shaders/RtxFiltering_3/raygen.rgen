@@ -4,8 +4,6 @@
 #include "../commonMath.h"
 #include "hostDeviceShared.h"
 
-#define MAX_GH_ORDER (1 << GH_ORDER_BITS)
-
 layout(binding = 0, set = 0) uniform accelerationStructureNV tlas_global;
 layout(binding = 1, set = 0) uniform accelerationStructureNV tlas_lightSource;
 layout(binding = 2, set = 0, rgba32f) uniform readonly image2D normalImage;
@@ -14,7 +12,7 @@ layout(binding = 4, set = 0, rgba16f) uniform readonly image2D stencilImage;
 layout(binding = 5, set = 0, rg32ui) uniform readonly uimage2D sampleStat;
 layout(binding = 6, set = 0) uniform GaussHermitWeights 
 {
-	vec4 weights[MAX_GH_ORDER * (MAX_GH_ORDER + 1) / 2];
+	vec4 weights[150];
 } gaussHermitWeights;
 layout(binding = 7, set = 0, rgba32f) uniform image2DArray outImage;
 layout(binding = 8, set = 0) uniform CameraProperties 
@@ -94,11 +92,8 @@ void main()
 	if (stencil.w > 0.5 && stencil.w < 1.5)
 	{	
 		alpha = 1;
-		vec2 sampleMean, sampleStd;
-		uvec2 ghOrder;
-
+	
 		xorshiftState = randGenState.state[pixel.y * gl_LaunchSizeNV.x + pixel.x];
-		unpackSampleStat(imageLoad(sampleStat, pixel * ivec2(pow(2, pcb.level) + 0.1)).rg, sampleMean, sampleStd, ghOrder);
 		const vec4 other = imageLoad(otherImage, pixel).rgba;
 		const vec4 normalDepth = imageLoad(normalImage, pixel).rgba;
 
@@ -106,8 +101,6 @@ void main()
         if (pcb.pixelQueryX == pixel.x && pcb.pixelQueryY == pixel.y) {
             collectRTSample.state[0].x = RT_SAMPLE_HEADER_SIZE + 0.01f;
             collectRTSample.state[0].y = 0;
-			collectRTSample.state[0].zw = sampleMean;
-			collectRTSample.state[1].xy = sampleStd;
         }
 #endif
 
@@ -132,50 +125,37 @@ void main()
 			vec3 spec, diff;
 			float lightHit, a, b, pdf;
 
-			ghOrder = uvec2(5);
-			for (uint i = 0; i < ghOrder.x + 1; i++) {
-				vec2 weightX = gaussHermitWeights.weights[ghOrder.x * (ghOrder.x + 1) / 2 + i].xy;
-				weightX.x *= (sampleStd.x);
-				weightX.x += sampleMean.x;
-				if (weightX.x > 0 && weightX.x < 1)
-				for (uint j = 0; j < ghOrder.y + 1; j++) {
-					vec2 weightY = gaussHermitWeights.weights[ghOrder.y * (ghOrder.y + 1) / 2 + j].xy;
-					weightY.x *= (sampleStd.y);
-					weightY.x += sampleMean.y;
-					if (weightY.x > 0 && weightY.x < 1) {
-						vec2 uv =  vec2(weightX.x, weightY.x);//rand2(xorshiftState);
-						uint index = uniformToEmitterIdx.bins[uint(uv.x * pcb.uniformToEmitterIndexMapSize)];
-						a = discretePdf.bins[index + 1];
-						b = discretePdf.bins[index];
-						pdf = a - b; 
-						uv.x = (uv.x - b) / pdf; // rescale
-
-						// convert to bary
-						uv.x = 1.0 - sqrt(uv.x);
-						uv.y = (1.0 - uv.x) * (1.0 - uv.y);
-						
-						shadowRayAreaLight((lightVertices.v[3*index] * uv.x + lightVertices.v[3*index + 1] * uv.y + lightVertices.v[3*index + 2] * (1 - uv.x - uv.y)).xyz,
-							-viewDir.xyz, origin.xyz, normalDepth.xyz, other.w, other.x, diff, spec, lightHit);
-
-						diffComp += weightX.y * weightY.y * diff / pdf;
-						specComp += weightX.y * weightY.y * spec / pdf;
-
-						lightPercent += lightHit;
+			
+			for (uint i = 0; i < pcb.numSamples; i++) {
+				vec2 uv =  rand2(xorshiftState);
 #if COLLECT_RT_SAMPLES
-						if (pcb.pixelQueryX == pixel.x && pcb.pixelQueryY == pixel.y) {
-							uint index = uint(collectRTSample.state[0].y);
-							collectRTSample.state[RT_SAMPLE_HEADER_SIZE + index].xy = vec2(weightX.x, weightY.x);
-							collectRTSample.state[0].y = index + 1.0001; 
-						}
-#endif
-					}
+				if (pcb.pixelQueryX == pixel.x && pcb.pixelQueryY == pixel.y) {
+					uint index = uint(collectRTSample.state[0].y);
+					collectRTSample.state[RT_SAMPLE_HEADER_SIZE + index].xy = vec2(uv.x, uv.y);
+					collectRTSample.state[0].y = index + 1.0001; 
 				}
+#endif
+				uint index = uniformToEmitterIdx.bins[uint(uv.x * pcb.uniformToEmitterIndexMapSize)];
+				a = discretePdf.bins[index + 1];
+				b = discretePdf.bins[index];
+				pdf = a - b; 
+				uv.x = (uv.x - b) / pdf; // rescale
+
+				// convert to bary
+				uv.x = 1.0 - sqrt(uv.x);
+				uv.y = (1.0 - uv.x) * (1.0 - uv.y);
+				
+				shadowRayAreaLight((lightVertices.v[3*index] * uv.x + lightVertices.v[3*index + 1] * uv.y + lightVertices.v[3*index + 2] * (1 - uv.x - uv.y)).xyz,
+					-viewDir.xyz, origin.xyz, normalDepth.xyz, other.w, other.x, diff, spec, lightHit);
+
+				diffComp += (diff / pdf);
+				specComp += (spec / pdf);
+
+				lightPercent += lightHit;
 			}
 
-			diffComp *= (2 * sampleStd.x * sampleStd.y);
-			specComp *= (2 * sampleStd.x * sampleStd.y);		
-			//diffComp /= float(pcb.numSamples);
-			//specComp /=  float(pcb.numSamples);
+			diffComp /= float(pcb.numSamples);
+			specComp /=  float(pcb.numSamples);
 			lightPercent /= float(pcb.numSamples);
 		}
 

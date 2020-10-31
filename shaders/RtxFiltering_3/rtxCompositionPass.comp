@@ -9,13 +9,7 @@ layout (binding = 1, rgba8) uniform image2D specularTex;
 layout (binding = 2, rgba32f) uniform image2DArray rtxInOut;
 layout (binding = 3) uniform sampler2DArray rtxIn2;
 layout (binding = 4) uniform sampler2DArray rtxIn3;
-layout (binding = 5) buffer BufMcSampleRepresentation SAMPLE_INFO_BUFFER_NAME;
-
-McSampleInfo2 unpackMcSampleInfo(in ivec2 idx2d, in int frameWidth)
-{   
-    uint index = idx2d.y * frameWidth + idx2d.x;
-    UNPACK_MC_SAMPLE_INFO
-}
+layout(binding = 5, rg32f) uniform image2DArray inMcState; // layer 0 contains state, layer 1 contains mcmc value and moving weight
 
 layout (push_constant) uniform pcBlock {
 	uint choice;
@@ -56,9 +50,9 @@ void main()
 		outCol = (diffComp.x + diffComp.y + diffComp.z) < -1 ? vec4(0,1,0,1) : outCol;
 	}
 	else if (pcb.choice == 1) {
-		McSampleInfo2 sampleInfo = unpackMcSampleInfo(pixel, viewportSize.x);	
-		outColNoTex = vec4(vec3(sampleInfo.maxVal.y), 1);
-		outCol = sampleInfo.maxVal.y < -0.5 ? vec4(0,1,0,1) : outColNoTex;
+		float mcmcVal = imageLoad(inMcState, ivec3(pixel, 1)).r;	
+		outColNoTex = vec4(vec3(mcmcVal), 1);
+		outCol = mcmcVal < -0.5 ? vec4(0,1,0,1) : outColNoTex;
 	}
 
 	imageStore(rtxInOut, ivec3(pixel, 0), pcb.brightness * outCol);
