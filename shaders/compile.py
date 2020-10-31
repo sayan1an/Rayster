@@ -7,6 +7,7 @@ forceFullCompilationList = []
 forceFullCompilationList.append(("./commonMath.h", "null"))
 forceFullCompilationList.append(("./Filters/filterParams.h", "null"))
 forceFullCompilationList.append(("./RtxFiltering_2/hostDeviceShared.h", "null"))
+forceFullCompilationList.append(("./RtxFiltering_3/hostDeviceShared.h", "null"))
 
 compileList =[]
 compileList.append(("./GBuffer/gBuf.vert", "./GBuffer/gBufVert.spv"))
@@ -82,6 +83,20 @@ compileList.append(("./RtxFiltering_2/stencilCompositionPass.comp", "./RtxFilter
 compileList.append(("./RtxFiltering_2/rtxCompositionPass.comp", "./RtxFiltering_2/rtxCompositionPass.spv"))
 compileList.append(("./RtxFiltering_2/temporalFilter.comp", "./RtxFiltering_2/temporalFilter.spv"))
 compileList.append(("./RtxFiltering_2/mcNoVis.comp", "./RtxFiltering_2/mcNoVis.spv"))
+
+compileList.append(("./RtxFiltering_3/gBuf.frag", "./RtxFiltering_3/gBufFrag.spv"))
+compileList.append(("./RtxFiltering_3/gShow.vert", "./RtxFiltering_3/gShowVert.spv"))
+compileList.append(("./RtxFiltering_3/gShow.frag", "./RtxFiltering_3/gShowFrag.spv"))
+compileList.append(("./RtxFiltering_3/raygen.rgen", "./RtxFiltering_3/raygen.spv"))
+compileList.append(("./RtxFiltering_3/0_miss.rmiss", "./RtxFiltering_3/0_miss.spv"))
+compileList.append(("./RtxFiltering_3/0_close.rchit", "./RtxFiltering_3/0_close.spv"))
+compileList.append(("./RtxFiltering_3/1_close.rchit", "./RtxFiltering_3/1_close.spv"))
+compileList.append(("./RtxFiltering_3/subSample.comp", "./RtxFiltering_3/subSample.spv"))
+compileList.append(("./RtxFiltering_3/stencilPass.comp", "./RtxFiltering_3/stencilPass.spv"))
+compileList.append(("./RtxFiltering_3/stencilCompositionPass.comp", "./RtxFiltering_3/stencilCompositionPass.spv"))
+compileList.append(("./RtxFiltering_3/rtxCompositionPass.comp", "./RtxFiltering_3/rtxCompositionPass.spv"))
+compileList.append(("./RtxFiltering_3/temporalFilter.comp", "./RtxFiltering_3/temporalFilter.spv"))
+compileList.append(("./RtxFiltering_3/mcNoVis.comp", "./RtxFiltering_3/mcNoVis.spv"))
 
 compileList.append(("./Filters/crossBilateralFilter.comp", "./Filters/crossBilateralFilter.spv"))
 compileList.append(("./Filters/temporalFilter.comp", "./Filters/temporalFilter.spv"))

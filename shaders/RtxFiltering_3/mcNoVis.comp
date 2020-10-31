@@ -1,0 +1,282 @@
+#version 450
+#extension GL_GOOGLE_include_directive : enable
+
+#include "../commonMath.h"
+#include "hostDeviceShared.h"
+
+layout (local_size_x = 2, local_size_y = 2) in;
+
+layout(binding = 0, rgba32f) uniform readonly image2D normalImage;
+layout(binding = 1, rgba16f) uniform readonly image2D otherImage;
+layout(binding = 2, rgba16f) uniform readonly image2D stencilImage;
+layout(binding = 3) uniform CameraProperties 
+{
+	mat4 view;
+    mat4 proj;
+    mat4 viewInv;
+    mat4 projInv;
+} cam;
+
+layout(binding = 4) buffer RandomGeneratorState { uint state[]; } randGenState;
+layout(binding = 5) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 6) readonly buffer DiscreteCdf { float bins[]; } discreteCdf;
+layout(binding = 7) readonly buffer NormDiscreteCdf { float bins[]; } normDiscreteCdf;
+layout(binding = 8) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
+layout(binding = 9, rg32f) uniform image2D outMcState;
+layout(binding = 10, rg32ui) uniform uimage2D outSampleStat;
+layout(binding = 11) buffer BufMcSampleRepresentation SAMPLE_INFO_BUFFER_NAME;
+
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+layout(binding = 12) buffer CollectMCSample { vec4 state[]; } collectMCSample;
+#endif
+
+layout (push_constant) uniform pcBlock {
+    uint level;
+    float cumulativeSum;
+	uint uniformToEmitterIndexMapSize;
+    float sigma;
+    float gamma;
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+    uint pixelQueryX;
+    uint pixelQueryY;
+    int resetWeight;
+#endif
+} pcb;
+
+shared vec2 s_mcState[4];
+
+McSampleInfo2 unpackMcSampleInfo(in ivec2 idx2d, in int frameWidth)
+{   
+    uint index = idx2d.y * frameWidth + idx2d.x;
+    UNPACK_MC_SAMPLE_INFO
+}
+
+void repackMcSampleInfo(in ivec2 idx2d, in int frameWidth, in McSampleInfo2 sampleInfo)
+{   
+    uint index = idx2d.y * frameWidth + idx2d.x;
+    REPACK_MC_SAMPLE_INFO
+}
+
+void sanitizeSampleInfo(inout McSampleInfo2 sInfo)
+{
+    sInfo.mean.x = CLIP(sInfo.mean.x, 0.0, 1.0);
+    sInfo.mean.y = CLIP(sInfo.mean.y, 0.0, 1.0);
+    sInfo.var.x = CLIP(sInfo.var.x, 0.00025, 0.5625);
+    sInfo.var.y = CLIP(sInfo.var.y, 0.00025, 0.5625);
+    
+    sInfo.covWeight.y = min(2e34, sInfo.covWeight.y);
+    sInfo.covWeight.y = max(0, sInfo.covWeight.y); 
+    float v = sInfo.mean.x + sInfo.mean.y + sInfo.var.x + sInfo.var.y + sInfo.covWeight.x + sInfo.maxVal.x + sInfo.maxVal.y; 
+
+    bool isBad = isinf(v) || isnan(v) || isnan(sInfo.covWeight.y);
+
+    sInfo.mean = isBad ? vec2(DEFAULT_MC_SAMPLE_MEAN) : sInfo.mean;
+    sInfo.var = isBad ? vec2(DEFAULT_MC_SAMPLE_VAR) : sInfo.var;
+    sInfo.covWeight = isBad ? vec2(0.0f) : sInfo.covWeight;
+    sInfo.maxVal = isBad ? vec2(0.0f) : sInfo.maxVal;
+}
+
+float proposalDist(in vec2 uv, in vec3 origin, out vec3 lightDirection, out float radiance)
+{
+    uint index = uniformToEmitterIdx.bins[uint(uv.x * pcb.uniformToEmitterIndexMapSize)];
+    float b = discreteCdf.bins[index];
+    float a = discreteCdf.bins[index + 1];
+
+    radiance = a - b;    
+    
+    a /= pcb.cumulativeSum;
+    b /= pcb.cumulativeSum;
+
+    vec4 vA = lightVertices.v[3*index];
+    vec4 vB = lightVertices.v[3*index + 1];
+    vec4 vC = lightVertices.v[3*index + 2];
+
+    float pdf = a - b; 
+    // rescale
+    uv.x = (uv.x - b) / pdf;
+
+    // convert to bary
+    uv.x = 1.0 - sqrt(uv.x);
+	uv.y = (1.0 - uv.x) * (1.0 - uv.y);
+
+    lightDirection = vA.xyz * uv.x + vB.xyz * uv.y + vC.xyz * (1.0f - uv.x - uv.y) - origin;
+    float distance = length(lightDirection);
+    lightDirection /= distance;
+
+    vec3 lightNormal = vec3(vA.w, vB.w, vC.w);
+    float lightArea = length(lightNormal);
+    lightNormal /= lightArea;
+
+    /*
+    lightArea *= 0.5f;
+    pdf *= (distance * distance) / (abs(dot(lightDirection, lightNormal)) * lightArea);
+    radiance = radianceArea / lightArea;
+    */
+
+    // optimized, lightArea cancels out in pdf and radiance terms. 
+    pdf *= (distance * distance) / (abs(dot(lightDirection, lightNormal)));
+
+    return pdf;
+}
+
+float targetDist(in vec3 surfaceNormal, in vec3 viewDir, in vec3 lightDir, in float radiance, in float bsdfType, in float specularAlpha, in float diffuseProb)
+{
+    float cos = dot(lightDir, surfaceNormal);
+	return cos >= 0 ? radiance * (diffuseProb * (cos / PI) + (1.0f - diffuseProb) * (bsdfType > 0.5f ? ggxBrdf(viewDir, lightDir, surfaceNormal, specularAlpha) : 0)): 0;
+}
+
+void main()
+{   
+    ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 lid = ivec2(gl_LocalInvocationID.xy);
+    vec4 stencil = imageLoad(stencilImage, gid / 2);
+
+    s_mcState[2*lid.y + lid.x] = vec2(-1);
+
+    if (stencil.w > 0.5 && stencil.w < 1.5) 
+    {   
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+        if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y) {
+            collectMCSample.state[0].x = MC_SAMPLE_HEADER_SIZE + 0.01f;
+            collectMCSample.state[0].y = 0;
+        }
+#endif
+        uint xorshiftState = randGenState.state[gid.y * gl_NumWorkGroups.x * 2 + gid.x];
+
+        uint stride = uint(pow(2, pcb.level) + 0.1);
+        ivec2 offset = ivec2(0);//ivec2(xorshift(xorshiftState) & (stride - 1), xorshift(xorshiftState) & (stride - 1)); // + add offset due to motion vector
+        ivec2 frameSize = imageSize(outMcState); // Full resolution
+        vec2 mcState = imageLoad(outMcState, gid * ivec2(stride, stride) + offset).rg;
+        McSampleInfo2 sampleInfoOld = unpackMcSampleInfo(gid * ivec2(stride, stride) + offset, frameSize.x);
+        sampleInfoOld.covWeight.y = pcb.resetWeight > 0 ? 0 : sampleInfoOld.covWeight.y;
+
+        const vec4 other = imageLoad(otherImage, gid).rgba;
+		const vec4 normalDepth = imageLoad(normalImage, gid).rgba;
+
+        McSampleInfo2 sampleInfo;
+        sampleInfo.mean = vec2(DEFAULT_MC_SAMPLE_MEAN);
+        sampleInfo.var = vec2(DEFAULT_MC_SAMPLE_VAR);
+        sampleInfo.covWeight = vec2(0);
+        sampleInfo.maxVal = vec2(0);
+
+        // assign mcState undefined if primary ray hitting a light source or escaping the scene
+        if (other.w < -0.5f || (other.w > 3.5 && other.w < 4.5)) {
+            mcState = vec2(0);
+            sampleInfoOld = sampleInfo;
+        }
+
+        // read mcState and use as initial value for the Markov Chain
+        // if initial state is undefined, initialize with random value and run the chain longer if necessary 
+        else {
+            vec2 offset = vec2(offsetCalc(gid.x & 1, pcb.level), offsetCalc(gid.y & 1, pcb.level));
+			const vec2 pixelCenter = vec2(gid.xy) + offset;
+			const vec2 inUV = pixelCenter/vec2(gl_NumWorkGroups.xy * 2);
+			vec2 d = inUV * 2.0 - 1.0;
+
+			vec4 origin = cam.viewInv * vec4(0,0,0,1);
+			vec4 target = cam.projInv * vec4(d.x, d.y, 1, 1) ;
+			vec4 viewDir = cam.viewInv * vec4(normalize(target.xyz), 0) ;
+		
+			// for shadow rays
+			origin = origin + (normalDepth.w - 0.000f) * viewDir;
+
+            bool initialUndefined = (mcState.x == 0);
+            vec2 proposedState = initialUndefined ? vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0) : mcState;
+
+            uint mcIterations = 32;//8 + (initialUndefined ? 16 : 0);
+
+            vec3 lightDirection;
+            float radiance;
+
+            float prob = proposalDist(proposedState, origin.xyz, lightDirection, radiance);
+            float prevProposal = targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x, other.z) / prob;
+
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+            if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y) {
+                collectMCSample.state[0].x = MC_SAMPLE_HEADER_SIZE + 0.01f;
+                collectMCSample.state[0].y = mcIterations + 0.01f;
+            }
+#endif
+            mcState = proposedState;
+            s_mcState[2 * lid.y + lid.x] = mcState;
+            
+            sampleInfo.mean = vec2(0);
+            sampleInfo.var = vec2(0);
+            for (uint i = 0; i < mcIterations; i++) {
+                // choose two random number in {0, 1, 2}
+                uint r1 = xorshift(xorshiftState) % 3; // chose first number in {0,1,2}
+                uint r2 = (r1 + 1 + (xorshift(xorshiftState) & 1)) % 3; // choose second, add either 1 or 2 to r1
+                       
+                uvec2 r = uvec2(r1, r2) + uvec2(2 * lid.y + lid.x + 1);
+                                
+                // propose a value for next iteration
+                proposedState = mcState + pcb.gamma * (s_mcState[r.x & 3] - s_mcState[r.y & 3]) + pcb.sigma * uniformToGaussian(vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0));
+                proposedState.x = proposedState.x < 0 ? -proposedState.x : (proposedState.x > 1 ? 2 - proposedState.x : proposedState.x);
+                proposedState.y = proposedState.y < 0 ? -proposedState.y : (proposedState.y > 1 ? 2 - proposedState.y : proposedState.y);
+
+                prob = proposalDist(proposedState, origin.xyz, lightDirection, radiance);
+                float currentProposal = targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x, other.z) / prob;
+              
+                bool accepted = ((xorshift(xorshiftState) / 4294967296.0) < min(1.0f, currentProposal / prevProposal));
+                
+                prevProposal = accepted ? currentProposal : prevProposal;
+                mcState = accepted ? proposedState : mcState;
+
+                float denom = sampleInfo.maxVal.y + prevProposal;
+                sampleInfo.mean += prevProposal * (mcState - sampleInfo.mean) / denom; // compute mean
+                sampleInfo.var = sampleInfo.maxVal.y * sampleInfo.var / denom + sampleInfo.maxVal.y * (mcState - sampleInfo.mean) * (mcState - sampleInfo.mean)  / (denom * denom); // compute variance 
+                sampleInfo.covWeight.x = sampleInfo.maxVal.y *  sampleInfo.covWeight.x / denom + sampleInfo.maxVal.y * (mcState[0] - sampleInfo.mean[0]) * (mcState[1] - sampleInfo.mean[1])  / (denom * denom); // compute cov
+                sampleInfo.maxVal.x = max(sampleInfo.maxVal.x, prevProposal);
+                sampleInfo.maxVal.y += prevProposal;
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+                if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
+                    collectMCSample.state[i + MC_SAMPLE_HEADER_SIZE] = vec4(mcState.x, mcState.y, prevProposal, 0);
+#endif
+                s_mcState[2 * lid.y + lid.x] = mcState;
+            }
+            
+            sampleInfo.covWeight.y = sampleInfo.maxVal.y;
+            sampleInfo.maxVal.y /= mcIterations; // save mcmc value
+            
+            float cWeight = 1.0f;//sampleInfo.covWeight.y / (sampleInfo.covWeight.y + sampleInfoOld.covWeight.y);
+            cWeight = cWeight > 1 ? 1 : (cWeight < 0 ? 0 : cWeight);
+            float oWeight = 1 - cWeight;
+
+            vec2 oldMean = sampleInfoOld.mean;
+            sampleInfoOld.mean = cWeight * sampleInfo.mean + oWeight * sampleInfoOld.mean;
+            sampleInfoOld.var = cWeight * sampleInfo.var + oWeight * sampleInfoOld.var + 
+                cWeight * (sampleInfo.mean - sampleInfoOld.mean) * (sampleInfo.mean - sampleInfoOld.mean) +
+                oWeight * (oldMean - sampleInfoOld.mean) * (oldMean - sampleInfoOld.mean);
+            sampleInfoOld.covWeight.x = cWeight * sampleInfo.covWeight.x + oWeight * sampleInfoOld.covWeight.x + 
+                cWeight * (sampleInfo.mean[0] - sampleInfoOld.mean[0]) * (sampleInfo.mean[1] - sampleInfoOld.mean[1]) +
+                oWeight * (oldMean[0] - sampleInfoOld.mean[0]) * (oldMean[1] - sampleInfoOld.mean[1]);
+            sampleInfoOld.maxVal.x = max(sampleInfo.maxVal.x, 0.9f * sampleInfoOld.maxVal.x);
+            sampleInfoOld.maxVal.y = cWeight * sampleInfo.maxVal.y + oWeight * sampleInfoOld.maxVal.y;
+           
+            sampleInfoOld.covWeight.y += sampleInfo.covWeight.y;
+            sanitizeSampleInfo(sampleInfoOld);
+        }
+
+#if COLLECT_MARKOV_CHAIN_SAMPLES
+        if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y) {
+            collectMCSample.state[0].zw = sampleInfo.mean;
+            collectMCSample.state[1].xy = sampleInfoOld.mean;
+            collectMCSample.state[1].zw = sampleInfo.var;
+            collectMCSample.state[2].xy = sampleInfoOld.var;
+            collectMCSample.state[2].zw = vec2(sampleInfo.covWeight.x , sampleInfoOld.covWeight.x);
+            
+            sampleInfoOld.maxVal.y = -1;
+        }
+#endif        
+        uvec2 sampleStat = packSampleStat(sampleInfoOld.mean, sqrt(sampleInfoOld.var), uvec2(1));
+               
+        for (uint y = 0; y < stride; y++)
+            for (uint x = 0; x < stride; x++) {
+                repackMcSampleInfo(gid * ivec2(stride, stride) + ivec2(x, y), frameSize.x, sampleInfoOld);
+                imageStore(outMcState, gid * ivec2(stride, stride) + ivec2(x, y), vec4(mcState.x, mcState.y, 0, 0));
+                imageStore(outSampleStat, gid * ivec2(stride, stride) + ivec2(x, y), uvec4(sampleStat.x, sampleStat.y, 0, 0));
+            }
+
+        randGenState.state[gid.y * gl_NumWorkGroups.x * 2 + gid.x] = xorshiftState;
+    }
+}    

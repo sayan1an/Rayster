@@ -1,0 +1,49 @@
+#version 450
+
+layout (local_size_x = 8, local_size_y = 8) in;
+
+layout (binding = 0, rgba32f) uniform readonly image2D inNormal;
+layout (binding = 1, rgba16f) uniform readonly image2D inOther;
+layout (binding = 2, rgba32f) uniform image2D normalHalf;
+layout (binding = 3, rgba16f) uniform image2D otherHalf;
+layout (binding = 4, rgba32f) uniform image2D normalQuat;
+layout (binding = 5, rgba16f) uniform image2D otherQuat;
+
+shared vec4 sNormal[8][8];
+shared vec4 sOther[8][8];
+
+void main()
+{	
+	ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 lid = ivec2(gl_LocalInvocationID.xy);
+	ivec2 wid = ivec2(gl_WorkGroupID.xy);
+
+	ivec2 screenExtent = imageSize(inNormal);
+
+	if (gid.x >= screenExtent.x || gid.y >= screenExtent.y)
+		return;
+
+	sNormal[lid.y][lid.x] = imageLoad(inNormal, gid);
+	sOther[lid.y][lid.x] = imageLoad(inOther, gid);
+
+	memoryBarrierShared();
+	barrier();
+
+	if (lid.x < 4 && lid.y < 4)
+	{	
+		// Add offset in range ivec(0,0)--ivec(1,1)
+		ivec2 offset = ivec2(lid.x & 1, lid.y & 1); // If the offsets are changed here, corresponding changes must be made in raygen shader.
+		ivec2 loc = 2 * lid + offset; 
+		imageStore(normalHalf, 4*wid + lid, sNormal[loc.y][loc.x]);
+		imageStore(otherHalf, 4*wid + lid, sOther[loc.y][loc.x]);
+	}
+	
+	if (lid.x < 2 && lid.y < 2)
+	{	
+		// Add offset in range ivec(0,0)--ivec(3,3)
+		ivec2 offset = 3 * lid; // If the offsets are changed here, corresponding changes must be made in raygen shader.
+		ivec2 loc = 4 * lid + offset; 
+		imageStore(normalQuat, 2*wid + lid, sNormal[loc.y][loc.x]);
+		imageStore(otherQuat, 2*wid + lid, sOther[loc.y][loc.x]);
+	}
+}

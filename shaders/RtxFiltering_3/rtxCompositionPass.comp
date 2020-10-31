@@ -1,0 +1,66 @@
+#version 450
+#extension GL_GOOGLE_include_directive : enable
+
+#include "hostDeviceShared.h"
+layout (local_size_x = 16, local_size_y = 16) in;
+
+layout (binding = 0, rgba8) uniform image2D diffuseTex;
+layout (binding = 1, rgba8) uniform image2D specularTex;
+layout (binding = 2, rgba32f) uniform image2DArray rtxInOut;
+layout (binding = 3) uniform sampler2DArray rtxIn2;
+layout (binding = 4) uniform sampler2DArray rtxIn3;
+layout (binding = 5) buffer BufMcSampleRepresentation SAMPLE_INFO_BUFFER_NAME;
+
+McSampleInfo2 unpackMcSampleInfo(in ivec2 idx2d, in int frameWidth)
+{   
+    uint index = idx2d.y * frameWidth + idx2d.x;
+    UNPACK_MC_SAMPLE_INFO
+}
+
+layout (push_constant) uniform pcBlock {
+	uint choice;
+	float brightness;
+} pcb;
+
+void main()
+{	
+	ivec2 viewportSize = imageSize(diffuseTex);
+	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+	vec4 outCol = vec4(0);
+	vec4 outColNoTex = vec4(0);
+
+	if (pcb.choice == 0) {
+		vec2 texCoord = (vec2(pixel) + vec2(0.5)) / viewportSize;
+		vec4 diffTex = imageLoad(diffuseTex, pixel);
+		vec4 specTex = imageLoad(specularTex, pixel);
+		
+		vec4 diffComp1 = imageLoad(rtxInOut, ivec3(pixel, 0));
+		vec4 specComp1 = imageLoad(rtxInOut, ivec3(pixel, 1));
+
+		vec4 diffComp2 = texture(rtxIn2, vec3(texCoord, 0));
+		vec4 specComp2 = texture(rtxIn2, vec3(texCoord, 1));
+
+		vec4 diffComp3 = texture(rtxIn3, vec3(texCoord, 0));
+		vec4 specComp3 = texture(rtxIn3, vec3(texCoord, 1));
+		
+		vec4 diffComp = diffComp1 + diffComp2 + diffComp3;
+		outCol = diffTex * diffComp + specTex * (specComp1 + specComp2 + specComp3);
+		// captures the power of texture, not the details
+		outColNoTex = length(diffTex.xyz) * diffComp + length(specTex.xyz) * (specComp1 + specComp2 + specComp3);
+		outColNoTex.w = diffComp.w;
+		outCol.w = diffComp.w;
+
+		outColNoTex /= diffComp.w;
+		outCol /= diffComp.w;
+
+		outCol = (diffComp.x + diffComp.y + diffComp.z) < -1 ? vec4(0,1,0,1) : outCol;
+	}
+	else if (pcb.choice == 1) {
+		McSampleInfo2 sampleInfo = unpackMcSampleInfo(pixel, viewportSize.x);	
+		outColNoTex = vec4(vec3(sampleInfo.maxVal.y), 1);
+		outCol = sampleInfo.maxVal.y < -0.5 ? vec4(0,1,0,1) : outColNoTex;
+	}
+
+	imageStore(rtxInOut, ivec3(pixel, 0), pcb.brightness * outCol);
+	imageStore(rtxInOut, ivec3(pixel, 1), outColNoTex);
+}

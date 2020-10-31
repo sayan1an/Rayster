@@ -11,6 +11,7 @@
 #include "RtxFiltering_0.hpp"
 #include "RtxFiltering_1.hpp"
 #include "RtxFiltering_2/RtxFiltering_2.hpp"
+#include "RtxFiltering_3/RtxFiltering_3.hpp"
 
 int main()
 {	
@@ -101,6 +102,14 @@ int main()
 			std::vector<const char*> deviceFeatures = { "shaderStorageImageExtendedFormats" };
 			// experimental technique, samples move across the emitter space in time and implements pixel reprorojection in time
 			RtxFiltering_2::RtxFiltering_2 app(instanceExtensions, deviceExtensions, deviceFeatures);
+			app.run(1280, 720, false);
+		}
+		else if (select == 11) {
+			std::vector<const char*> deviceExtensions = { VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME };
+			std::vector<const char*> instanceExtensions = { VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
+			std::vector<const char*> deviceFeatures = { "shaderStorageImageExtendedFormats" };
+			// experimental technique, samples move across the emitter space in time and implements pixel reprorojection in time
+			RtxFiltering_3::RtxFiltering_3 app(instanceExtensions, deviceExtensions, deviceFeatures);
 			app.run(1280, 720, false);
 		}
 		
