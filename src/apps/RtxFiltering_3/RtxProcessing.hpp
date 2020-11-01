@@ -111,9 +111,10 @@ namespace RtxFiltering_3
 			vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 		}
 
-		void cmdDispatch(const VkCommandBuffer& cmdBuf, const uint32_t numSamples, const glm::uvec2& pixelQuery)
+		void cmdDispatch(const VkCommandBuffer& cmdBuf, const uint32_t numSamples, const uint32_t random, const glm::uvec2& pixelQuery)
 		{
 			pcb.numSamples = numSamples;
+			pcb.random = random;
 
 #if COLLECT_RT_SAMPLES
 			pcb.pixelQueryX = pixelQuery.x;
@@ -151,6 +152,7 @@ namespace RtxFiltering_3
 			uint32_t discretePdfSize;
 			uint32_t numSamples;
 			uint32_t level;
+			uint32_t random;
 #if COLLECT_RT_SAMPLES
 			uint32_t pixelQueryX;
 			uint32_t pixelQueryY;
@@ -200,14 +202,20 @@ namespace RtxFiltering_3
 		void cmdDispatch(const VkCommandBuffer& cmdBuf)
 		{	
 			uint32_t sCount = static_cast<uint32_t>(sampleCount);
-			pass1.cmdDispatch(cmdBuf, sCount, pixelQuery);
-			pass2.cmdDispatch(cmdBuf, sCount, pixelQuery / glm::uvec2(2, 2));
-			pass3.cmdDispatch(cmdBuf, sCount, pixelQuery / glm::uvec2(4, 4));
+			uint32_t random = static_cast<uint32_t>(isRandom);
+
+			pass1.cmdDispatch(cmdBuf, sCount, isRandom, pixelQuery);
+			pass2.cmdDispatch(cmdBuf, sCount, isRandom, pixelQuery / glm::uvec2(2, 2));
+			pass3.cmdDispatch(cmdBuf, sCount, isRandom, pixelQuery / glm::uvec2(4, 4));
 		}
 
 		void widget(const VkExtent2D& swapChainExtent)
 		{
 			if (ImGui::CollapsingHeader("RtxGenPass")) {
+				ImGui::Text("Sample:");
+				ImGui::RadioButton("McMc##RtxGenCombinedPass", &isRandom, 0); ImGui::SameLine();
+				ImGui::RadioButton("Random##RtxGenCombinedPass", &isRandom, 1);
+
 				ImGui::SliderInt("Mc Samples##RtxGenCombinedPass", &sampleCount, 1, 256);
 #if COLLECT_RT_SAMPLES
 				int xQuery = static_cast<int>(pixelQuery.x);
@@ -277,6 +285,7 @@ namespace RtxFiltering_3
 		bool buffersUpdated = false;
 
 		int sampleCount = 4;
+		int isRandom = 0;
 
 		RtxGenPass pass1;
 		RtxGenPass pass2;

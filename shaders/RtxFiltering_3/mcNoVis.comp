@@ -43,6 +43,22 @@ layout (push_constant) uniform pcBlock {
 } pcb;
 
 shared vec2 s_mcState[4];
+shared vec2 s_samples[4][MAX_SPP];
+
+void loadSamplesToSharedMem(in ivec2 gid, in ivec2 lid)
+{
+    for (uint i = 0; i < MAX_SPP; i++)
+        s_samples[2*lid.y + lid.x][i] = imageLoad(outSampleStat, ivec3(gid, i)).rg;
+}
+
+void storeSamplesToSharedMem(in ivec2 gid, in ivec2 lid)
+{   
+    vec2 _sample;
+    for (uint i = 0; i < MAX_SPP; i++) {
+        _sample = s_samples[2*lid.y + lid.x][i];
+        imageStore(outSampleStat, ivec3(gid, i), vec4(_sample.x, _sample.y, 0, 0));
+    }
+}
 
 float proposalDist(in vec2 uv, in vec3 origin, out vec3 lightDirection, out float radiance)
 {
@@ -125,6 +141,8 @@ void main()
     // read mcState and use as initial value for the Markov Chain
     // if initial state is undefined, initialize with random value and run the chain longer if necessary 
     else {
+        loadSamplesToSharedMem(gid + offset, lid);
+
         const vec2 pixelCenter = vec2(gid.xy) + vec2(0.5f);
         const vec2 inUV = pixelCenter/vec2(gl_NumWorkGroups.xy * 2);
         vec2 d = inUV * 2.0 - 1.0;
@@ -139,7 +157,7 @@ void main()
         bool initialUndefined = (mcState.x == 0);
         vec2 proposedState = initialUndefined ? vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0) : mcState;
 
-        uint mcIterations = 32;//8 + (initialUndefined ? 16 : 0);
+        uint mcIterations = 8 + (initialUndefined ? 16 : 0);
 
         vec3 lightDirection;
         float radiance;
@@ -181,7 +199,9 @@ void main()
 #if COLLECT_MARKOV_CHAIN_SAMPLES
             if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
                 collectMCSample.state[i + MC_SAMPLE_HEADER_SIZE] = vec4(mcState.x, mcState.y, prevProposal, 0);
-#endif
+#endif      
+            if ((xorshift(xorshiftState) & 7) == 0)
+                s_samples[2 * lid.y + lid.x][i & (MAX_SPP - 1)] = mcState;
             s_mcState[2 * lid.y + lid.x] = mcState;
         }
 
@@ -192,6 +212,8 @@ void main()
 
         currentMcmcVal /= mcIterations;
         mcmcVal.x = cWeight * currentMcmcVal + oWeight * mcmcVal.x;
+
+        storeSamplesToSharedMem(gid + offset, lid);
     }
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES

@@ -21,3 +21,5 @@ float offsetCalc(in uint x, in uint level)
 #define RT_SAMPLE_HEADER_SIZE 3
 #endif
 #define MAX_RT_SAMPLES 1024
+
+#define MAX_SPP 8

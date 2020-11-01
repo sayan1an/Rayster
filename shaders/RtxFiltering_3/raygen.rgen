@@ -36,6 +36,7 @@ layout (push_constant) uniform pcBlock {
 	uint uniformToEmitterIndexMapSize;
 	uint numSamples;
 	uint level;
+	uint random;
 #if COLLECT_RT_SAMPLES
 	uint pixelQueryX;
 	uint pixelQueryY;
@@ -125,9 +126,15 @@ void main()
 			vec3 spec, diff;
 			float lightHit, a, b, pdf;
 
-			
-			for (uint i = 0; i < pcb.numSamples; i++) {
-				vec2 uv =  rand2(xorshiftState);
+			int stride = int(pow(2, pcb.level) + 0.1);
+			uint sampleUsed = 0;
+			for (uint i = 0; i < (MAX_SPP / (2*stride)); i++)
+			for (int y = -stride; y <= stride; y++) {
+				int py = pixel.y * stride + y;
+            for (int x = -stride; x <= stride; x++) {
+				int px = pixel.x * stride + x;
+				bool useMcmc = (pcb.random < 1) && (py >= 0) && (py < (gl_LaunchSizeNV.y * stride)) && (px > 0) && (px < (gl_LaunchSizeNV.x * stride));
+				vec2 uv =  useMcmc ? imageLoad(outSampleStat, ivec3(px, py, i & (MAX_SPP - 1))).rg : rand2(xorshiftState);
 #if COLLECT_RT_SAMPLES
 				if (pcb.pixelQueryX == pixel.x && pcb.pixelQueryY == pixel.y) {
 					uint index = uint(collectRTSample.state[0].y);
@@ -152,11 +159,13 @@ void main()
 				specComp += (spec / pdf);
 
 				lightPercent += lightHit;
+				sampleUsed++;
+			}
 			}
 
-			diffComp /= float(pcb.numSamples);
-			specComp /=  float(pcb.numSamples);
-			lightPercent /= float(pcb.numSamples);
+			diffComp /= float(sampleUsed);
+			specComp /=  float(sampleUsed);
+			lightPercent /= float(sampleUsed);
 		}
 
 #if COLLECT_RT_SAMPLES
