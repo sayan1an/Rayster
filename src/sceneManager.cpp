@@ -338,8 +338,8 @@ static void loadSpaceship(Model& model, Camera& cam)
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.025f, 0.025f, 0.025f, 1.0f))); // 8
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f))); // 9
 	model.addLdrTexture(Image2d(1, 1, glm::vec4(0.1f, 0.1f, 0.1f, 1.0f))); // 10
-	//model.addLdrTexture(Image2d(ROOT + "/models/spaceship/light.jpg"));
-	model.addLdrTexture(Image2d(1, 1, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f)));
+	model.addLdrTexture(Image2d(ROOT + "/models/spaceship/light.jpg"));
+	//model.addLdrTexture(Image2d(1, 1, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f)));
 	// alpha, intIor, extIor texture
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.1f, 1.0f, 1.0f, 1.0f), true)); // 0
 	model.addHdrTexture(Image2d(1, 1, glm::vec4(0.2f, 1.5f, 1.0f, 1.0f), true)); // 1

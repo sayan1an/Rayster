@@ -157,10 +157,10 @@ void main()
 				shadowRayAreaLight((lightVertices.v[3*index] * uv.x + lightVertices.v[3*index + 1] * uv.y + lightVertices.v[3*index + 2] * (1 - uv.x - uv.y)).xyz,
 					-viewDir.xyz, origin.xyz, normalDepth.xyz, other.w, other.x, diff, spec, lightHit);
 
-				diffComp += (diff / pdf);
-				specComp += (spec / pdf);
+				diffComp += (uv.w * diff / pdf);
+				specComp += (uv.w * spec / pdf);
 
-				lightPercent += lightHit;
+				lightPercent += uv.w * lightHit;
 			}
 			
 			diffComp /= weight;
