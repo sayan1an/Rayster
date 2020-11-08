@@ -23,7 +23,7 @@ layout(binding = 6) readonly buffer DiscreteCdf { float bins[]; } discreteCdf;
 layout(binding = 7) readonly buffer NormDiscreteCdf { float bins[]; } normDiscreteCdf;
 layout(binding = 8) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
 layout(binding = 9, rg32f) uniform image2DArray outMcState; // layer 0 contains state, layer 1 contains mcmc value and moving weight
-layout(binding = 10, rg16f) uniform image2DArray outSampleStat;
+layout(binding = 10, rgba16f) uniform image2DArray outSampleStat;
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES
 layout(binding = 11) buffer CollectMCSample { vec4 state[]; } collectMCSample;
@@ -42,22 +42,93 @@ layout (push_constant) uniform pcBlock {
 #endif
 } pcb;
 
-shared vec2 s_mcState[4];
-shared vec2 s_samples[4][MAX_SPP];
+#define MAX_NEW_SAMPLES_PER_FRAME 4
+#define DECAY_RATE 0.95
+#define SUBSAMPLE_RATE 2
+#define SORTING_ITER 1
+#define X_DELTA  (0.001*8)
+#define Y_DELTA  (0.005*8)
 
-void loadSamplesToSharedMem(in ivec2 gid, in ivec2 lid)
+shared vec2 s_mcState[4];
+shared vec4 s_samples_1[4][MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME];
+shared vec4 s_samples_2[4][MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME];
+shared bool s_flag[4][MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME];
+
+void loadSamplesToSharedMem(in ivec2 gid, in uint tid)
 {
-    for (uint i = 0; i < MAX_SPP; i++)
-        s_samples[2*lid.y + lid.x][i] = imageLoad(outSampleStat, ivec3(gid, i)).rg;
+    for (uint i = 0; i < MAX_SPP; i++) {
+        vec4 _sample = imageLoad(outSampleStat, ivec3(gid, i));
+        _sample.zw *= DECAY_RATE;
+        s_samples_2[tid][i] = _sample;
+    }
 }
 
-void storeSamplesToSharedMem(in ivec2 gid, in ivec2 lid)
+void storeSamplesToSharedMem(in ivec2 gid, in uint tid)
 {   
-    vec2 _sample;
-    for (uint i = 0; i < MAX_SPP; i++) {
-        _sample = s_samples[2*lid.y + lid.x][i];
-        imageStore(outSampleStat, ivec3(gid, i), vec4(_sample.x, _sample.y, 0, 0));
+    for (uint i = 0; i < MAX_SPP; i++)
+        imageStore(outSampleStat, ivec3(gid, i), s_samples_1[tid][i]);
+}
+
+void processSamples(in uint tid, in uint nNewSamples)
+{   
+    // clear out unused part of buffer
+    for (uint i = 0; i < MAX_NEW_SAMPLES_PER_FRAME; i++)
+        s_samples_2[tid][MAX_SPP + i] = vec4(0);
+
+    for (uint i = 0; i < MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME; i++)
+        s_flag[tid][i] = false;
+    
+    for (uint i = 0; i < nNewSamples; i++) {
+        vec3 querySample = s_samples_1[tid][i].xyz;
+        s_samples_1[tid][i] = vec4(0);
+        float clippedVal = CLIP(querySample.z, 0, 1);
+        float scale = 1 + (1 - clippedVal) * 10;
+       
+        for (uint j = 0; j < MAX_SPP + i + 1; j++) {
+            vec4 element = s_samples_2[tid][j];
+            bool updatePosition = abs(element.w) < CUTOFF_WEIGHT;
+            bool update = updatePosition || ((abs(element.x - querySample.x) < X_DELTA * scale) && (abs(element.y - querySample.y) < Y_DELTA * scale));
+            
+            element.xy = updatePosition ? querySample.xy : element.xy;
+            element.zw = update ? vec2(querySample.z, element.w + 1) : element.zw;
+            s_flag[tid][j] = update;
+            s_samples_2[tid][j] = element;
+
+            if (update)
+                break; 
+        }
+     }
+
+    nNewSamples = 0;
+    uint nOldSamples = 0;
+    for (uint i = 0; i < (MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME); i++) {
+        bool update = s_flag[tid][i];
+        vec4 element = s_samples_2[tid][i];
+        s_samples_1[tid][(MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME) - nNewSamples - 1] = update ? element : vec4(0); // insert new samples
+        nNewSamples += update ? 1 : 0;
+
+        update = (!update) && (element.w > CUTOFF_WEIGHT);        
+        s_samples_1[tid][nOldSamples] = update ? element : vec4(0); // insert old samples
+        nOldSamples += update ? 1 : 0;
     }
+
+    //semi-importance sample
+    //Just do a few pass of bubble sort
+    for (uint j = 0; j < SORTING_ITER; j++) {
+        for (uint i = j; i + 1 < nOldSamples; i++) {
+            vec4 first = s_samples_1[tid][nOldSamples - i - 1];
+            vec4 second = s_samples_1[tid][nOldSamples - i - 2];
+
+            bool swap = first.w > second.w;
+
+            s_samples_1[tid][nOldSamples - i - 1] = swap ? second : first;
+            s_samples_1[tid][nOldSamples - i - 2] = swap ? first : second;
+        }
+    }
+
+    uint offset = min(MAX_SPP - nNewSamples, nOldSamples);
+    for(uint i = 0; i < nNewSamples; i++)
+        s_samples_1[tid][offset + i] = s_samples_1[tid][MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME - i - 1];
 }
 
 float proposalDist(in vec2 uv, in vec3 origin, out vec3 lightDirection, out float radiance)
@@ -113,8 +184,8 @@ void main()
 {   
     ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
     ivec2 lid = ivec2(gl_LocalInvocationID.xy);
-   
-    s_mcState[2*lid.y + lid.x] = vec2(-1);
+    uint tid = 2*lid.y + lid.x;
+    s_mcState[tid] = vec2(-1);
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES
         if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y) {
@@ -131,6 +202,7 @@ void main()
     
     const vec4 other = imageLoad(otherImage, gid).rgba;
     const vec4 normalDepth = imageLoad(normalImage, gid).rgba;
+    loadSamplesToSharedMem(gid + offset, tid);
 
     // assign mcState undefined if primary ray hitting a light source or escaping the scene
     if (other.w < -0.5f || (other.w > 3.5 && other.w < 4.5)) {
@@ -141,8 +213,6 @@ void main()
     // read mcState and use as initial value for the Markov Chain
     // if initial state is undefined, initialize with random value and run the chain longer if necessary 
     else {
-        loadSamplesToSharedMem(gid + offset, lid);
-
         const vec2 pixelCenter = vec2(gid.xy) + vec2(0.5f);
         const vec2 inUV = pixelCenter/vec2(gl_NumWorkGroups.xy * 2);
         vec2 d = inUV * 2.0 - 1.0;
@@ -172,20 +242,23 @@ void main()
         }
 #endif
         mcState = proposedState;
-        s_mcState[2 * lid.y + lid.x] = mcState;
+        s_mcState[tid] = mcState;
 
         float currentMcmcVal = 0;
+        uint nNewSamples = 0;
         for (uint i = 0; i < mcIterations; i++) {
             // choose two random number in {0, 1, 2}
             uint r1 = xorshift(xorshiftState) % 3; // chose first number in {0,1,2}
             uint r2 = (r1 + 1 + (xorshift(xorshiftState) & 1)) % 3; // choose second, add either 1 or 2 to r1
                     
-            uvec2 r = uvec2(r1, r2) + uvec2(2 * lid.y + lid.x + 1);
+            uvec2 r = uvec2(r1, r2) + uvec2(tid + 1);
                             
             // propose a value for next iteration
             proposedState = mcState + pcb.gamma * (s_mcState[r.x & 3] - s_mcState[r.y & 3]) + pcb.sigma * uniformToGaussian(vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0));
             proposedState.x = proposedState.x < 0 ? -proposedState.x : (proposedState.x > 1 ? 2 - proposedState.x : proposedState.x);
             proposedState.y = proposedState.y < 0 ? -proposedState.y : (proposedState.y > 1 ? 2 - proposedState.y : proposedState.y);
+            
+            //proposedState = vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0);
 
             prob = proposalDist(proposedState, origin.xyz, lightDirection, radiance);
             float currentProposal = targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x, other.z) / prob;
@@ -200,9 +273,11 @@ void main()
             if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
                 collectMCSample.state[i + MC_SAMPLE_HEADER_SIZE] = vec4(mcState.x, mcState.y, prevProposal, 0);
 #endif      
-            if ((xorshift(xorshiftState) & 7) == 0)
-                s_samples[2 * lid.y + lid.x][i & (MAX_SPP - 1)] = mcState;
-            s_mcState[2 * lid.y + lid.x] = mcState;
+            accepted = (nNewSamples < MAX_NEW_SAMPLES_PER_FRAME) && ((xorshift(xorshiftState) & (SUBSAMPLE_RATE - 1)) == 0);
+            s_samples_1[tid][nNewSamples].xyz = accepted ? vec3(mcState.x, mcState.y, prevProposal) : vec3(0);
+            nNewSamples += accepted ? 1 : 0;
+           
+            s_mcState[tid] = mcState;
         }
 
         mcmcVal.y += currentMcmcVal;
@@ -213,7 +288,8 @@ void main()
         currentMcmcVal /= mcIterations;
         mcmcVal.x = cWeight * currentMcmcVal + oWeight * mcmcVal.x;
 
-        storeSamplesToSharedMem(gid + offset, lid);
+        processSamples(tid, nNewSamples);
+        storeSamplesToSharedMem(gid + offset, tid);
     }
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES

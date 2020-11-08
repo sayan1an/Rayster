@@ -9,7 +9,7 @@ layout(binding = 1, set = 0) uniform accelerationStructureNV tlas_lightSource;
 layout(binding = 2, set = 0, rgba32f) uniform readonly image2D normalImage;
 layout(binding = 3, set = 0, rgba16f) uniform readonly image2D otherImage;
 layout(binding = 4, set = 0, rgba16f) uniform readonly image2D stencilImage;
-layout(binding = 5, set = 0, rg16f) uniform readonly image2DArray outSampleStat;
+layout(binding = 5, set = 0, rgba16f) uniform readonly image2DArray outSampleStat;
 layout(binding = 6, set = 0) uniform GaussHermitWeights 
 {
 	vec4 weights[150];
@@ -47,12 +47,14 @@ layout(location = 0) rayPayloadNV vec3 radiance;
 
 uint xorshiftState;
 
-vec2 rand2(inout uint xorshiftState)
+vec4 rand2(inout uint xorshiftState)
 {	
-	vec2 ret;
+	vec4 ret;
 	
 	ret.x = xorshift(xorshiftState) / 4294967296.0;     
     ret.y = xorshift(xorshiftState) / 4294967296.0;
+	ret.z = 1;
+	ret.w = 1;
 
 	return ret;
 }
@@ -126,15 +128,13 @@ void main()
 			vec3 spec, diff;
 			float lightHit, a, b, pdf;
 
-			int stride = int(pow(2, pcb.level) + 0.1);
-			uint sampleUsed = 0;
-			for (uint i = 0; i < (MAX_SPP / (2*stride)); i++)
-			for (int y = -stride; y <= stride; y++) {
-				int py = pixel.y * stride + y;
-            for (int x = -stride; x <= stride; x++) {
-				int px = pixel.x * stride + x;
-				bool useMcmc = (pcb.random < 1) && (py >= 0) && (py < (gl_LaunchSizeNV.y * stride)) && (px > 0) && (px < (gl_LaunchSizeNV.x * stride));
-				vec2 uv =  useMcmc ? imageLoad(outSampleStat, ivec3(px, py, i & (MAX_SPP - 1))).rg : rand2(xorshiftState);
+			uint stride = int(pow(2, pcb.level) + 0.1);
+			float weight = 0;
+			for (uint i = 0; i < MAX_SPP; i++) {
+				bool useMcmc = (pcb.random < 1) ;
+				vec4 uv =  useMcmc ? imageLoad(outSampleStat, ivec3(pixel.x * stride, pixel.y * stride, i & (MAX_SPP - 1))) : rand2(xorshiftState);
+				weight += (uv.w > CUTOFF_WEIGHT) ? uv.w : 0;
+
 #if COLLECT_RT_SAMPLES
 				if (pcb.pixelQueryX == pixel.x && pcb.pixelQueryY == pixel.y) {
 					uint index = uint(collectRTSample.state[0].y);
@@ -142,6 +142,8 @@ void main()
 					collectRTSample.state[0].y = index + 1.0001; 
 				}
 #endif
+				if ((uv.z < 0.0001) || (uv.w < CUTOFF_WEIGHT))
+					continue;
 				uint index = uniformToEmitterIdx.bins[uint(uv.x * pcb.uniformToEmitterIndexMapSize)];
 				a = discretePdf.bins[index + 1];
 				b = discretePdf.bins[index];
@@ -159,13 +161,11 @@ void main()
 				specComp += (spec / pdf);
 
 				lightPercent += lightHit;
-				sampleUsed++;
 			}
-			}
-
-			diffComp /= float(sampleUsed);
-			specComp /=  float(sampleUsed);
-			lightPercent /= float(sampleUsed);
+			
+			diffComp /= weight;
+			specComp /=  weight;
+			lightPercent /= weight;
 		}
 
 #if COLLECT_RT_SAMPLES

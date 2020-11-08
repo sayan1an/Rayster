@@ -135,7 +135,7 @@ namespace RtxFiltering_3
 			};
 
 			makeImage(extent, VK_FORMAT_R32G32_SFLOAT, mcState, mcStateView, mcStateAlloc, 2);
-			makeImage(extent, VK_FORMAT_R16G16_UNORM, sampleStat, sampleStatView, sampleStatAlloc, MAX_SPP);
+			makeImage(extent, VK_FORMAT_R16G16B16A16_SFLOAT, sampleStat, sampleStatView, sampleStatAlloc, MAX_SPP);
 			
 			_mcStateView = mcStateView;
 			_sampleStatView = sampleStatView;

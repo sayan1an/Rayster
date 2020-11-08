@@ -2,9 +2,10 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 
-arr1 = np.load("mcSamples_3.npy")
-
-print(arr1.shape)
+mcmcData = np.load("mcSamples_3.npy")
+print("MCMC Data shape:" + str(mcmcData.shape))
+randData = np.load("mcSamples_3_rand.npy")
+print("Random Data shape:" + str(randData.shape))
 
 # https://en.wikipedia.org/wiki/Multivariate_normal_distribution
 def gauss2D(x, y, mean, var_x, var_y, var_xy):
@@ -84,7 +85,7 @@ def plotHistogram(rawData):
         index = index + nSamples
 
     edges = np.arange(0, 1, 0.01)
-    rMean, rVar_x, rVar_y, rVar_xy, _ = computeReferenceMeanVar(arr1)
+    rMean, rVar_x, rVar_y, rVar_xy, _ = computeReferenceMeanVar(rawData)
     xGrid, yGrid = np.meshgrid(edges, edges)
     zGrid = gauss2D(xGrid, yGrid, rMean, rVar_x, rVar_y, rVar_xy)
    
@@ -96,10 +97,11 @@ def plotHistogram(rawData):
 
 MAX_SPP = 8
 MAX_NEW_SAMPLE_PER_FRAME = 4
-DECAY_RATE = 0.9
-SUBSAMPLE = 3
-X_DELTA = 0.001*1
-Y_DELTA = 0.005*1
+DECAY_RATE = 0.95
+SUBSAMPLE = 1
+SORTING_ITER = 1
+X_DELTA = 0.001*8
+Y_DELTA = 0.005*8
 
 global_sample_buf = np.zeros((MAX_SPP, 4))
 
@@ -169,7 +171,7 @@ def mcmcPass(gSample, mcmcVal):
   
     # semi-importance sample
     # Just do a few pass of bubble sort
-    for j in range(3):
+    for j in range(SORTING_ITER):
         i = j
         while (i + 1) < nOldSamples:
             if s_sample_1[nOldSamples - i - 1,3] > s_sample_1[nOldSamples - i - 2,3]:
@@ -184,7 +186,6 @@ def mcmcPass(gSample, mcmcVal):
     
     gSample[:] = s_sample_1[:MAX_SPP]
 
-#plotHistogram(arr1)
 def biasVar(data, ref):
     mean = np.mean(data)
 
@@ -206,7 +207,7 @@ def renderLoop(rawData):
         mcmcPass(global_sample_buf, mcmcSamples.copy())
         smart.append(np.sum(global_sample_buf[:,2] * global_sample_buf[:,3]) / np.max([np.sum(global_sample_buf[:,3]), 0.00001]))
         raw.append(np.sum(mcmcSamples[:,2])/mcmcSamples.shape[0])
-        print(str(np.sum(global_sample_buf[:,2] * global_sample_buf[:,3]) / np.sum(global_sample_buf[:,3])) + " " + str(np.sum(mcmcSamples[:,2])/mcmcSamples.shape[0]))
+        #print(str(np.sum(global_sample_buf[:,2] * global_sample_buf[:,3]) / np.sum(global_sample_buf[:,3])) + " " + str(np.sum(mcmcSamples[:,2])/mcmcSamples.shape[0]))
         #print(global_sample_buf)
         # if loop > 2:
         #     break
@@ -236,5 +237,26 @@ def renderLoop(rawData):
     plt.legend()
     plt.show()
 
-    
-renderLoop(arr1)
+def renderLoopRandom(rawData, mcmcData):
+    index = 0
+    raw = [] 
+    while (index < rawData.shape[0]):
+        nSamples = int(rawData[index,1])
+        index = index + int(rawData[index,0]) # Add header size
+        samples = rawData[index:index+nSamples, 0:3]
+        raw.append(np.sum(samples[:,2])/nSamples)
+       
+        index = index + nSamples
+      
+    _, _, _, _, ref = computeReferenceMeanVar(mcmcData)
+    biasVar(raw, ref)
+     
+    plt.plot(raw, label="Random")
+    plt.legend()
+    plt.show()
+
+plotHistogram(mcmcData)
+plotHistogram(randData)
+renderLoopRandom(randData, mcmcData)
+renderLoop(mcmcData)
+

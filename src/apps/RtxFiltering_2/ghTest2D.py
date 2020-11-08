@@ -126,12 +126,12 @@ def testIntegral(order : int, refMeanx : float, refMeany : float, refStdx : floa
     print("Mean error:" + str(np.mean(z)))
     print("Mean samples:" + str(np.mean(s)))
 
-    # f, ax = plt.subplots(1,2)
-    # i0 = ax[0].contourf(xGrid, yGrid, z, cmap = 'Spectral')
-    # f.colorbar(i0, ax=ax[0])
-    # i1 = ax[1].contourf(xGrid, yGrid, s, cmap = 'Spectral')
-    # f.colorbar(i1, ax=ax[1])
-    # plt.show()
+    f, ax = plt.subplots(1,2)
+    i0 = ax[0].contourf(xGrid, yGrid, z, cmap = 'Spectral')
+    f.colorbar(i0, ax=ax[0])
+    i1 = ax[1].contourf(xGrid, yGrid, s, cmap = 'Spectral')
+    f.colorbar(i1, ax=ax[1])
+    plt.show()
 
 def plotSampleDensityPerStd():
     sampleDensity = []
@@ -147,13 +147,13 @@ def plotSampleDensityPerStd():
     plt.show()
 #plotSampleDensityPerStd()
 
-contourPlot()
+#contourPlot()
 refMean_x, refMean_y, refStd_x, refStd_y, refIntegral = findRefMeanStd()
 print(refMean_x, refMean_y, refStd_x, refStd_y, refIntegral)
-testIntegral(3, refMean_x, refMean_y, refStd_x, refStd_y, refIntegral, 2.5)
-testIntegral(7, refMean_x, refMean_y, refStd_x, refStd_y, refIntegral, 1.25)
+#testIntegral(3, refMean_x, refMean_y, refStd_x, refStd_y, refIntegral, 2.5)
+#testIntegral(7, refMean_x, refMean_y, refStd_x, refStd_y, refIntegral, 1.25)
 testIntegral(11, refMean_x, refMean_y, refStd_x, refStd_y, refIntegral, 1)
-testIntegral(17, refMean_x, refMean_y, refStd_x, refStd_y, refIntegral, 1)
+#testIntegral(17, refMean_x, refMean_y, refStd_x, refStd_y, refIntegral, 1)
 
 # testIntegral(2, refMean_x, refMean_y, refStd_x, refStd_y, refIntegral, 2.5)
 # testIntegral(8, refMean_x, refMean_y, refStd_x, refStd_y, refIntegral, 1.15)

@@ -23,3 +23,4 @@ float offsetCalc(in uint x, in uint level)
 #define MAX_RT_SAMPLES 1024
 
 #define MAX_SPP 8
+#define CUTOFF_WEIGHT 0.001

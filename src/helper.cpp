@@ -206,22 +206,24 @@ extern void createBuffer(const VkDevice& device, const VmaAllocator& allocator, 
 extern VkDeviceSize imageFormatToBytes(VkFormat format)
 {
 	switch (format) {
-	case VK_FORMAT_R8G8B8A8_UNORM:
-		return 4 * sizeof(unsigned char);
-	case VK_FORMAT_R32G32B32A32_SFLOAT:
-		return 4 * sizeof(float);
-	case VK_FORMAT_R32G32_SFLOAT:
-		return 2 * sizeof(float);
-	case VK_FORMAT_R32_SFLOAT:
-		return sizeof(float);
-	case VK_FORMAT_R32G32_UINT:
-		return 2 * sizeof(uint32_t);
-	case VK_FORMAT_R16G16_SFLOAT:
-		return sizeof(float);
-	case VK_FORMAT_R16G16_UNORM:
-		return sizeof(float);
-	default:
-		CHECK_DBG_ONLY(false, "imageFormatToBytes : Unrecognised image format.");
+		case VK_FORMAT_R8G8B8A8_UNORM:
+			return 4 * sizeof(unsigned char);
+		case VK_FORMAT_R32G32B32A32_SFLOAT:
+			return 4 * sizeof(float);
+		case VK_FORMAT_R32G32_SFLOAT:
+			return 2 * sizeof(float);
+		case VK_FORMAT_R32_SFLOAT:
+			return sizeof(float);
+		case VK_FORMAT_R32G32_UINT:
+			return 2 * sizeof(uint32_t);
+		case VK_FORMAT_R16G16_SFLOAT:
+			return sizeof(float);
+		case VK_FORMAT_R16G16_UNORM:
+			return sizeof(float);
+		case VK_FORMAT_R16G16B16A16_SFLOAT:
+			return 2*sizeof(float);
+		default:
+			CHECK_DBG_ONLY(false, "imageFormatToBytes : Unrecognised image format.");
 	}
 
 	return 0;
