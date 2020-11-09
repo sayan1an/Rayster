@@ -10,10 +10,12 @@ layout (binding = 2, rgba32f) uniform image2DArray rtxInOut;
 layout (binding = 3) uniform sampler2DArray rtxIn2;
 layout (binding = 4) uniform sampler2DArray rtxIn3;
 layout(binding = 5, rg32f) uniform image2DArray inMcState; // layer 0 contains state, layer 1 contains mcmc value and moving weight
+layout (binding = 6, rgba32f) uniform image2DArray accumBuffer;
 
 layout (push_constant) uniform pcBlock {
 	uint choice;
 	float brightness;
+	float oWeight;
 } pcb;
 
 void main()
@@ -28,6 +30,9 @@ void main()
 		vec4 diffTex = imageLoad(diffuseTex, pixel);
 		vec4 specTex = imageLoad(specularTex, pixel);
 		
+		vec3 diffCompOld = imageLoad(accumBuffer, ivec3(pixel, 0)).rgb;
+		vec3 specCompOld = imageLoad(accumBuffer, ivec3(pixel, 1)).rgb;
+
 		vec4 diffComp1 = imageLoad(rtxInOut, ivec3(pixel, 0));
 		vec4 specComp1 = imageLoad(rtxInOut, ivec3(pixel, 1));
 
@@ -38,16 +43,28 @@ void main()
 		vec4 specComp3 = texture(rtxIn3, vec3(texCoord, 1));
 		
 		vec4 diffComp = diffComp1 + diffComp2 + diffComp3;
-		outCol = diffTex * diffComp + specTex * (specComp1 + specComp2 + specComp3);
-		// captures the power of texture, not the details
-		outColNoTex = length(diffTex.xyz) * diffComp + length(specTex.xyz) * (specComp1 + specComp2 + specComp3);
-		outColNoTex.w = diffComp.w;
-		outCol.w = diffComp.w;
+		vec4 specComp = specComp1 + specComp2 + specComp3;
 
-		outColNoTex /= diffComp.w;
-		outCol /= diffComp.w;
+		diffComp.xyz /= diffComp.w;
+		specComp.xyz /= diffComp.w;
+
+		diffComp.w = 1;
+		specComp.w = 1;
+
+		float oWeight = 0.95f;		
+		diffComp.xyz = oWeight * diffCompOld + (1 - oWeight) * diffComp.xyz;
+		specComp.xyz = oWeight * specCompOld + (1 - oWeight) * specComp.xyz;
+
+		outCol = diffTex * diffComp + specTex * specComp;
+		// captures the power of texture, not the details
+		outColNoTex = length(diffTex.xyz) * diffComp + length(specTex.xyz) * specComp;
+		outColNoTex.w = 1;
+		outCol.w = 1;
 
 		outCol = (diffComp.x + diffComp.y + diffComp.z) < -1 ? vec4(0,1,0,1) : outCol;
+
+		imageStore(accumBuffer, ivec3(pixel, 0), diffComp);
+		imageStore(accumBuffer, ivec3(pixel, 1), specComp);
 	}
 	else if (pcb.choice == 1) {
 		float mcmcVal = imageLoad(inMcState, ivec3(pixel, 1)).r;	

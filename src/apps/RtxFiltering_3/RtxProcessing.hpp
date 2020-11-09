@@ -353,17 +353,19 @@ namespace RtxFiltering_3
 		void createBuffers(const VkDevice& device, const VmaAllocator& allocator, const VkQueue& queue, const VkCommandPool& commandPool, const VkExtent2D& extent)
 		{
 			auto makeImage = [&device = device, &queue = queue, &commandPool = commandPool,
-				&allocator = allocator](VkExtent2D extent, VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation)
+				&allocator = allocator](VkExtent2D extent, VkFormat format, VkImage& image, VkImageView& imageView, VmaAllocation& allocation, uint32_t layers)
 			{
-				createImage(device, allocator, queue, commandPool, image, allocation, extent, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, format);
-				imageView = createImageView(device, image, format, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1);
-				transitionImageLayout(device, queue, commandPool, image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
+				createImageP(device, allocator, queue, commandPool, image, allocation, extent, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, format, VK_SAMPLE_COUNT_1_BIT, 0, layers);
+				imageView = createImageView(device, image, format, VK_IMAGE_ASPECT_COLOR_BIT, 1, layers);
+				transitionImageLayout(device, queue, commandPool, image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, layers);
 			};
 
+			makeImage(extent, VK_FORMAT_R32G32B32A32_SFLOAT, accumImage, accumImageView, accumImageAllocation, 2);
 			createTexSampler(device);
 			
 			pcb.choice = 1;
 			pcb.brightness = 1.0f;
+			pcb.oWeight = 0.1f;
 			globalWorkDim = extent;
 		}
 
@@ -375,6 +377,7 @@ namespace RtxFiltering_3
 			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { texSampler , rtxView2,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { texSampler , rtxView3,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inMcState,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , accumImageView,  VK_IMAGE_LAYOUT_GENERAL });
 			
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -394,6 +397,10 @@ namespace RtxFiltering_3
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
 		{
 			vkDestroySampler(device, texSampler, nullptr);
+
+			vkDestroyImageView(device, accumImageView, nullptr);
+			vmaDestroyImage(allocator, accumImage, accumImageAllocation);
+			
 			vkDestroyPipeline(device, pipeline, nullptr);
 			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
@@ -406,7 +413,8 @@ namespace RtxFiltering_3
 				ImGui::Text("Output:");
 				ImGui::RadioButton("Rtx##RtxCompositionPass", &pcb.choice, 0); ImGui::SameLine();
 				ImGui::RadioButton("Mcmc##RtxCompositionPass", &pcb.choice, 1);
-				ImGui::SliderFloat("Brightness##MarkovChainPass", &pcb.brightness, 1.0f, 200.0f);
+				ImGui::SliderFloat("Brightness##RtxCompositionPass", &pcb.brightness, 1.0f, 200.0f);
+				ImGui::SliderFloat("BlendeWeight##RtxCompositionPass", &pcb.oWeight, 0.0f, 1.0f);
 			}
 
 		}
@@ -424,6 +432,11 @@ namespace RtxFiltering_3
 
 		VkExtent2D globalWorkDim;
 		VkSampler texSampler;
+
+		VkImage accumImage;
+		VkImageView accumImageView;
+		VmaAllocation accumImageAllocation;
+
 
 		void createTexSampler(const VkDevice& device)
 		{
@@ -453,6 +466,7 @@ namespace RtxFiltering_3
 		{
 			int choice;
 			float brightness;
+			float oWeight;
 		} pcb;
 	};
 }

@@ -128,11 +128,11 @@ void main()
 			vec3 spec, diff;
 			float lightHit, a, b, pdf;
 
-			uint stride = int(pow(2, pcb.level) + 0.1);
+			uint stride = uint(pow(2, pcb.level) + 0.1);
 			float weight = 0;
 			for (uint i = 0; i < MAX_SPP; i++) {
 				bool useMcmc = (pcb.random < 1) ;
-				vec4 uv =  useMcmc ? imageLoad(outSampleStat, ivec3(pixel.x * stride, pixel.y * stride, i & (MAX_SPP - 1))) : rand2(xorshiftState);
+				vec4 uv =  useMcmc ? imageLoad(outSampleStat, ivec3(pixelCenter.x * stride, pixelCenter.y * stride, i & (MAX_SPP - 1))) : rand2(xorshiftState);
 				weight += (uv.w > CUTOFF_WEIGHT) ? uv.w : 0;
 
 #if COLLECT_RT_SAMPLES
