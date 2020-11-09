@@ -157,8 +157,8 @@ void main()
 				shadowRayAreaLight((lightVertices.v[3*index] * uv.x + lightVertices.v[3*index + 1] * uv.y + lightVertices.v[3*index + 2] * (1 - uv.x - uv.y)).xyz,
 					-viewDir.xyz, origin.xyz, normalDepth.xyz, other.w, other.x, diff, spec, lightHit);
 
-				diffComp += (uv.w * diff / pdf);
-				specComp += (uv.w * spec / pdf);
+				diffComp += clamp(uv.w * diff / pdf, 0, MAX_SAMPLE_CLIP_VALUE);
+				specComp += clamp(uv.w * spec / pdf, 0, MAX_SAMPLE_CLIP_VALUE);
 
 				lightPercent += uv.w * lightHit;
 			}

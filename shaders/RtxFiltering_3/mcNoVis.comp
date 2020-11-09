@@ -65,8 +65,9 @@ void loadSamplesToSharedMem(in ivec2 gid, in uint tid)
 
 void storeSamplesToSharedMem(in ivec2 gid, in uint tid)
 {   
-    for (uint i = 0; i < MAX_SPP; i++)
+    for (uint i = 0; i < MAX_SPP; i++) {
         imageStore(outSampleStat, ivec3(gid, i), s_samples_1[tid][i]);
+    }
 }
 
 void processSamples(in uint tid, in uint nNewSamples)
@@ -233,7 +234,7 @@ void main()
         float radiance;
 
         float prob = proposalDist(proposedState, origin.xyz, lightDirection, radiance);
-        float prevProposal = targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x, other.z) / prob;
+        float prevProposal = CLIP((targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x, other.z) / prob), 0, MAX_SAMPLE_CLIP_VALUE / 10);
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES
         if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y) {
@@ -261,7 +262,7 @@ void main()
             //proposedState = vec2(xorshift(xorshiftState) / 4294967296.0, xorshift(xorshiftState) / 4294967296.0);
 
             prob = proposalDist(proposedState, origin.xyz, lightDirection, radiance);
-            float currentProposal = targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x, other.z) / prob;
+            float currentProposal = CLIP((targetDist(normalDepth.xyz, -viewDir.xyz, lightDirection, radiance, other.w, other.x, other.z) / prob), 0, MAX_SAMPLE_CLIP_VALUE / 10);
             
             bool accepted = ((xorshift(xorshiftState) / 4294967296.0) < min(1.0f, currentProposal / prevProposal));
             
@@ -280,7 +281,8 @@ void main()
             s_mcState[tid] = mcState;
         }
 
-        mcmcVal.y += currentMcmcVal;
+        mcmcVal.y += currentMcmcVal; // running weight
+        mcmcVal.y = CLIP(mcmcVal.y, 0, 1e25);
         float cWeight = currentMcmcVal / mcmcVal.y;
         cWeight = cWeight > 1 ? 1 : (cWeight < 0 ? 0 : cWeight);
         float oWeight = 1 - cWeight;

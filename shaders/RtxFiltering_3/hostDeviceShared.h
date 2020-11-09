@@ -24,3 +24,5 @@ float offsetCalc(in uint x, in uint level)
 
 #define MAX_SPP 8
 #define CUTOFF_WEIGHT 0.001
+
+#define MAX_SAMPLE_CLIP_VALUE 50000.0

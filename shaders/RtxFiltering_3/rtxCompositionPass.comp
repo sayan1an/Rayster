@@ -30,8 +30,10 @@ void main()
 		vec4 diffTex = imageLoad(diffuseTex, pixel);
 		vec4 specTex = imageLoad(specularTex, pixel);
 		
-		vec3 diffCompOld = imageLoad(accumBuffer, ivec3(pixel, 0)).rgb;
-		vec3 specCompOld = imageLoad(accumBuffer, ivec3(pixel, 1)).rgb;
+		uint isValid = length(diffTex.xyz) + length(specTex.xyz) > 0 ? 1 : 0;
+
+		vec3 diffCompOld = imageLoad(accumBuffer, ivec3(pixel, 0)).rgb * isValid;
+		vec3 specCompOld = imageLoad(accumBuffer, ivec3(pixel, 1)).rgb * isValid;
 
 		vec4 diffComp1 = imageLoad(rtxInOut, ivec3(pixel, 0));
 		vec4 specComp1 = imageLoad(rtxInOut, ivec3(pixel, 1));
@@ -51,7 +53,7 @@ void main()
 		diffComp.w = 1;
 		specComp.w = 1;
 
-		float oWeight = 0.95f;		
+		float oWeight = pcb.oWeight;		
 		diffComp.xyz = oWeight * diffCompOld + (1 - oWeight) * diffComp.xyz;
 		specComp.xyz = oWeight * specCompOld + (1 - oWeight) * specComp.xyz;
 
