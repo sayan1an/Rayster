@@ -69,6 +69,8 @@ public:
 
 		projViewMat.viewInv = glm::inverse(projViewMat.view);
 		projViewMat.projInv = glm::inverse(projViewMat.proj);
+
+		projViewMat.projView = projViewMat.proj * projViewMat.view;
 		
 		memcpy(ptrUniformBuffer, &projViewMat, sizeof(projViewMat));
 

@@ -2,6 +2,15 @@
 #define SQRT_2 1.41421356237
 #define CLIP(v, min, max) ((v) < (min)) ? (min) : (((v) > (max)) ? (max) : (v)) 
 
+vec2 motionVecFragShader(in vec2 glFragCoord, in vec4 worldPosPrev, in mat4 projViewPrev, in uvec2 viewportExtent)
+{
+	vec4 fragCoordPrev = projViewPrev * worldPosPrev;
+    fragCoordPrev /= fragCoordPrev.w;
+    fragCoordPrev.xy += 1;
+    fragCoordPrev.xy *= (viewportExtent / 2);
+    return fragCoordPrev.xy - glFragCoord;
+}
+
 vec2 complexExp(in float x)
 {
 	float arg = 2 * PI * x;

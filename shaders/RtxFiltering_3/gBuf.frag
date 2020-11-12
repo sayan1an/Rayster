@@ -2,6 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : enable
 
+#include "../commonMath.h"
 #include "../hostDeviceShared.h"
 
 layout(binding = 0) uniform UniformBufferObject {
@@ -22,6 +23,11 @@ layout(location = 0) out vec4 outDiffuseColor;
 layout(location = 1) out vec4 outSpecularColor;
 layout(location = 2) out vec4 outNormalDepth;
 layout(location = 3) out vec4 outOtherInfo;
+layout(location = 4) out vec2 motionVector;
+
+layout (push_constant) uniform pcBlock {
+	uvec2 viewportExtent;
+} pcb;
 
 void main() 
 {
@@ -41,4 +47,6 @@ void main()
 
     // Ext IOR replaced by diffuse probability
     outOtherInfo = vec4(alphaIntExtIor.xy, diffWeight / (diffWeight + specWeight), bsdfType);
+
+    motionVector = motionVecFragShader(gl_FragCoord.xy, worldPosPrev, ubo.projViewPrev, pcb.viewportExtent);
 }

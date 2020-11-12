@@ -75,6 +75,10 @@ static const bool enableValidationLayers = false;
 #define PRINT_VECTOR3(v) (std::cout << "(" << (v).x << ", " << (v).y << ", " << (v).z << ")" << std::endl)
 #endif
 
+#ifndef PRINT_VECTOR2
+#define PRINT_VECTOR2(v) (std::cout << "(" << (v).x << ", " << (v).y << ")" << std::endl)
+#endif
+
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphicsFamily;
 	std::optional<uint32_t> presentFamily;

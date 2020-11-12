@@ -40,7 +40,7 @@ void main()
 {   
     worldPos = modelTransform * vec4(inPosition, 1.0);
     worldPosPrev = modelTransformPrev * vec4(inPosition, 1.0);
-    gl_Position = ubo.proj * ubo.view * worldPos;
+    gl_Position = ubo.projView * worldPos;
     fragColor = inColor;
     fragNormal = normalize((modelTransformIT * vec4(inNormal, 0)).xyz);
     fragTexCoord = inTexCoord;

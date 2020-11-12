@@ -2,6 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : enable
 
+#include "../commonMath.h"
 #include "../hostDeviceShared.h"
 
 layout(binding = 0) uniform UniformBufferObject {
@@ -39,4 +40,8 @@ void main()
     outDepthMatInfo = vec4(length((worldPos - ubo.viewInv[3]).xyz), alphaIntExtIor.yz, bsdfType);
     // Does not work??
     //outDepthMatInfo = vec4(gl_FragCoord.z / gl_FragCoord.w, alphaIntExtIor.yz, bsdfType);
+
+    // Compute motion vector
+    //vec2 motionVector = motionVecFragShader(gl_FragCoord.xy, worldPosPrev, ubo.projViewPrev, uvec2(1280, 720));
+    //outDiffuseColor = vec4(abs(motionVector.x) * 100, abs(motionVector.y) * 100, 0, 1);
 }

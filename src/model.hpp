@@ -297,12 +297,12 @@ public:
 
 		if (meshPointers.size() < 2 || firstInstance >= meshPointers.size() - 1) {
 			instanceData_static.push_back(instanceDataStatic);
-			instanceData_dynamic.push_back({ transform, glm::transpose(glm::inverse(transform)) });
+			instanceData_dynamic.push_back({ transform, glm::transpose(glm::inverse(transform)), transform });
 			meshPointers.push_back(meshIdx);
 		}
 		else {
 			instanceData_static.insert(instanceData_static.begin() + firstInstance + 1, 1, instanceDataStatic);
-			instanceData_dynamic.insert(instanceData_dynamic.begin() + firstInstance + 1, 1, { transform, glm::transpose(glm::inverse(transform)) });
+			instanceData_dynamic.insert(instanceData_dynamic.begin() + firstInstance + 1, 1, { transform, glm::transpose(glm::inverse(transform)), transform });
 			meshPointers.insert(meshPointers.begin() + firstInstance + 1, 1, meshIdx);
 		}
 		

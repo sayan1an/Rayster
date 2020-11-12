@@ -55,6 +55,7 @@ namespace RtxFiltering_3
 				colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("specularColor", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 				colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("normal", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 				colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("other", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+				colorAttachmentRefs.push_back(fboMgr.getAttachmentReference("motionVector", VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
 				depthAttachmentRef = fboMgr.getAttachmentReference("depth", VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
 				subpassDescription = {};
@@ -80,7 +81,8 @@ namespace RtxFiltering_3
 				gfxPipeGen.addFragmentShaderStage(device, ROOT + "/shaders/RtxFiltering_3/gBufFrag.spv");
 				gfxPipeGen.addVertexInputState(bindingDescription, attributeDescription);
 				gfxPipeGen.addViewportState(fboExtent);
-				gfxPipeGen.addColorBlendAttachmentState(4);
+				gfxPipeGen.addColorBlendAttachmentState(5);
+				gfxPipeGen.addPushConstantRange({ VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(VkExtent2D) });
 
 				gfxPipeGen.createPipeline(device, descriptorSetLayout, renderPass, 0, &pipeline, &pipelineLayout);
 			}
@@ -260,6 +262,10 @@ namespace RtxFiltering_3
 		VmaAllocation depthImageAllocation;
 		VkImageView depthImageView;
 
+		VkImage motionVectorImage;
+		VmaAllocation motionVectorImageAllocation;
+		VkImageView motionVectorImageView;
+
 		// Output buffer for rtx pass
 		VkImageView rtxPassView, rtxPassHalfView, rtxPassQuatView;
 		//VkImageView filterOutImageView;
@@ -296,6 +302,7 @@ namespace RtxFiltering_3
 			fboManager1.addColorAttachment("specularColor", VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT, &specularColorImageView);
 			fboManager1.addColorAttachment("normal", VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &normalImageView, 1, { 0.0f, 0.0f, 0.0f, -1.0f });
 			fboManager1.addColorAttachment("other", VK_FORMAT_R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &otherInfoImageView, 1, { 0.0f, 0.0f, 0.0f, -1.0f });
+			fboManager1.addColorAttachment("motionVector", VK_FORMAT_R16G16_SFLOAT, VK_SAMPLE_COUNT_1_BIT, &motionVectorImageView, 1, { 0.0f, 0.0f, 0.0f, -1.0f });
 
 			fboManager2.addColorAttachment("swapchain", swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT, swapChainImageViews.data(), static_cast<uint32_t>(swapChainImageViews.size()));
 
@@ -370,6 +377,9 @@ namespace RtxFiltering_3
 
 			vkDestroyImageView(device, otherInfoImageView, nullptr);
 			vmaDestroyImage(allocator, otherInfoImage, otherInfoImageAllocation);
+
+			vkDestroyImageView(device, motionVectorImageView, nullptr);
+			vmaDestroyImage(allocator, motionVectorImage, motionVectorImageAllocation);
 
 			vkDestroyFramebuffer(device, renderPass1Fbo, nullptr);
 			for (auto framebuffer : swapChainFramebuffers) {
@@ -464,6 +474,7 @@ namespace RtxFiltering_3
 				fboManager1.updateAttachmentDescription("specularColor", attachment);
 				fboManager1.updateAttachmentDescription("normal", attachment);
 				fboManager1.updateAttachmentDescription("other", attachment);
+				fboManager1.updateAttachmentDescription("motionVector", attachment);
 
 				attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 				attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -613,6 +624,7 @@ namespace RtxFiltering_3
 			makeColorImage(fboManager1.getSize(), fboManager1.getFormat("normal"), fboManager1.getSampleCount("normal"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, normalImage, normalImageView, normalImageAllocation);
 			makeColorImage(fboManager1.getSize(), fboManager1.getFormat("other"), fboManager1.getSampleCount("other"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, otherInfoImage, otherInfoImageView, otherInfoImageAllocation);
 			makeColorImage(fboManager1.getSize(), fboManager1.getFormat("depth"), fboManager1.getSampleCount("depth"), VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthImage, depthImageView, depthImageAllocation);
+			makeColorImage(fboManager1.getSize(), fboManager1.getFormat("motionVector"), fboManager1.getSampleCount("motionVector"), VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT, motionVectorImage, motionVectorImageView, motionVectorImageAllocation);
 
 			fboManager2.setSize(swapChainExtent);
 		}
@@ -659,6 +671,7 @@ namespace RtxFiltering_3
 			vkCmdBeginRenderPass(commandBuffers[index], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipeline);
 			vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1.pipelineLayout, 0, 1, &subpass1.descriptorSet, 0, nullptr);
+			vkCmdPushConstants(commandBuffers[index], subpass1.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(VkExtent2D), &renderPassInfo.renderArea.extent);
 			// put model draw
 			model.cmdDraw(commandBuffers[index]);
 			vkCmdEndRenderPass(commandBuffers[index]);

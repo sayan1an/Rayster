@@ -6,6 +6,7 @@
 #endif
 
 #define VIEWPROJ_BLOCK \
+    MAT4 projView; \
     MAT4 view; \
     MAT4 proj; \
     MAT4 viewInv; \
