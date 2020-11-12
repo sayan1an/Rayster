@@ -1,11 +1,11 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : enable
+
+#include "../hostDeviceShared.h"
 
 layout(binding = 0) uniform UniformBufferObject {
-    mat4 view;
-    mat4 proj;
-    mat4 viewInv;
-    mat4 projInv;
+    VIEWPROJ_BLOCK
 } ubo;
 
 layout(binding = 1) readonly buffer Material {
@@ -24,19 +24,22 @@ layout(location = 4) in uvec4 inData;
 // per instance dynamic
 layout(location = 5) in mat4 modelTransform;
 layout(location = 9) in mat4 modelTransformIT;
+layout(location = 13) in mat4 modelTransformPrev;
 
 // per vertex
-layout(location = 13) in uint materialIdx;
+layout(location = 17) in uint materialIdx;
 
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec3 fragNormal;
 layout(location = 2) out vec2 fragTexCoord;
 layout(location = 3) out uvec4 fragData;
 layout(location = 4) out vec4 worldPos;
+layout(location = 5) out vec4 worldPosPrev;
 
 void main() 
 {   
     worldPos = modelTransform * vec4(inPosition, 1.0);
+    worldPosPrev = modelTransformPrev * vec4(inPosition, 1.0);
     gl_Position = ubo.proj * ubo.view * worldPos;
     fragColor = inColor;
     fragNormal = normalize((modelTransformIT * vec4(inNormal, 0)).xyz);

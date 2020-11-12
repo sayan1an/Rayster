@@ -1,11 +1,11 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : enable
+
+#include "../hostDeviceShared.h"
 
 layout(binding = 0) uniform UniformBufferObject {
-    mat4 view;
-    mat4 proj;
-    mat4 viewInv;
-    mat4 projInv;
+    VIEWPROJ_BLOCK
 } ubo;
 
 layout(binding = 2) uniform sampler2DArray ldrTexSampler;
@@ -16,6 +16,7 @@ layout(location = 1) in vec3 fragNormal;
 layout(location = 2) in vec2 fragTexCoord;
 layout(location = 3) flat in uvec4 fragData; // there is no interpolation for flat type
 layout(location = 4) in vec4 worldPos;
+layout(location = 5) in vec4 worldPosPrev;
 
 layout(location = 0) out vec4 outDiffuseColor;
 layout(location = 1) out vec4 outSpecularColor;

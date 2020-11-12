@@ -85,6 +85,7 @@ struct InstanceData_static
 struct InstanceData_dynamic {
 	glm::mat4 model;
 	glm::mat4 modelIT; // inverse transpose for normal
+	glm::mat4 modelPrev;
 };
 
 // defines a single mesh and its instances
@@ -340,7 +341,7 @@ public:
 
 	static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() 
 	{
-		std::array<VkVertexInputAttributeDescription, 14> attributeDescriptions = {};
+		std::array<VkVertexInputAttributeDescription, 18> attributeDescriptions = {};
 		uint32_t location = 0;
 		// per vertex
 		attributeDescriptions[location].binding = VERTEX_BINDING_ID;
@@ -437,6 +438,34 @@ public:
 
 		location++;
 
+		attributeDescriptions[location].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(InstanceData_dynamic, modelPrev);
+
+		location++;
+
+		attributeDescriptions[location].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(InstanceData_dynamic, modelPrev) + 16;
+
+		location++;
+
+		attributeDescriptions[location].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(InstanceData_dynamic, modelPrev) + 32;
+
+		location++;
+
+		attributeDescriptions[location].binding = DYNAMIC_INSTANCE_BINDING_ID;
+		attributeDescriptions[location].location = location;
+		attributeDescriptions[location].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[location].offset = offsetof(InstanceData_dynamic, modelPrev) + 48;
+
+		location++;
+
 		// per vertex
 		attributeDescriptions[location].binding = VERTEX_BINDING_ID;
 		attributeDescriptions[location].location = location;
@@ -494,6 +523,7 @@ public:
 		if (animate) {
 			uint32_t idx = 0;
 			for (auto& instance : instanceData_dynamic) {
+				instance.modelPrev = instance.model;
 				instance.model = glm::translate<float>(instance.model, glm::vec3(0.0, 0.0, 0.0));
 				glm::mat4 rotate = glm::identity<glm::mat4>();
 				if (idx == 1) {

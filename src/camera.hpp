@@ -9,12 +9,10 @@
 #include "cereal/types/vector.hpp"
 
 #include "io.hpp"
+#include "../shaders/hostDeviceShared.h"
 
 struct ProjectionViewMat {
-	alignas(16) glm::mat4 view;
-	alignas(16) glm::mat4 proj;
-	alignas(16) glm::mat4 viewInv;
-	alignas(16) glm::mat4 projInv;
+	VIEWPROJ_BLOCK;
 };
 
 class Camera {
@@ -41,6 +39,8 @@ public:
 	void updateProjViewMat(IO &io, uint32_t screenWidth, uint32_t screenHeight) 
 	{	
 		float timeDelta = io.getFrameTimes().back();
+
+		projViewMat.projViewPrev = projViewMat.proj * projViewMat.view;
 
 		if (keyFrames.isPlaying) {
 			if (keyFrames.play(cameraPosition, cameraFocus, cameraUp, timeDelta)) {

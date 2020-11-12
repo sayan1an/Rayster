@@ -2,6 +2,7 @@
 #extension GL_NV_ray_tracing : require
 #extension GL_GOOGLE_include_directive : enable
 #include "../commonMath.h"
+#include "../hostDeviceShared.h"
 #include "hostDeviceShared.h"
 
 #define MAX_GH_ORDER (1 << GH_ORDER_BITS)
@@ -19,10 +20,7 @@ layout(binding = 6, set = 0) uniform GaussHermitWeights
 layout(binding = 7, set = 0, rgba32f) uniform image2DArray outImage;
 layout(binding = 8, set = 0) uniform CameraProperties 
 {
-	mat4 view;
-    mat4 proj;
-    mat4 viewInv;
-    mat4 projInv;
+	VIEWPROJ_BLOCK
 } cam;
 
 layout(binding = 9, set = 0) readonly buffer LightVertices { vec4 v[]; } lightVertices;

@@ -2,6 +2,7 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "../commonMath.h"
+#include "../hostDeviceShared.h"
 #include "hostDeviceShared.h"
 
 layout (local_size_x = 2, local_size_y = 2) in;
@@ -11,10 +12,7 @@ layout(binding = 1, rgba16f) uniform readonly image2D otherImage;
 layout(binding = 2, rgba16f) uniform readonly image2D stencilImage;
 layout(binding = 3) uniform CameraProperties 
 {
-	mat4 view;
-    mat4 proj;
-    mat4 viewInv;
-    mat4 projInv;
+	VIEWPROJ_BLOCK
 } cam;
 
 layout(binding = 4) buffer RandomGeneratorState { uint state[]; } randGenState;
@@ -44,7 +42,7 @@ layout (push_constant) uniform pcBlock {
 
 #define MAX_NEW_SAMPLES_PER_FRAME 4
 #define DECAY_RATE 0.95
-#define SUBSAMPLE_RATE 2
+#define SUBSAMPLE_RATE 1
 #define SORTING_ITER 1
 #define X_DELTA  (0.001*8)
 #define Y_DELTA  (0.005*8)
@@ -66,6 +64,7 @@ void loadSamplesToSharedMem(in ivec2 gid, in uint tid)
 void storeSamplesToSharedMem(in ivec2 gid, in uint tid)
 {   
     for (uint i = 0; i < MAX_SPP; i++) {
+        s_samples_1[tid][i].w = 1;
         imageStore(outSampleStat, ivec3(gid, i), s_samples_1[tid][i]);
     }
 }
@@ -290,7 +289,7 @@ void main()
         currentMcmcVal /= mcIterations;
         mcmcVal.x = cWeight * currentMcmcVal + oWeight * mcmcVal.x;
 
-        processSamples(tid, nNewSamples);
+        //processSamples(tid, nNewSamples);
         storeSamplesToSharedMem(gid + offset, tid);
     }
 

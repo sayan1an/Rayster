@@ -1,5 +1,8 @@
 #version 460
 #extension GL_NV_ray_tracing : require
+#extension GL_GOOGLE_include_directive : enable
+
+#include "../hostDeviceShared.h"
 
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
 layout(binding = 1, set = 0, rgba8) uniform image2D imageDiffuse;
@@ -8,10 +11,7 @@ layout(binding = 3, set = 0, rgba32f) uniform image2D imageNormal;
 layout(binding = 4, set = 0, rgba32f) uniform image2D imageOther;
 layout(binding = 5, set = 0) uniform CameraProperties 
 {
-	mat4 view;
-    mat4 proj;
-    mat4 viewInv;
-    mat4 projInv;
+	VIEWPROJ_BLOCK
 } cam;
 
 layout(location = 0) rayPayloadNV Payload {

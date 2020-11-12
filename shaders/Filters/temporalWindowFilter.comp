@@ -1,4 +1,7 @@
 #version 450
+#extension GL_GOOGLE_include_directive : enable
+
+#include "../hostDeviceShared.h"
 
 layout (local_size_x = 16, local_size_y = 16) in;
 
@@ -10,10 +13,7 @@ struct ViewProjMat
 
 layout(binding = 0) uniform CameraProperties 
 {
-	mat4 view;
-    mat4 proj;
-    mat4 viewInv;
-    mat4 projInv;
+	VIEWPROJ_BLOCK
 } cam;
 layout (binding = 1, rgba32f) uniform readonly image2D inNoisyImage;
 layout (binding = 2, rgba32f) uniform readonly image2D inNoraml;

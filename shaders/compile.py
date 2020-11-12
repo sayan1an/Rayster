@@ -2,9 +2,10 @@ import subprocess, os, sys
 
 glslangValidator = "C:/VulkanSDK/1.2.148.1/Bin32/glslangValidator.exe"
 
-# modifying these files will cause a full compilation
+# modifying the following files will cause a full compilation
 forceFullCompilationList = []
 forceFullCompilationList.append(("./commonMath.h", "null"))
+forceFullCompilationList.append(("./hostDeviceShared.h", "null"))
 forceFullCompilationList.append(("./Filters/filterParams.h", "null"))
 forceFullCompilationList.append(("./RtxFiltering_2/hostDeviceShared.h", "null"))
 forceFullCompilationList.append(("./RtxFiltering_3/hostDeviceShared.h", "null"))
