@@ -6,14 +6,16 @@ layout (local_size_x = 16, local_size_y = 16) in;
 
 layout (binding = 0, rgba8) uniform image2D diffuseTex;
 layout (binding = 1, rgba8) uniform image2D specularTex;
-layout (binding = 2, rgba32f) uniform image2DArray rtxInOut;
-layout (binding = 3) uniform sampler2DArray rtxIn2;
-layout (binding = 4) uniform sampler2DArray rtxIn3;
-layout(binding = 5, rg32f) uniform image2DArray inMcState; // layer 0 contains state, layer 1 contains mcmc value and moving weight
-layout (binding = 6, rgba32f) uniform image2DArray accumBuffer;
+layout (binding = 2, rg16f) uniform image2D motionVectorImg;
+layout (binding = 3, rgba32f) uniform image2DArray rtxInOut;
+layout (binding = 4) uniform sampler2DArray rtxIn2;
+layout (binding = 5) uniform sampler2DArray rtxIn3;
+layout(binding = 6, rg32f) uniform image2DArray inMcState; // layer 0 contains state, layer 1 contains mcmc value and moving weight
+layout (binding = 7, rgba32f) uniform image2DArray accumBuffer;
 
 layout (push_constant) uniform pcBlock {
 	uint choice;
+	uint motionVector;
 	float brightness;
 	float oWeight;
 } pcb;
@@ -31,9 +33,11 @@ void main()
 		vec4 specTex = imageLoad(specularTex, pixel);
 		
 		uint isValid = length(diffTex.xyz) + length(specTex.xyz) > 0 ? 1 : 0;
+		vec2 motionVector = pcb.motionVector > 0 ? imageLoad(motionVectorImg, pixel).rg : vec2(0);
 
-		vec3 diffCompOld = imageLoad(accumBuffer, ivec3(pixel, 0)).rgb * isValid;
-		vec3 specCompOld = imageLoad(accumBuffer, ivec3(pixel, 1)).rgb * isValid;
+		vec2 pixelMotion = clamp(pixel + vec2(0.5) + motionVector, vec2(0), viewportSize);
+		vec3 diffCompOld = imageLoad(accumBuffer, ivec3(pixelMotion, 0)).rgb * isValid;
+		vec3 specCompOld = imageLoad(accumBuffer, ivec3(pixelMotion, 1)).rgb * isValid;
 
 		vec4 diffComp1 = imageLoad(rtxInOut, ivec3(pixel, 0));
 		vec4 specComp1 = imageLoad(rtxInOut, ivec3(pixel, 1));
@@ -64,7 +68,8 @@ void main()
 		outCol.w = 1;
 
 		outCol = (diffComp.x + diffComp.y + diffComp.z) < -1 ? vec4(0,1,0,1) : outCol;
-
+		//outCol.xy = abs(motionVector);
+		//outCol.z = 0;
 		imageStore(accumBuffer, ivec3(pixel, 0), diffComp);
 		imageStore(accumBuffer, ivec3(pixel, 1), specComp);
 	}

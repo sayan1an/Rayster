@@ -28,6 +28,7 @@ namespace RtxFiltering_3
 			};
 
 			globalWorkDim = extent;
+			pcb.motionVector = 1;
 			pcb.gamma = 0.0f;
 			pcb.sigmaProposal = 0.01f;
 			buffersUpdated = true;
@@ -35,24 +36,25 @@ namespace RtxFiltering_3
 
 		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const Camera& cam, const AreaLightSources& areaSource, const RandomGenerator& randGen, 
 			const VkImageView& outMcState, const VkImageView& outSampleStat,
-			const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& inStencil, const VkDescriptorBufferInfo& collectSamples)
+			const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& inMotionVector, const VkImageView& inStencil, const VkDescriptorBufferInfo& collectSamples)
 		{
 			CHECK_DBG_ONLY(buffersUpdated, "MarkovChainNoVisibilityPass : call createBuffers first.");
 
 			descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNormal,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inOther,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inStencil,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindBuffer({ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, cam.getDescriptorBufferInfo());
-			descGen.bindBuffer({ 4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, randGen.getDescriptorBufferInfo());
-			descGen.bindBuffer({ 5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.getVerticesDescriptorBufferInfo());
-			descGen.bindBuffer({ 6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.dPdf.getCdfDescriptorBufferInfo());
-			descGen.bindBuffer({ 7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.dPdf.getCdfNormDescriptorBufferInfo());
-			descGen.bindBuffer({ 8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.dPdf.getEmitterIndexMapDescriptorBufferInfo());
-			descGen.bindImage({ 9, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outMcState,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 10, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outSampleStat,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inMotionVector,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inStencil,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindBuffer({ 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, cam.getDescriptorBufferInfo());
+			descGen.bindBuffer({ 5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, randGen.getDescriptorBufferInfo());
+			descGen.bindBuffer({ 6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.getVerticesDescriptorBufferInfo());
+			descGen.bindBuffer({ 7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.dPdf.getCdfDescriptorBufferInfo());
+			descGen.bindBuffer({ 8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.dPdf.getCdfNormDescriptorBufferInfo());
+			descGen.bindBuffer({ 9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.dPdf.getEmitterIndexMapDescriptorBufferInfo());
+			descGen.bindImage({ 10, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outMcState,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 11, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , outSampleStat,  VK_IMAGE_LAYOUT_GENERAL });
 			
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-			descGen.bindBuffer({ 11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, collectSamples);
+			descGen.bindBuffer({ 12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, collectSamples);
 #endif
 
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
@@ -75,10 +77,11 @@ namespace RtxFiltering_3
 			buffersUpdated = false;
 		}
 
-		void cmdDispatch(const VkCommandBuffer& cmdBuf, const float sigma, const float gamma, const glm::uvec2& pixelQuery, const int resetWeight)
+		void cmdDispatch(const VkCommandBuffer& cmdBuf, const float sigma, const float gamma, const int motionVector, const glm::uvec2& pixelQuery, const int resetWeight)
 		{	
 			pcb.sigmaProposal = sigma;
 			pcb.gamma = gamma;
+			pcb.motionVector = motionVector;
 #if COLLECT_MARKOV_CHAIN_SAMPLES
 			pcb.pixelQueryX = pixelQuery.x;
 			pcb.pixelQueryY = pixelQuery.y;
@@ -106,7 +109,7 @@ namespace RtxFiltering_3
 		VkExtent2D globalWorkDim;
 		
 		struct PushConstantBlock {
-			uint32_t level;
+			int motionVector;
 			float cumulativeSum;
 			uint32_t uniformToEmitterIndexMapSize;
 			float sigmaProposal;
@@ -143,26 +146,25 @@ namespace RtxFiltering_3
 			mptrCollectMcSampleBuffer = createBuffer(allocator, collectMcSampleBuffer, collectMcSampleBufferAllocation, MAX_MARKOV_CHAIN_SAMPLES * sizeof(float) * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
 			ptrCollectMcSampleBuffer = new float[MAX_MARKOV_CHAIN_SAMPLES * 4];
 
+			motionVector = 1;
+
 			mcPass1.createBuffers(device, allocator, queue, commandPool, extent);
 						
 			buffersUpdated = true;
 		}
 
 		void createPipelines(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const Camera& cam, const AreaLightSources &areaSource, const RandomGenerator& randGen,
-			const VkImageView& inNormal1, const VkImageView& inOther1, const VkImageView& inStencil1,
-			const VkImageView& inNormal2, const VkImageView& inOther2, const VkImageView& inStencil2, 
-			const VkImageView& inNormal3, const VkImageView& inOther3, const VkImageView& inStencil3)
+			const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& inMotionVector, const VkImageView& inStencil)
 		{
 			CHECK_DBG_ONLY(buffersUpdated, "MarkovChainNoVisibilityCombined : call createBuffers first.");
 
-			mcPass1.createPipeline(physicalDevice, device, cam, areaSource, randGen, mcStateView, sampleStatView, inNormal1, inOther1, inStencil1, getCollectSamplesDescriptorBufferInfo());
+			mcPass1.createPipeline(physicalDevice, device, cam, areaSource, randGen, mcStateView, sampleStatView, inNormal, inOther, inMotionVector, inStencil, getCollectSamplesDescriptorBufferInfo());
 
 		}
 
 		void cmdDispatch(const VkCommandBuffer& cmdBuf)
 		{	
-			mcPass1.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, pixelQuery, resetWeight);
-		
+			mcPass1.cmdDispatch(cmdBuf, sigmaProposal, gammaDifferentialEvolution, motionVector, pixelQuery, resetWeight);
 		}
 
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
@@ -187,6 +189,9 @@ namespace RtxFiltering_3
 
 				ImGui::SliderFloat("Sigma MC proposal##MarkovChainPass", &sigmaProposal, 0.0f, 0.25f);
 				ImGui::SliderFloat("Gamma DE##MarkovChainPass", &gammaDifferentialEvolution, 0.0f, 1.0f);
+				ImGui::Text("Motion Vector:");
+				ImGui::RadioButton("No##MarkovChainPass", &motionVector, 0); ImGui::SameLine();
+				ImGui::RadioButton("Yes##MarkovChainPass", &motionVector, 1);
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES
 				int xQuery = static_cast<int>(pixelQuery.x);
@@ -295,6 +300,7 @@ namespace RtxFiltering_3
 
 		float gammaDifferentialEvolution = 0.4f;
 		float sigmaProposal = 0.15f;
+		int motionVector;
 
 		MarkovChainNoVisibility mcPass1;
 		

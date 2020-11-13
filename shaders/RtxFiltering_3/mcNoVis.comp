@@ -9,26 +9,27 @@ layout (local_size_x = 2, local_size_y = 2) in;
 
 layout(binding = 0, rgba32f) uniform readonly image2D normalImage;
 layout(binding = 1, rgba16f) uniform readonly image2D otherImage;
-layout(binding = 2, rgba16f) uniform readonly image2D stencilImage;
-layout(binding = 3) uniform CameraProperties 
+layout(binding = 2, rg16f) uniform readonly image2D motionVectorImage;
+layout(binding = 3, rgba16f) uniform readonly image2D stencilImage;
+layout(binding = 4) uniform CameraProperties 
 {
 	VIEWPROJ_BLOCK
 } cam;
 
-layout(binding = 4) buffer RandomGeneratorState { uint state[]; } randGenState;
-layout(binding = 5) readonly buffer LightVertices { vec4 v[]; } lightVertices;
-layout(binding = 6) readonly buffer DiscreteCdf { float bins[]; } discreteCdf;
-layout(binding = 7) readonly buffer NormDiscreteCdf { float bins[]; } normDiscreteCdf;
-layout(binding = 8) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
-layout(binding = 9, rg32f) uniform image2DArray outMcState; // layer 0 contains state, layer 1 contains mcmc value and moving weight
-layout(binding = 10, rgba16f) uniform image2DArray outSampleStat;
+layout(binding = 5) buffer RandomGeneratorState { uint state[]; } randGenState;
+layout(binding = 6) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 7) readonly buffer DiscreteCdf { float bins[]; } discreteCdf;
+layout(binding = 8) readonly buffer NormDiscreteCdf { float bins[]; } normDiscreteCdf;
+layout(binding = 9) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
+layout(binding = 10, rg32f) uniform image2DArray outMcState; // layer 0 contains state, layer 1 contains mcmc value and moving weight
+layout(binding = 11, rgba16f) uniform image2DArray outSampleStat;
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES
-layout(binding = 11) buffer CollectMCSample { vec4 state[]; } collectMCSample;
+layout(binding = 12) buffer CollectMCSample { vec4 state[]; } collectMCSample;
 #endif
 
 layout (push_constant) uniform pcBlock {
-    uint level;
+    uint motionVector;
     float cumulativeSum;
 	uint uniformToEmitterIndexMapSize;
     float sigma;
@@ -195,14 +196,15 @@ void main()
 #endif
     uint xorshiftState = randGenState.state[gid.y * gl_NumWorkGroups.x * 2 + gid.x];
 
-    ivec2 offset = ivec2(0); // + add offset due to motion vector
-    vec2 mcState = imageLoad(outMcState, ivec3(gid + offset, 0)).rg;
+    vec2 pixelMotion = pcb.motionVector > 0 ? imageLoad(motionVectorImage, gid).rg : vec2(0);// + add offset due to motion vector
+    pixelMotion = clamp(gid + vec2(0.5) + pixelMotion, vec2(0), imageSize(outMcState).rg);
+    vec2 mcState = imageLoad(outMcState, ivec3(pixelMotion, 0)).rg;
     // optional
-    vec2 mcmcVal = pcb.resetWeight > 0 ? vec2(0) : imageLoad(outMcState, ivec3(gid + offset, 1)).rg; 
+    vec2 mcmcVal = pcb.resetWeight > 0 ? vec2(0) : imageLoad(outMcState, ivec3(pixelMotion, 1)).rg; 
     
     const vec4 other = imageLoad(otherImage, gid).rgba;
     const vec4 normalDepth = imageLoad(normalImage, gid).rgba;
-    loadSamplesToSharedMem(gid + offset, tid);
+    loadSamplesToSharedMem(ivec2(pixelMotion), tid);
 
     // assign mcState undefined if primary ray hitting a light source or escaping the scene
     if (other.w < -0.5f || (other.w > 3.5 && other.w < 4.5)) {
@@ -290,7 +292,7 @@ void main()
         mcmcVal.x = cWeight * currentMcmcVal + oWeight * mcmcVal.x;
 
         //processSamples(tid, nNewSamples);
-        storeSamplesToSharedMem(gid + offset, tid);
+        storeSamplesToSharedMem(ivec2(pixelMotion), tid);
     }
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES

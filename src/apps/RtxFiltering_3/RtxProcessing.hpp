@@ -364,20 +364,22 @@ namespace RtxFiltering_3
 			createTexSampler(device);
 			
 			pcb.choice = 1;
+			pcb.motionVector = 1;
 			pcb.brightness = 1.0f;
 			pcb.oWeight = 0.1f;
 			globalWorkDim = extent;
 		}
 
-		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& diffTex, const VkImageView& specTex, const VkImageView& rtxView, const VkImageView& rtxView2, const VkImageView& rtxView3, const VkImageView& inMcState)
+		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const VkImageView& diffTex, const VkImageView& specTex, const VkImageView& motionVectorView, const VkImageView& rtxView, const VkImageView& rtxView2, const VkImageView& rtxView3, const VkImageView& inMcState)
 		{
 			descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , diffTex,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , specTex,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , rtxView,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { texSampler , rtxView2,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { texSampler , rtxView3,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inMcState,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , accumImageView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , motionVectorView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , rtxView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { texSampler , rtxView2,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { texSampler , rtxView3,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inMcState,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindImage({ 7, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , accumImageView,  VK_IMAGE_LAYOUT_GENERAL });
 			
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
 
@@ -413,6 +415,9 @@ namespace RtxFiltering_3
 				ImGui::Text("Output:");
 				ImGui::RadioButton("Rtx##RtxCompositionPass", &pcb.choice, 0); ImGui::SameLine();
 				ImGui::RadioButton("Mcmc##RtxCompositionPass", &pcb.choice, 1);
+				ImGui::Text("Motion Vector:");
+				ImGui::RadioButton("No##RtxCompositionPass", &pcb.motionVector, 0); ImGui::SameLine();
+				ImGui::RadioButton("Yes##RtxCompositionPass", &pcb.motionVector, 1);
 				ImGui::SliderFloat("Brightness##RtxCompositionPass", &pcb.brightness, 1.0f, 200.0f);
 				ImGui::SliderFloat("BlendeWeight##RtxCompositionPass", &pcb.oWeight, 0.0f, 1.0f);
 			}
@@ -465,6 +470,7 @@ namespace RtxFiltering_3
 		struct PushConstantBlock
 		{
 			int choice;
+			int motionVector;
 			float brightness;
 			float oWeight;
 		} pcb;
