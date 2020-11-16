@@ -41,12 +41,12 @@ layout (push_constant) uniform pcBlock {
 #endif
 } pcb;
 
-#define MAX_NEW_SAMPLES_PER_FRAME 4
+#define MAX_NEW_SAMPLES_PER_FRAME 8
 #define DECAY_RATE 0.95
 #define SUBSAMPLE_RATE 1
 #define SORTING_ITER 1
-#define X_DELTA  (0.001*8)
-#define Y_DELTA  (0.005*8)
+#define X_DELTA  (0.001*0)
+#define Y_DELTA  (0.005*0)
 
 shared vec2 s_mcState[4];
 shared vec4 s_samples_1[4][MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME];
@@ -65,7 +65,7 @@ void loadSamplesToSharedMem(in ivec2 gid, in uint tid)
 void storeSamplesToSharedMem(in ivec2 gid, in uint tid)
 {   
     for (uint i = 0; i < MAX_SPP; i++) {
-        s_samples_1[tid][i].w = 1;
+        //s_samples_1[tid][i].w = 1;
         imageStore(outSampleStat, ivec3(gid, i), s_samples_1[tid][i]);
     }
 }
@@ -291,8 +291,8 @@ void main()
         currentMcmcVal /= mcIterations;
         mcmcVal.x = cWeight * currentMcmcVal + oWeight * mcmcVal.x;
 
-        //processSamples(tid, nNewSamples);
-        storeSamplesToSharedMem(ivec2(pixelMotion), tid);
+        processSamples(tid, nNewSamples);
+        storeSamplesToSharedMem(ivec2(gid), tid);
     }
 
 #if COLLECT_MARKOV_CHAIN_SAMPLES

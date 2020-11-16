@@ -12,7 +12,7 @@
 #endif
 
 namespace RtxFiltering_3
-{
+{	
 	class MarkovChainNoVisibility
 	{
 	public:

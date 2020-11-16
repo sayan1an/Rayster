@@ -26,3 +26,5 @@ float offsetCalc(in uint x, in uint level)
 #define CUTOFF_WEIGHT 0.001
 
 #define MAX_SAMPLE_CLIP_VALUE 50000.0
+
+#define COMPUTE_BLENDE_WEIGHT_WORKGROUP_SIZE 8

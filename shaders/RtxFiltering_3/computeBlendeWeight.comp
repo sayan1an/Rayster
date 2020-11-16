@@ -1,0 +1,22 @@
+#version 450
+#extension GL_GOOGLE_include_directive : enable
+
+#include "hostDeviceShared.h"
+
+layout (local_size_x = COMPUTE_BLENDE_WEIGHT_WORKGROUP_SIZE, local_size_y = COMPUTE_BLENDE_WEIGHT_WORKGROUP_SIZE) in;
+
+layout(binding = 0, rgba32f) uniform readonly image2D normalImage;
+layout(binding = 1, rgba16f) uniform readonly image2D otherImage;
+layout(binding = 2, rg16f) uniform readonly image2D motionVectorImage;
+layout(binding = 3) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 4, rg16f) uniform image2D blendeWeightImage;
+
+layout (push_constant) uniform pcBlock {
+    float weight;
+} pcb;
+
+void main()
+{   
+    ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+    imageStore(blendeWeightImage, gid, vec4(pcb.weight));
+}
