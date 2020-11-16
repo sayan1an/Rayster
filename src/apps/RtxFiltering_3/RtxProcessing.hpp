@@ -366,7 +366,6 @@ namespace RtxFiltering_3
 			pcb.choice = 1;
 			pcb.motionVector = 1;
 			pcb.brightness = 1.0f;
-			pcb.oWeight = 0.1f;
 			globalWorkDim = extent;
 		}
 
@@ -420,7 +419,6 @@ namespace RtxFiltering_3
 				ImGui::RadioButton("No##RtxCompositionPass", &pcb.motionVector, 0); ImGui::SameLine();
 				ImGui::RadioButton("Yes##RtxCompositionPass", &pcb.motionVector, 1);
 				ImGui::SliderFloat("Brightness##RtxCompositionPass", &pcb.brightness, 1.0f, 200.0f);
-				ImGui::SliderFloat("BlendeWeight##RtxCompositionPass", &pcb.oWeight, 0.0f, 1.0f);
 			}
 
 		}
@@ -473,7 +471,6 @@ namespace RtxFiltering_3
 			int choice;
 			int motionVector;
 			float brightness;
-			float oWeight;
 		} pcb;
 	};
 }

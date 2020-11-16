@@ -12,11 +12,30 @@ layout(binding = 3) readonly buffer LightVertices { vec4 v[]; } lightVertices;
 layout(binding = 4, rg16f) uniform image2D blendeWeightImage;
 
 layout (push_constant) uniform pcBlock {
-    float weight;
+    float maxN;
 } pcb;
 
 void main()
 {   
-    ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
-    imageStore(blendeWeightImage, gid, vec4(pcb.weight));
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    
+    ivec2 viewportSize = imageSize(motionVectorImage);
+    const vec4 normal = imageLoad(normalImage, pixel).rgba;
+    const vec4 other = imageLoad(otherImage, pixel).rgba;
+    const vec2 pixelMotion = clamp(pixel + vec2(0.5) + imageLoad(motionVectorImage, pixel).rg, vec2(0), viewportSize);
+    const vec2 weightValOld = imageLoad(blendeWeightImage, ivec2(pixelMotion)).rg;
+
+    vec2 weightVal = vec2(0.0);
+
+    if (other.w > -0.5 && other.w < 3.5) {
+        vec3 t = abs(normal.xyz);
+        weightVal.y = t.x + t.y + t.z; 
+        float delta = abs(weightValOld.y - weightVal.y);
+        float N = weightValOld.x / (1 - weightValOld.x);
+        N += (delta < 0.001) ? (1 - delta) : (-N / 5.0);
+        N = clamp(N, 0, pcb.maxN);
+        weightVal.x = N / (N + 1);
+    }
+
+    imageStore(blendeWeightImage, pixel, vec4(weightVal.x, weightVal.y, 0, 0));
 }

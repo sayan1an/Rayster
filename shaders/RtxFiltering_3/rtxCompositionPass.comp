@@ -18,7 +18,6 @@ layout (push_constant) uniform pcBlock {
 	uint choice;
 	uint motionVector;
 	float brightness;
-	float oWeight;
 } pcb;
 
 void main()
@@ -58,7 +57,7 @@ void main()
 		diffComp.w = 1;
 		specComp.w = 1;
 
-		float oWeight = imageLoad(blendeWeight, pixel).r;		
+		float oWeight = imageLoad(blendeWeight, pixel).r;
 		diffComp.xyz = oWeight * diffCompOld + (1 - oWeight) * diffComp.xyz;
 		specComp.xyz = oWeight * specCompOld + (1 - oWeight) * specComp.xyz;
 

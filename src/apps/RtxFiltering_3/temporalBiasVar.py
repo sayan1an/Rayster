@@ -34,9 +34,8 @@ def variance(n : int):
 expMovingAvg1 = 0
 expMovingAvg2 = 0
 expMovingErr = 0
-weight1 = 0.1
-weight2 = 0.8
-weight3 = 0.975
+weight = 0.95
+errWeight = 0.4
 freq = 0.1
 last = 0
 ref = []
@@ -50,16 +49,17 @@ for i in range(500):
         a = 4
         r = a + (np.random.rand() - 0.5)
 
-    expMovingAvg1 = weight1 * expMovingAvg1 + (1 - weight1) * r
-    expMovingAvg2 = weight2 * expMovingAvg2 + (1 - weight2) * r + 0.6 * (r - last)
-    expMovingErr += (r - last)
+    expMovingErr = errWeight * expMovingErr + (1 - errWeight) * (r - last)
+    expMovingAvg1 = weight * expMovingAvg1 + (1 - weight) * r
+    expMovingAvg2 = weight * expMovingAvg1 + (1 - weight) * r + expMovingErr
+   
     ref.append(a)
     data1.append(expMovingAvg1)
     data2.append(expMovingAvg2)
     last = r
     print(str(4*np.sin(freq * i)) + " " + str(expMovingAvg1) + " " + str(expMovingAvg2) + " " + str((expMovingAvg1 - expMovingAvg2) / expMovingAvg2))
 
-#plt.plot(ref)
+plt.plot(ref)
 plt.plot(data1, label="No EC")
 plt.plot(data2)
 plt.legend()

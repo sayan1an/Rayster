@@ -43,10 +43,10 @@ layout (push_constant) uniform pcBlock {
 
 #define MAX_NEW_SAMPLES_PER_FRAME 8
 #define DECAY_RATE 0.95
-#define SUBSAMPLE_RATE 1
+#define SUBSAMPLE_RATE 2
 #define SORTING_ITER 1
-#define X_DELTA  (0.001*0)
-#define Y_DELTA  (0.005*0)
+#define X_DELTA  (0.001*1)
+#define Y_DELTA  (0.005*1)
 
 shared vec2 s_mcState[4];
 shared vec4 s_samples_1[4][MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME];

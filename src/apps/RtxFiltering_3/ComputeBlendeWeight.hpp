@@ -24,7 +24,7 @@ namespace RtxFiltering_3
 
 			globalWorkDim = extent;
 			buffersUpdated = true;
-			pcb.weight = 0.1f;
+			pcb.maxN = 50.0f;
 		}
 
 		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const AreaLightSources& areaSource, 
@@ -71,7 +71,7 @@ namespace RtxFiltering_3
 		void widget()
 		{
 			if (ImGui::CollapsingHeader("BlendeWeightPass")) {
-				ImGui::SliderFloat("BlendeWeight##BlendeWeightPass", &pcb.weight, 0.0f, 1.0f);
+				ImGui::SliderFloat("Max blende frames##BlendeWeightPass", &pcb.maxN, 0.0f, 50.0f);
 			}
 		}
 	private:
@@ -92,7 +92,7 @@ namespace RtxFiltering_3
 		VmaAllocation blendeWeightImageAllocation;
 
 		struct PushConstantBlock {
-			float weight;
+			float maxN;
 		} pcb;
 
 	};
