@@ -358,7 +358,7 @@ namespace RtxFiltering_3
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
 			blendeWeightPass.createPipeline(physicalDevice, device, areaSources, fboManager1.getImageView("normal"), fboManager1.getImageView("other"), fboManager1.getImageView("motionVector"));
 			mcPass.createPipelines(physicalDevice, device, cam, areaSources, randGen,
-				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), fboManager1.getImageView("motionVector"), stencilView);
+				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), fboManager1.getImageView("motionVector"), blendeWeightView);
 			subpass2.createSubpass(device, renderPass2, fboManager2, rtxPassView, stencilView, stencilView2, stencilView3, mcStateView);
 			rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), fboManager1.getImageView("motionVector"), rtxPassView, rtxPassHalfView, rtxPassQuatView, blendeWeightView, mcStateView);
 
@@ -447,7 +447,7 @@ namespace RtxFiltering_3
 			stencilCompPass.createPipeline(physicalDevice, device, stencilView, stencilView2, stencilView3);
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
 			mcPass.createPipelines(physicalDevice, device, cam, areaSources, randGen,
-				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), fboManager1.getImageView("motionVector"), stencilView);
+				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), fboManager1.getImageView("motionVector"), blendeWeightView);
 			subpass2.createSubpass(device, renderPass2, fboManager2, rtxPassView, stencilView, stencilView2, stencilView3, mcStateView);
 			rtxCompPass.createPipeline(physicalDevice, device, fboManager1.getImageView("diffuseColor"), fboManager1.getImageView("specularColor"), fboManager1.getImageView("motionVector"), rtxPassView, rtxPassHalfView, rtxPassQuatView, blendeWeightView, mcStateView);
 

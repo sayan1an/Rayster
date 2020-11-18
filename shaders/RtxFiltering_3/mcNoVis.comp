@@ -10,7 +10,7 @@ layout (local_size_x = 2, local_size_y = 2) in;
 layout(binding = 0, rgba32f) uniform readonly image2D normalImage;
 layout(binding = 1, rgba16f) uniform readonly image2D otherImage;
 layout(binding = 2, rg16f) uniform readonly image2D motionVectorImage;
-layout(binding = 3, rgba16f) uniform readonly image2D stencilImage;
+layout(binding = 3, rg16f) uniform readonly image2D blendeWeightImage;
 layout(binding = 4) uniform CameraProperties 
 {
 	VIEWPROJ_BLOCK
@@ -45,8 +45,8 @@ layout (push_constant) uniform pcBlock {
 #define DECAY_RATE 0.95
 #define SUBSAMPLE_RATE 2
 #define SORTING_ITER 1
-#define X_DELTA  (0.001*1)
-#define Y_DELTA  (0.005*1)
+#define X_DELTA  (0.001)
+#define Y_DELTA  (0.005)
 
 shared vec2 s_mcState[4];
 shared vec4 s_samples_1[4][MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME];
@@ -70,29 +70,32 @@ void storeSamplesToSharedMem(in ivec2 gid, in uint tid)
     }
 }
 
-void processSamples(in uint tid, in uint nNewSamples)
+void processSamples(in uint tid, in uint nNewSamples, in float blendeWeight)
 {   
     // clear out unused part of buffer
     for (uint i = 0; i < MAX_NEW_SAMPLES_PER_FRAME; i++)
         s_samples_2[tid][MAX_SPP + i] = vec4(0);
 
+
     for (uint i = 0; i < MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME; i++)
         s_flag[tid][i] = false;
     
+    float blendWeightScale = CLIP(1 - (blendeWeight + 0.03), 0, 1);
     for (uint i = 0; i < nNewSamples; i++) {
         vec3 querySample = s_samples_1[tid][i].xyz;
         s_samples_1[tid][i] = vec4(0);
         float clippedVal = CLIP(querySample.z, 0, 1);
-        float scale = 1 + (1 - clippedVal) * 10;
-       
+        float scale = (1 + (1 - clippedVal) * 10) * blendWeightScale;
+
+        // insert / update the new samples after the old samples
         for (uint j = 0; j < MAX_SPP + i + 1; j++) {
             vec4 element = s_samples_2[tid][j];
-            bool updatePosition = abs(element.w) < CUTOFF_WEIGHT;
+            bool updatePosition = abs(element.w) < 0.001; // Update position if the position is uninitialized
             bool update = updatePosition || ((abs(element.x - querySample.x) < X_DELTA * scale) && (abs(element.y - querySample.y) < Y_DELTA * scale));
             
             element.xy = updatePosition ? querySample.xy : element.xy;
             element.zw = update ? vec2(querySample.z, element.w + 1) : element.zw;
-            s_flag[tid][j] = update;
+            s_flag[tid][j] = update ? true : s_flag[tid][j];
             s_samples_2[tid][j] = element;
 
             if (update)
@@ -105,17 +108,17 @@ void processSamples(in uint tid, in uint nNewSamples)
     for (uint i = 0; i < (MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME); i++) {
         bool update = s_flag[tid][i];
         vec4 element = s_samples_2[tid][i];
-        s_samples_1[tid][(MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME) - nNewSamples - 1] = update ? element : vec4(0); // insert new samples
-        nNewSamples += update ? 1 : 0;
+        s_samples_1[tid][(MAX_SPP + MAX_NEW_SAMPLES_PER_FRAME) - nNewSamples - 1] = update ? element : vec4(0); // insert new samples at the end
+        nNewSamples += (update ? 1 : 0);
 
         update = (!update) && (element.w > CUTOFF_WEIGHT);        
-        s_samples_1[tid][nOldSamples] = update ? element : vec4(0); // insert old samples
-        nOldSamples += update ? 1 : 0;
+        s_samples_1[tid][nOldSamples] = update ? element : vec4(0); // insert old samples at the beginning
+        nOldSamples += (update ? 1 : 0);
     }
 
     //semi-importance sample
     //Just do a few pass of bubble sort
-    for (uint j = 0; j < SORTING_ITER; j++) {
+    /*for (uint j = 0; j < SORTING_ITER; j++) {
         for (uint i = j; i + 1 < nOldSamples; i++) {
             vec4 first = s_samples_1[tid][nOldSamples - i - 1];
             vec4 second = s_samples_1[tid][nOldSamples - i - 2];
@@ -125,7 +128,7 @@ void processSamples(in uint tid, in uint nNewSamples)
             s_samples_1[tid][nOldSamples - i - 1] = swap ? second : first;
             s_samples_1[tid][nOldSamples - i - 2] = swap ? first : second;
         }
-    }
+    }*/
 
     uint offset = min(MAX_SPP - nNewSamples, nOldSamples);
     for(uint i = 0; i < nNewSamples; i++)
@@ -204,6 +207,7 @@ void main()
     
     const vec4 other = imageLoad(otherImage, gid).rgba;
     const vec4 normalDepth = imageLoad(normalImage, gid).rgba;
+    const float blendeWeight = imageLoad(blendeWeightImage, gid).r;
     loadSamplesToSharedMem(ivec2(pixelMotion), tid);
 
     // assign mcState undefined if primary ray hitting a light source or escaping the scene
@@ -291,7 +295,7 @@ void main()
         currentMcmcVal /= mcIterations;
         mcmcVal.x = cWeight * currentMcmcVal + oWeight * mcmcVal.x;
 
-        processSamples(tid, nNewSamples);
+        processSamples(tid, nNewSamples, blendeWeight);
         storeSamplesToSharedMem(ivec2(gid), tid);
     }
 
