@@ -118,7 +118,7 @@ void processSamples(in uint tid, in uint nNewSamples, in float blendeWeight)
 
     //semi-importance sample
     //Just do a few pass of bubble sort
-    /*for (uint j = 0; j < SORTING_ITER; j++) {
+    for (uint j = 0; j < SORTING_ITER; j++) {
         for (uint i = j; i + 1 < nOldSamples; i++) {
             vec4 first = s_samples_1[tid][nOldSamples - i - 1];
             vec4 second = s_samples_1[tid][nOldSamples - i - 2];
@@ -128,7 +128,7 @@ void processSamples(in uint tid, in uint nNewSamples, in float blendeWeight)
             s_samples_1[tid][nOldSamples - i - 1] = swap ? second : first;
             s_samples_1[tid][nOldSamples - i - 2] = swap ? first : second;
         }
-    }*/
+    }
 
     uint offset = min(MAX_SPP - nNewSamples, nOldSamples);
     for(uint i = 0; i < nNewSamples; i++)
