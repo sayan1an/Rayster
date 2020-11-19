@@ -279,7 +279,7 @@ void main()
             if (pcb.pixelQueryX == gid.x && pcb.pixelQueryY == gid.y)
                 collectMCSample.state[i + MC_SAMPLE_HEADER_SIZE] = vec4(mcState.x, mcState.y, prevProposal, 0);
 #endif      
-            accepted = (nNewSamples < MAX_NEW_SAMPLES_PER_FRAME) && ((xorshift(xorshiftState) & (SUBSAMPLE_RATE - 1)) == 0);
+            accepted = (nNewSamples < MAX_NEW_SAMPLES_PER_FRAME) && ((blendeWeight > 0.6) || ((xorshift(xorshiftState) & (SUBSAMPLE_RATE - 1)) == 0));
             s_samples_1[tid][nNewSamples & (MAX_SPP - 1)].xyz = accepted ? vec3(mcState.x, mcState.y, prevProposal) : vec3(0);
             nNewSamples += accepted ? 1 : 0;
            
