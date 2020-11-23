@@ -10,7 +10,7 @@ layout (binding = 2, rg16f) uniform image2D motionVectorImg;
 layout (binding = 3, rgba32f) uniform image2DArray rtxInOut;
 layout (binding = 4) uniform sampler2DArray rtxIn2;
 layout (binding = 5) uniform sampler2DArray rtxIn3;
-layout (binding = 6, rg16f) uniform image2D blendeWeight;
+layout (binding = 6, rgba16f) uniform image2D blendeWeight;
 layout (binding = 7, rg32f) uniform image2DArray inMcState; // layer 0 contains state, layer 1 contains mcmc value and moving weight
 layout (binding = 8, rgba32f) uniform image2DArray accumBuffer;
 

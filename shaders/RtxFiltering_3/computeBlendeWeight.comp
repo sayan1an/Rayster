@@ -8,8 +8,10 @@ layout (local_size_x = COMPUTE_BLENDE_WEIGHT_WORKGROUP_SIZE, local_size_y = COMP
 layout(binding = 0, rgba32f) uniform readonly image2D normalImage;
 layout(binding = 1, rgba16f) uniform readonly image2D otherImage;
 layout(binding = 2, rg16f) uniform readonly image2D motionVectorImage;
-layout(binding = 3) readonly buffer LightVertices { vec4 v[]; } lightVertices;
-layout(binding = 4, rg16f) uniform image2D blendeWeightImage;
+layout(binding = 3, rg32f) uniform readonly image2DArray mcState;
+layout(binding = 4) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
+layout(binding = 5) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 6, rgba16f) uniform image2D blendeWeightImage;
 
 layout (push_constant) uniform pcBlock {
     float maxN;
