@@ -27,7 +27,7 @@ namespace RtxFiltering_3
 			pcb.maxN = 50.0f;
 		}
 
-		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const AreaLightSources& areaSource, const VkImageView &inMcStateView,
+		void createPipeline(const VkPhysicalDevice& physicalDevice, const VkDevice& device, const Camera& cam, const AreaLightSources& areaSource, const VkImageView &inMcStateView,
 			const VkImageView& inNormal, const VkImageView& inOther, const VkImageView& inMotionVector)
 		{
 			CHECK_DBG_ONLY(buffersUpdated, "ComputeBlendeWeightPass : call createBuffers first.");
@@ -35,10 +35,12 @@ namespace RtxFiltering_3
 			descGen.bindImage({ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inNormal,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inOther,  VK_IMAGE_LAYOUT_GENERAL });
 			descGen.bindImage({ 2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inMotionVector,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindImage({ 3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inMcStateView,  VK_IMAGE_LAYOUT_GENERAL });
-			descGen.bindBuffer({ 4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.dPdf.getEmitterIndexMapDescriptorBufferInfo());
-			descGen.bindBuffer({ 5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.getVerticesDescriptorBufferInfo());
-			descGen.bindImage({ 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , blendeWeightImageView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindBuffer({ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, cam.getDescriptorBufferInfo());
+			descGen.bindImage({ 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , inMcStateView,  VK_IMAGE_LAYOUT_GENERAL });
+			descGen.bindBuffer({ 5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.dPdf.getCdfNormDescriptorBufferInfo());
+			descGen.bindBuffer({ 6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.dPdf.getEmitterIndexMapDescriptorBufferInfo());
+			descGen.bindBuffer({ 7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,  VK_SHADER_STAGE_COMPUTE_BIT }, areaSource.getVerticesDescriptorBufferInfo());
+			descGen.bindImage({ 8, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT }, { VK_NULL_HANDLE , blendeWeightImageView,  VK_IMAGE_LAYOUT_GENERAL });
 
 
 			descGen.generateDescriptorSet(device, &descriptorSetLayout, &descriptorPool, &descriptorSet);
@@ -47,6 +49,7 @@ namespace RtxFiltering_3
 			blendPipeGen.addComputeShaderStage(device, ROOT + "/shaders/RtxFiltering_3/computeBlendeWeight.spv");
 			blendPipeGen.createPipeline(device, descriptorSetLayout, &pipeline, &pipelineLayout);
 
+			pcb.uniformToEmitterIndexMapSize = areaSource.dPdf.size().y;
 		}
 
 		void cleanUp(const VkDevice& device, const VmaAllocator& allocator)
@@ -95,6 +98,7 @@ namespace RtxFiltering_3
 
 		struct PushConstantBlock {
 			float maxN;
+			uint32_t uniformToEmitterIndexMapSize;
 		} pcb;
 
 	};

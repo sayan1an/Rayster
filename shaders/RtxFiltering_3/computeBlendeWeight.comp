@@ -1,6 +1,8 @@
 #version 450
 #extension GL_GOOGLE_include_directive : enable
 
+#include "../commonMath.h"
+#include "../hostDeviceShared.h"
 #include "hostDeviceShared.h"
 
 layout (local_size_x = COMPUTE_BLENDE_WEIGHT_WORKGROUP_SIZE, local_size_y = COMPUTE_BLENDE_WEIGHT_WORKGROUP_SIZE) in;
@@ -8,14 +10,78 @@ layout (local_size_x = COMPUTE_BLENDE_WEIGHT_WORKGROUP_SIZE, local_size_y = COMP
 layout(binding = 0, rgba32f) uniform readonly image2D normalImage;
 layout(binding = 1, rgba16f) uniform readonly image2D otherImage;
 layout(binding = 2, rg16f) uniform readonly image2D motionVectorImage;
-layout(binding = 3, rg32f) uniform readonly image2DArray mcState;
-layout(binding = 4) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
-layout(binding = 5) readonly buffer LightVertices { vec4 v[]; } lightVertices;
-layout(binding = 6, rgba16f) uniform image2D blendeWeightImage;
+layout(binding = 3) uniform CameraProperties 
+{
+	VIEWPROJ_BLOCK
+} cam;
+layout(binding = 4, rg32f) uniform readonly image2DArray mcState;
+layout(binding = 5) readonly buffer DiscretePdf { float bins[]; } discretePdf;
+layout(binding = 6) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
+layout(binding = 7) readonly buffer LightVertices { vec4 v[]; } lightVertices;
+layout(binding = 8, rgba16f) uniform image2D blendeWeightImage;
 
 layout (push_constant) uniform pcBlock {
     float maxN;
+    uint uniformToEmitterIndexMapSize;
 } pcb;
+
+void computeViewAndOrigin(in ivec2 pixel, in float depth, out vec3 viewDir, out vec3 origin) 
+{      
+    vec2 d;
+    {
+        vec2 pixelCenter = vec2(pixel) + vec2(0.5f);
+        vec2 inUV = pixelCenter / vec2(gl_NumWorkGroups.xy * COMPUTE_BLENDE_WEIGHT_WORKGROUP_SIZE);
+        d = inUV * 2.0 - 1.0;
+    }
+
+    origin = (cam.viewInv * vec4(0,0,0,1)).xyz;
+    {
+        vec4 target = cam.projInv * vec4(d.x, d.y, 1, 1) ;
+        viewDir = (cam.viewInv * vec4(normalize(target.xyz), 0)).xyz;
+    }
+
+    // for shadow rays
+    origin = origin + depth * viewDir;
+    viewDir *= -1;
+}
+
+float computePixelVal(in vec2 currentState, in vec3 normal, in vec4 otherInfo, in vec3 viewDir, in vec3 origin)
+{   
+    float radiance = 1; // assume radiance is 1 for all light sources, error should be acceptable
+    uint index = uniformToEmitterIdx.bins[uint(currentState.x * pcb.uniformToEmitterIndexMapSize)];
+    
+    {
+        float b = discretePdf.bins[index];
+	    float pdf = discretePdf.bins[index + 1] - b; 
+	    currentState.x = (currentState.x - b) / pdf;
+    }
+
+    // convert to bary
+	currentState.x = 1.0 - sqrt(currentState.x);
+	currentState.y = (1.0 - currentState.x) * (1.0 - currentState.y); 
+
+    vec3 lightDirection;
+    {
+        vec4 v1 = lightVertices.v[3*index];
+        vec4 v2 = lightVertices.v[3*index + 1];
+        vec4 v3 = lightVertices.v[3*index + 2];
+        vec3 lightNormal = vec3(v1.w, v2.w, v3.w);
+
+        lightDirection = v1.xyz * currentState.x + v2.xyz * currentState.y + v3.xyz * (1 - currentState.x - currentState.y) - origin;
+        float lightDistance = length(lightDirection);
+        lightDirection /= lightDistance;
+        
+        float lightArea = length(lightNormal);
+        lightNormal /= lightArea;
+        radiance *= (lightArea * abs(dot(lightDirection, lightNormal)) / (lightDistance * lightDistance));
+    }
+
+    float cos = dot(lightDirection, normal);
+    float val = cos > 0 ? otherInfo.z * cos / PI: 0;
+    val += (cos > 0 && otherInfo.w > 0.5f) ? (1 - otherInfo.z) * ggxBrdf(viewDir, lightDirection, normal, otherInfo.x) : 0;
+    
+    return val * radiance;
+}
 
 void main()
 {   
@@ -24,20 +90,23 @@ void main()
     ivec2 viewportSize = imageSize(motionVectorImage);
     const vec4 normal = imageLoad(normalImage, pixel).rgba;
     const vec4 other = imageLoad(otherImage, pixel).rgba;
+    const vec2 currentState = imageLoad(mcState, ivec3(pixel, 0)).rg;
     const vec2 pixelMotion = clamp(pixel + vec2(0.5) + imageLoad(motionVectorImage, pixel).rg, vec2(0), viewportSize);
-    const vec2 weightValOld = imageLoad(blendeWeightImage, ivec2(pixelMotion)).rg;
+    const vec4 weightValOld = imageLoad(blendeWeightImage, ivec2(pixelMotion));
 
-    vec2 weightVal = vec2(0.0);
+    vec4 weightVal = vec4(0.0, 0.0, currentState.x, currentState.y);
 
     if (other.w > -0.5 && other.w < 3.5) {
-        vec3 t = abs(normal.xyz);
-        weightVal.y = t.x + t.y + t.z; 
-        float delta = abs(weightValOld.y - weightVal.y);
+        vec3 viewDir, origin;
+        computeViewAndOrigin(pixel, normal.w, viewDir, origin);
+        float valOldSample = computePixelVal(weightValOld.zw, normal.xyz, other, viewDir, origin);
+        weightVal.y = computePixelVal(currentState, normal.xyz, other, viewDir, origin); 
+        float delta = abs(weightValOld.y - valOldSample);
         float N = weightValOld.x / (1 - weightValOld.x);
-        N += (delta < 0.001) ? (1 - delta) : (-N / 5.0);
+        N += (delta < 0.001) ? (1 - delta) : -pcb.maxN;//max(N / 5.0, 1.0) * delta * 1000;
         N = clamp(N, 0, pcb.maxN);
         weightVal.x = N / (N + 1);
     }
 
-    imageStore(blendeWeightImage, pixel, vec4(weightVal.x, weightVal.y, 0, 0));
+    imageStore(blendeWeightImage, pixel, weightVal);
 }

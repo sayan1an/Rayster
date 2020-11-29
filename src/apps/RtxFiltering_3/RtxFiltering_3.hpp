@@ -356,7 +356,7 @@ namespace RtxFiltering_3
 			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), rtxPassView);
 			stencilCompPass.createPipeline(physicalDevice, device, stencilView, stencilView2, stencilView3);
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
-			blendeWeightPass.createPipeline(physicalDevice, device, areaSources, mcStateView, fboManager1.getImageView("normal"), fboManager1.getImageView("other"), fboManager1.getImageView("motionVector"));
+			blendeWeightPass.createPipeline(physicalDevice, device, cam, areaSources, mcStateView, fboManager1.getImageView("normal"), fboManager1.getImageView("other"), fboManager1.getImageView("motionVector"));
 			mcPass.createPipelines(physicalDevice, device, cam, areaSources, randGen,
 				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), fboManager1.getImageView("motionVector"), blendeWeightView);
 			subpass2.createSubpass(device, renderPass2, fboManager2, rtxPassView, stencilView, stencilView2, stencilView3, mcStateView);
@@ -447,7 +447,7 @@ namespace RtxFiltering_3
 			stencilPass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), rtxPassView);
 			stencilCompPass.createPipeline(physicalDevice, device, stencilView, stencilView2, stencilView3);
 			subSamplePass.createPipeline(physicalDevice, device, fboManager1.getImageView("normal"), fboManager1.getImageView("other"));
-			blendeWeightPass.createPipeline(physicalDevice, device, areaSources, mcStateView, fboManager1.getImageView("normal"), fboManager1.getImageView("other"), fboManager1.getImageView("motionVector"));
+			blendeWeightPass.createPipeline(physicalDevice, device, cam, areaSources, mcStateView, fboManager1.getImageView("normal"), fboManager1.getImageView("other"), fboManager1.getImageView("motionVector"));
 			mcPass.createPipelines(physicalDevice, device, cam, areaSources, randGen,
 				fboManager1.getImageView("normal"), fboManager1.getImageView("other"), fboManager1.getImageView("motionVector"), blendeWeightView);
 			subpass2.createSubpass(device, renderPass2, fboManager2, rtxPassView, stencilView, stencilView2, stencilView3, mcStateView);
