@@ -215,7 +215,7 @@ namespace RtxFiltering_3
 						return ImPlotPoint(d.x, d.y);
 					};
 					ImPlot::PlotScatterG("Samples##MarkovChainPass_2", static_cast<ImPlotPoint(*)(void*, int)>(getter), static_cast<void*>(ptrCollectMcSampleBuffer), static_cast<int>(ptrCollectMcSampleBuffer[1]), 0);
-					
+					std::cout << ptrCollectMcSampleBuffer[2] << std::endl;
 					ImPlot::PopStyleVar(2);
 					ImPlot::EndPlot();
 				}

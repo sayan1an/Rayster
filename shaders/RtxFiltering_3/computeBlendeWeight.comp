@@ -18,7 +18,7 @@ layout(binding = 4, rg32f) uniform readonly image2DArray mcState;
 layout(binding = 5) readonly buffer DiscretePdf { float bins[]; } discretePdf;
 layout(binding = 6) readonly buffer UniformToEmitterIdx { uint bins[]; } uniformToEmitterIdx;
 layout(binding = 7) readonly buffer LightVertices { vec4 v[]; } lightVertices;
-layout(binding = 8, rgba16f) uniform image2D blendeWeightImage;
+layout(binding = 8, rgba32f) uniform image2D blendeWeightImage;
 
 layout (push_constant) uniform pcBlock {
     float maxN;
@@ -83,6 +83,14 @@ float computePixelVal(in vec2 currentState, in vec3 normal, in vec4 otherInfo, i
     return val * radiance;
 }
 
+vec2 quantize(vec2 f32) 
+{
+    uvec2 n = uvec2(f32 * 16384);
+    n &= 16383;
+    return vec2(0.5);
+    //return n / 16383.0f;
+}
+
 void main()
 {   
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -99,11 +107,12 @@ void main()
     if (other.w > -0.5 && other.w < 3.5) {
         vec3 viewDir, origin;
         computeViewAndOrigin(pixel, normal.w, viewDir, origin);
-        float valOldSample = computePixelVal(weightValOld.zw, normal.xyz, other, viewDir, origin);
-        weightVal.y = computePixelVal(currentState, normal.xyz, other, viewDir, origin); 
+        float valOldSample = computePixelVal(weightValOld.zw, normal.xyz, other, viewDir, origin); //computePixelVal(weightValOld.zw, normal.xyz, other, viewDir, origin);
+        weightVal.y = computePixelVal(currentState, normal.xyz, other, viewDir, origin);//computePixelVal(currentState, normal.xyz, other, viewDir, origin); 
         float delta = abs(weightValOld.y - valOldSample);
+        float avg = (weightValOld.y + valOldSample) / 2;
         float N = weightValOld.x / (1 - weightValOld.x);
-        N += (delta < 0.001) ? (1 - delta) : -pcb.maxN;//max(N / 5.0, 1.0) * delta * 1000;
+        N += (delta < 0.01 * avg) ? (1 - delta) : -pcb.maxN;//max(N / 5.0, 1.0) * delta * 1000;
         N = clamp(N, 0, pcb.maxN);
         weightVal.x = N / (N + 1);
     }

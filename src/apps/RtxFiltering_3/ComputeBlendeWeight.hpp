@@ -18,7 +18,7 @@ namespace RtxFiltering_3
 				transitionImageLayout(device, queue, commandPool, image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1, 1);
 			};
 
-			makeImage(extent, VK_FORMAT_R16G16B16A16_SFLOAT, blendeWeightImage, blendeWeightImageView, blendeWeightImageAllocation);
+			makeImage(extent, VK_FORMAT_R32G32B32A32_SFLOAT, blendeWeightImage, blendeWeightImageView, blendeWeightImageAllocation);
 
 			_blendeWeightView = blendeWeightImageView;
 
